@@ -1,6 +1,6 @@
 pipeline {
     agent any
-    options { disableConcurrentBuilds(); timeout(time: 45, unit: 'MINUTES') }
+    options { disableConcurrentBuilds(); skipDefaultCheckout(); timeout(time: 45, unit: 'MINUTES') }
     environment {
         CFD_SERVICE = 'gateway'
         CFD_IMAGE = 'campus-food/gateway'
@@ -11,7 +11,21 @@ pipeline {
         stage('Build image') {
             steps {
                 script { env.CFD_IMAGE_TAG = "${env.BUILD_NUMBER}-${sh(returnStdout: true, script: 'git rev-parse --short=12 HEAD').trim()}" }
-                sh 'flock -x /var/jenkins_home/.campus-food-build.lock docker build --label campus-food.service=$CFD_SERVICE -t $CFD_IMAGE:$CFD_IMAGE_TAG -f $CFD_DOCKERFILE .'
+                sh '''
+                    set -eu
+                    case "$WORKSPACE" in
+                      /var/jenkins_home/*) host_workspace="/opt/jenkins/jenkins_home/${WORKSPACE#/var/jenkins_home/}" ;;
+                      *) echo "Unsupported Jenkins workspace: $WORKSPACE" >&2; exit 1 ;;
+                    esac
+                    test -f "$WORKSPACE/$CFD_DOCKERFILE"
+                    flock -x /var/jenkins_home/.campus-food-build.lock \
+                      docker run --rm --entrypoint docker \
+                      -v /var/run/docker.sock:/var/run/docker.sock \
+                      -v "$host_workspace:/src:ro" \
+                      -e DOCKER_BUILDKIT=1 \
+                      docker:29-cli build --label "campus-food.service=$CFD_SERVICE" \
+                      -t "$CFD_IMAGE:$CFD_IMAGE_TAG" -f "/src/$CFD_DOCKERFILE" /src
+                '''
             }
         }
         stage('Deploy this service') {
