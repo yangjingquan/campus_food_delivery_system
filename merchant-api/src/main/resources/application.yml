@@ -28,6 +28,7 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
 app:
+  internal-api-key: ${INTERNAL_API_KEY:}
   wechat-master-key-file: ${WECHAT_MASTER_KEY_FILE:}
   wechat-app-id: wx8ebb7eaaac795c54
   user-api-url: ${MERCHANT_USER_API_URL:http://localhost:8081}

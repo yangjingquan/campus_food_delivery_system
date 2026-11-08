@@ -46,18 +46,18 @@ async function logout() {
   wx.removeStorageSync(sessionKey);
 }
 
-function photo() {
+function photo(path = '/profile/photo') {
   return new Promise((resolve, reject) => {
     // 图片走临时文件，避免把 Base64 原图放进小程序视图数据。
     wx.downloadFile({
-      url: baseUrl() + '/profile/photo',
+      url: baseUrl() + path,
       header: { Authorization: 'Bearer ' + token() },
       timeout: 12000,
       success(res) {
         if (res.statusCode === 200) resolve(res.tempFilePath);
-        else reject(new Error('店铺图片暂不可用'));
+        else reject(new Error('图片暂不可用'));
       },
-      fail: () => reject(new Error('店铺图片加载失败'))
+      fail: () => reject(new Error('图片加载失败'))
     });
   });
 }

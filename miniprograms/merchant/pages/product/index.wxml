@@ -7,12 +7,19 @@
       <text class="label">商品名称</text><input aria-label="商品名称" class="field" data-field="name" bindinput="input" value="{{form.name}}" maxlength="120" />
       <text class="label">分类</text><input aria-label="分类" class="field" data-field="category" bindinput="input" value="{{form.category}}" maxlength="40" />
       <text class="label">商品描述</text><textarea aria-label="商品描述" class="field" data-field="description" bindinput="input" value="{{form.description}}" maxlength="500" />
+      <text class="label">商品图片{{id ? '' : '（必填）'}}</text>
+      <image wx:if="{{photo}}" class="photo" src="{{photo}}" mode="aspectFit" aria-label="商品图片预览" />
+      <button class="btn plain wide separator" bindtap="choosePhoto" disabled="{{saving || choosingPhoto}}" hover-class="pressed">
+        {{choosingPhoto ? '正在选择图片…' : photo || form.hasPhoto ? '更换商品图片' : '选择商品图片'}}
+      </button>
+      <view class="hint">JPEG 或 PNG，最多 1 张，最大 1 MB</view>
+      <view wx:if="{{photoError}}" class="notice error">{{photoError}}</view>
       <text class="label">售价（元）</text><input aria-label="售价（元）" class="field" type="digit" data-field="price" bindinput="input" value="{{form.price}}" />
       <text class="label">总库存（份）</text><input aria-label="总库存（份）" class="field" type="number" data-field="stock" bindinput="input" value="{{form.stock}}" />
       <view class="hint">库存为 0 时显示售罄。待支付订单已预占 {{form.reserved || 0}} 份。</view>
       <view class="row separator"><text>商品上架</text><switch aria-label="商品上架" checked="{{form.available}}" color="#167953" bindchange="availability" /></view>
       <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
-      <button class="btn primary wide separator" bindtap="save" loading="{{saving}}" disabled="{{saving}}" hover-class="pressed">保存商品</button>
+      <button class="btn primary wide separator" bindtap="save" loading="{{saving}}" disabled="{{saving || choosingPhoto}}" hover-class="pressed">保存商品</button>
     </view>
     <view wx:if="{{id}}" class="card">
       <view class="section">手动库存调整记录</view>

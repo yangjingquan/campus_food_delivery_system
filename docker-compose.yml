@@ -59,6 +59,7 @@ services:
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-campus2026}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      MERCHANT_API_URL: http://merchant-api:8083
       WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
     volumes:
       - ./.local/wechat-master.key:/run/secrets/wechat-master.key:ro

@@ -94,6 +94,14 @@ public class MerchantController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/products/{id}/photo")
+    public ResponseEntity<byte[]> productPhoto(@RequestHeader(value = AUTH, required = false) String auth,
+                                               @PathVariable String id) {
+        var photo = products.photo(store(auth), id);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+            .contentType(MediaType.parseMediaType(photo.mediaType())).body(photo.data());
+    }
+
     @GetMapping("/products/{id}/stock-events")
     public List<Map<String, Object>> stockHistory(@RequestHeader(value = AUTH, required = false) String auth, @PathVariable String id) {
         return products.history(store(auth), id);

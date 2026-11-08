@@ -3,7 +3,6 @@ package com.campusfood.merchant.service;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -51,8 +50,7 @@ public class StoreService {
         if (!phone.matches("[0-9+() -]{7,20}") || phone.replaceAll("[^0-9]", "").length() < 7) {
             throw Inputs.invalid("请填写有效的联系电话");
         }
-        String image = Inputs.text(body, "image", "店铺图片", 1_400_050, false);
-        Photo photo = image.isEmpty() ? null : photo(image);
+        UploadedPhoto photo = UploadedPhoto.from(body, "店铺图片");
         String id = db.queryForMap("SELECT merchant_id FROM merchant_identity WHERE id=? FOR UPDATE", identity.id())
             .get("merchant_id") instanceof String value ? value : null;
         if (id == null) {
@@ -98,9 +96,9 @@ public class StoreService {
             photo == null ? null : photo.mediaType());
     }
 
-    public Photo storePhoto(SessionService.Identity identity) {
+    public UploadedPhoto storePhoto(SessionService.Identity identity) {
         return db.query("SELECT image_data,media_type FROM merchant_store_photo WHERE merchant_id=?",
-            (row, n) -> new Photo(row.getBytes(1), row.getString(2)), identity.merchantId())
+            (row, n) -> new UploadedPhoto(row.getBytes(1), row.getString(2)), identity.merchantId())
             .stream().findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "店铺图片不存在"));
     }
 
@@ -109,38 +107,11 @@ public class StoreService {
             Inputs.flag(body, "open", "营业状态") ? "营业中" : "休息中", id);
     }
 
-    private void savePhoto(String id, Photo photo) {
+    private void savePhoto(String id, UploadedPhoto photo) {
         db.update("""
             INSERT INTO merchant_store_photo(merchant_id,image_data,media_type) VALUES(?,?,?)
             ON DUPLICATE KEY UPDATE image_data=?,media_type=?
             """, id, photo.data(), photo.mediaType(), photo.data(), photo.mediaType());
     }
 
-    public record Photo(byte[] data, String mediaType) {
-    }
-
-    private static Photo photo(String image) {
-        int comma = image.indexOf(',');
-        if (comma < 0) throw Inputs.invalid("请上传 JPEG 或 PNG 图片");
-        String type = switch (image.substring(0, comma)) {
-            case "data:image/jpeg;base64" -> "image/jpeg";
-            case "data:image/png;base64" -> "image/png";
-            default -> throw Inputs.invalid("请上传 JPEG 或 PNG 图片");
-        };
-        byte[] bytes;
-        try {
-            bytes = Base64.getDecoder().decode(image.substring(comma + 1));
-        } catch (IllegalArgumentException e) {
-            throw Inputs.invalid("店铺图片无法读取");
-        }
-        if (bytes.length < 8 || bytes.length > 1_048_576) {
-            throw Inputs.invalid("店铺图片须小于 1 MB");
-        }
-        byte[] signature = "image/png".equals(type) ? new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10}
-            : new byte[]{(byte) 0xff, (byte) 0xd8, (byte) 0xff};
-        if (!java.util.Arrays.equals(bytes, 0, signature.length, signature, 0, signature.length)) {
-            throw Inputs.invalid("图片内容与文件格式不匹配");
-        }
-        return new Photo(bytes, type);
-    }
 }

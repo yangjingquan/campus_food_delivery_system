@@ -1,7 +1,7 @@
 import { createApp, type Component } from 'vue'
 import {
   ElBadge, ElButton, ElDialog, ElDrawer, ElDropdown, ElDropdownItem, ElDropdownMenu, ElEmpty,
-  ElForm, ElFormItem, ElIcon, ElInput, ElInputNumber, ElLoading, ElMenu, ElMenuItem, ElOption,
+  ElForm, ElFormItem, ElIcon, ElInput, ElInputNumber, ElLoading, ElMenu, ElMenuItem, ElOption, ElPagination,
   ElRadioButton, ElRadioGroup, ElSelect, ElSwitch, ElTable, ElTableColumn, ElTabPane, ElTabs, ElTag, ElTimeSelect,
 } from 'element-plus'
 import {
@@ -18,7 +18,7 @@ import './styles/main.css'
 const app = createApp(App)
 const components = {
   ElBadge, ElButton, ElDialog, ElDrawer, ElDropdown, ElDropdownItem, ElDropdownMenu, ElEmpty,
-  ElForm, ElFormItem, ElIcon, ElInput, ElInputNumber, ElMenu, ElMenuItem, ElOption,
+  ElForm, ElFormItem, ElIcon, ElInput, ElInputNumber, ElMenu, ElMenuItem, ElOption, ElPagination,
   ElRadioButton, ElRadioGroup, ElSelect, ElSwitch, ElTable, ElTableColumn, ElTabPane, ElTabs, ElTag, ElTimeSelect,
   ArrowDown, ArrowRight, Avatar, Bicycle, ChatDotRound, CircleCheckFilled, Clock, Connection,
   Expand, Fold, Grid, Hide, InfoFilled, Lock, Menu, Money, Plus, Search, Setting, Shop, Tickets,

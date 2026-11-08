@@ -84,6 +84,11 @@ public class AdminService {
         return username;
     }
 
+    /** 校验管理端会话及指定权限，供独立的只读管理服务复用。 */
+    public void requirePermission(String authHeader, String permission) {
+        authorization.require(actor(authHeader), permission);
+    }
+
     public Map<String, Object> login(LoginRequest body) {
         String username = valueOrEmpty(body.username());
         List<Map<String, Object>> users = db.findEnabledCredentials(username);

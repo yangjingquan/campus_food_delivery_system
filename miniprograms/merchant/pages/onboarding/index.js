@@ -1,5 +1,6 @@
 const api = require('../../utils/api');
 const ui = require('../../utils/ui');
+const { choosePhoto } = require('../../utils/photo');
 
 Page({
   data: { loading: true, loggedIn: false, form: { name: '', contact: '', phone: '', address: '' } },
@@ -31,54 +32,16 @@ Page({
     });
   },
   input(event) { this.setData({ ['form.' + event.currentTarget.dataset.field]: event.detail.value }); },
-  choosePhoto() {
+  async choosePhoto() {
     this.setData({ photoError: '' });
-    wx.chooseMedia({
-      count: 1,
-      mediaType: ['image'],
-      sizeType: ['compressed'],
-      sourceType: ['album', 'camera'],
-      success: ({ tempFiles }) => {
-        const image = tempFiles && tempFiles[0];
-        if (!image || !image.tempFilePath) {
-          this.setData({ photoError: '未能读取所选图片，请重新选择' });
-          return;
-        }
-        this.readPhoto(image.tempFilePath, image.size);
-      },
-      fail: ({ errno, errMsg = '' } = {}) => {
-        if (/cancel/i.test(errMsg)) return;
-        if (errno === 112 || /not declared in the privacy agreement/i.test(errMsg)) {
-          this.setData({ photoError: '小程序尚未在微信公众平台声明选图用途，请联系管理员配置用户隐私保护指引' });
-          return;
-        }
-        if (/privacy|permission|auth deny/i.test(errMsg)) {
-          this.setData({ photoError: '微信图片权限不可用，请检查隐私授权或相册权限后重试' });
-          return;
-        }
-        this.setData({ photoError: '图片选择失败，请重试' });
-      }
-    });
-  },
-  readPhoto(path, size) {
-    if (size > 1048576) {
-      this.setData({ photoError: '请选择不超过 1 MB 的店铺图片' });
-      return;
+    try {
+      const photo = await choosePhoto();
+      if (!photo) return;
+      this.image = photo.dataUrl;
+      this.setData({ photo: photo.path, formError: '' });
+    } catch (error) {
+      this.setData({ photoError: error.message });
     }
-    wx.getFileSystemManager().readFile({
-      filePath: path,
-      encoding: 'base64',
-      success: ({ data }) => {
-        const type = data.startsWith('iVBORw0KGgo') ? 'image/png' : data.startsWith('/9j/') ? 'image/jpeg' : '';
-        if (!type) {
-          this.setData({ photoError: '请选择 JPEG 或 PNG 图片' });
-          return;
-        }
-        this.image = 'data:' + type + ';base64,' + data;
-        this.setData({ photo: path, photoError: '', formError: '' });
-      },
-      fail: () => this.setData({ photoError: '图片读取失败，请重新选择' })
-    });
   },
   save() {
     ui.action(this, async () => {
