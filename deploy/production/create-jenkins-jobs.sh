@@ -37,14 +37,14 @@ for name,script in jobs.items():
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">
     <scm class="hudson.plugins.git.GitSCM" plugin="git">
       <configVersion>2</configVersion>
-      <userRemoteConfigs><hudson.plugins.git.UserRemoteConfig><url>{repo}</url><credentialsId></credentialsId></hudson.plugins.git.UserRemoteConfig></userRemoteConfigs>
+      <userRemoteConfigs><hudson.plugins.git.UserRemoteConfig><url>{repo}</url><credentialsId></credentialsId><refspec>+refs/heads/main:refs/remotes/origin/main</refspec></hudson.plugins.git.UserRemoteConfig></userRemoteConfigs>
       <branches><hudson.plugins.git.BranchSpec><name>*/main</name></hudson.plugins.git.BranchSpec></branches>
       <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
       <submoduleCfg class="empty-list"/>
-      <extensions/>
+      <extensions><hudson.plugins.git.extensions.impl.CloneOption><shallow>true</shallow><noTags>true</noTags><reference>/var/jenkins_home/cfd-reference.git</reference><timeout>10</timeout><depth>1</depth><honorRefspec>true</honorRefspec></hudson.plugins.git.extensions.impl.CloneOption></extensions>
     </scm>
     <scriptPath>{script}</scriptPath>
-    <lightweight>true</lightweight>
+    <lightweight>false</lightweight>
   </definition>
   <triggers/>
   <disabled>false</disabled>
