@@ -1,104 +1,165 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-if [ "$(id -u)" -ne 0 ]; then
-  echo "Run as root on the production host." >&2
-  exit 1
-fi
+set -Eeuo pipefail
+[ "$(id -u)" -eq 0 ] || { echo "Run as root on production host." >&2; exit 1; }
 
 ROOT=/opt/campus-food
-COMPOSE=/opt/shop/docker-compose.yml
-ACL_FILE="$ROOT/secrets/redis-users.acl"
-BACKUP=/opt/shop/docker-compose.yml.pre-cfd-acl
-set -a
-. "$ROOT/.env"
-set +a
+SHOP=/opt/shop
+WB=$SHOP/workbench
+SC=$SHOP/docker-compose.yml
+SE=$SHOP/.env
+WC=$WB/docker-compose.yml
+WE=$WB/.env
+ACL=$ROOT/secrets/redis-users.acl
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+BACK=/root/backups/campus-food/redis-rotation-$STAMP
+umask 077
+install -d -m 700 "$BACK"
+cp -a "$SC" "$BACK/shop-compose"
+cp -a "$SE" "$BACK/shop-env"
+cp -a "$WC" "$BACK/workbench-compose"
+cp -a "$WE" "$BACK/workbench-env"
+if [ -e "$ACL" ]; then cp -a "$ACL" "$BACK/acl"; touch "$BACK/acl-existed"; fi
 
-if [ -s "$ACL_FILE" ] && grep -q '^user cfd-app ' "$ACL_FILE"; then
-  echo "The persistent cfd-app Redis ACL already exists."
-  exit 0
-fi
-
-redis_meta=$(python3 - <<'PY'
-import json, subprocess
-d=json.loads(subprocess.check_output(["docker","inspect","shop-redis"]))[0]
-cmd=d["Config"].get("Cmd",[])
-password=None
-for i,arg in enumerate(cmd[:-1]):
-    if arg.lower() in ("--requirepass","requirepass"):
-        password=cmd[i+1]
-        break
-service=d["Config"].get("Labels",{}).get("com.docker.compose.service")
-if not password or not service:
-    raise SystemExit("Cannot identify the current Redis password argument and Compose service.")
-print(json.dumps({"password":password,"service":service}))
-PY
-)
-REDIS_CURRENT_PASSWORD=$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["password"])' <<< "$redis_meta")
-REDIS_SERVICE=$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["service"])' <<< "$redis_meta")
-export REDIS_CURRENT_PASSWORD
-
-acl_list=$(docker exec -e REDISCLI_AUTH="$REDIS_CURRENT_PASSWORD" shop-redis redis-cli --raw ACL LIST)
-default_acl=$(printf '%s\n' "$acl_list" | sed -n '/^user default /p')
-test -n "$default_acl" || { echo "Could not read the existing Redis default-user ACL." >&2; exit 1; }
-app_hash=$(printf '%s' "$REDIS_CFD_PASSWORD" | sha256sum | awk '{print $1}')
-
-install -d -m 700 "$ROOT/secrets"
-acl_tmp=$(mktemp "$ROOT/secrets/.redis-users.XXXXXX")
-printf '%s\nuser cfd-app on #%s ~cfd:* &cfd:* +get +set +del +unlink +expire +pexpire +ttl +pttl +exists +ping +select +info +client|setname +client|setinfo +hello\n' \
-  "$default_acl" "$app_hash" > "$acl_tmp"
-chmod 644 "$acl_tmp"
-mv "$acl_tmp" "$ACL_FILE"
-
-if [ ! -e "$BACKUP" ]; then
-  cp -a "$COMPOSE" "$BACKUP"
-fi
-
-python3 - "$COMPOSE" <<'PY'
+get_env() {
+  python3 - "$1" "$2" <<'PY'
 from pathlib import Path
-import json, sys, yaml
+import sys
+p,k=Path(sys.argv[1]),sys.argv[2]
+v=[x.split("=",1)[1] for x in p.read_text().splitlines() if x.startswith(k+"=")]
+if len(v)!=1 or not v[0]: raise SystemExit("Required environment entry is missing.")
+print(v[0])
+PY
+}
+OLD=$(get_env "$SE" REDIS_PASSWORD)
+NEW=$(openssl rand -hex 32)
+CFD_PASS=$(get_env "$ROOT/.env" REDIS_CFD_PASSWORD)
+export NEW
 
-path=Path(sys.argv[1])
-text=path.read_text()
-lines=text.splitlines()
-try:
-    start=lines.index("  redis:")
-except ValueError:
-    raise SystemExit("Redis service block was not found in the shop Compose file.")
+rollback() {
+  rc=$?
+  trap - ERR
+  echo "Redis rotation failed; restoring saved configuration and clients." >&2
+  set +e
+  if docker inspect shop-redis >/dev/null 2>&1; then
+    docker inspect shop-redis --format '{{json .State.Health.Log}}' > "$BACK/failed-health.json" 2>/dev/null
+    docker logs --tail 80 shop-redis > "$BACK/failed-redis.log" 2>&1
+    chmod 600 "$BACK/failed-health.json" "$BACK/failed-redis.log"
+  fi
+  cp -a "$BACK/shop-compose" "$SC"
+  cp -a "$BACK/shop-env" "$SE"
+  cp -a "$BACK/workbench-compose" "$WC"
+  cp -a "$BACK/workbench-env" "$WE"
+  if [ -f "$BACK/acl-existed" ]; then cp -a "$BACK/acl" "$ACL"; else rm -f "$ACL"; fi
+  docker compose --project-directory "$SHOP" --project-name shop --env-file "$SE" -f "$SC" up -d --no-deps --force-recreate --wait --wait-timeout 120 redis
+  docker compose --project-directory "$SHOP" --project-name shop --env-file "$SE" -f "$SC" up -d --no-deps --force-recreate --wait --wait-timeout 240 shop-admin-app
+  docker compose --project-directory "$SHOP" --project-name shop --env-file "$SE" -f "$SC" up -d --no-deps --force-recreate --wait --wait-timeout 240 shop-wx-app
+  docker compose --project-directory "$WB" --project-name workbench --env-file "$WE" -f "$WC" up -d --no-deps --force-recreate --wait --wait-timeout 240 workbench-api
+  exit "$rc"
+}
+trap rollback ERR
+
+# Snapshot Redis data and every config that will change.
+docker exec -e REDISCLI_AUTH="$OLD" shop-redis redis-cli SAVE | grep -qx OK
+docker cp shop-redis:/data/dump.rdb "$BACK/redis-dump.rdb"
+chmod 600 "$BACK/redis-dump.rdb"
+
+set_env() {
+  export CFG_PATH=$1 CFG_KEY=$2 CFG_VALUE=$3
+  python3 <<'PY'
+from pathlib import Path
+import os,stat
+p=Path(os.environ["CFG_PATH"]); k=os.environ["CFG_KEY"]; v=os.environ["CFG_VALUE"]
+lines=p.read_text().splitlines()
+ix=[i for i,x in enumerate(lines) if x.startswith(k+"=")]
+if len(ix)>1: raise SystemExit("Duplicate environment key.")
+if ix: lines[ix[0]]=k+"="+v
+else: lines.append(k+"="+v)
+t=p.with_name(p.name+".new"); t.write_text("\n".join(lines)+"\n")
+os.chmod(t,stat.S_IMODE(p.stat().st_mode)); os.replace(t,p)
+PY
+  unset CFG_PATH CFG_KEY CFG_VALUE
+}
+set_env "$SE" REDIS_PASSWORD "$NEW"
+set_env "$WE" REDIS_PASSWORD "$NEW"
+
+python3 - "$ACL" "$ROOT/.env" <<'PY'
+from pathlib import Path
+import hashlib,os,sys
+acl_path,env_path=Path(sys.argv[1]),Path(sys.argv[2])
+env={}
+for line in env_path.read_text().splitlines():
+ k,sep,v=line.partition("=")
+ if sep: env[k]=v
+app=env.get("REDIS_CFD_PASSWORD",""); default=os.environ.get("NEW","")
+if not app or not default: raise SystemExit("Redis credentials missing.")
+h=lambda s: hashlib.sha256(s.encode()).hexdigest()
+text=(f"user default reset on #{h(default)} ~* &* +@all\n"
+      f"user cfd-app reset on #{h(app)} ~cfd:* &cfd:* +get +set +del +unlink +expire +pexpire +ttl +pttl +exists +ping +select +info +client|setname +client|setinfo +hello\n")
+tmp=acl_path.with_name("."+acl_path.name+".new"); tmp.write_text(text)
+os.chmod(tmp,0o644); os.replace(tmp,acl_path)
+PY
+
+python3 - "$SC" "$ACL" <<'PY'
+from pathlib import Path
+import json,sys,yaml
+p,acl=Path(sys.argv[1]),sys.argv[2]; text=p.read_text(); doc=yaml.safe_load(text)
+svc=doc.get("services",{}).get("redis")
+if not isinstance(svc,dict) or not isinstance(svc.get("command"),list): raise SystemExit("Unexpected Redis Compose format.")
+cmd=svc["command"]; out=[]; i=0
+while i<len(cmd):
+ if cmd[i] in ("--requirepass","--aclfile"): i+=2; continue
+ out.append(cmd[i]); i+=1
+out += ["--aclfile","/run/redis-users.acl"]
+mount=f"{acl}:/run/redis-users.acl:ro"
+if mount not in svc.get("volumes",[]): svc["volumes"].append(mount)
+lines=text.splitlines(); start=next((i for i,x in enumerate(lines) if x=="  redis:"),None)
+if start is None: raise SystemExit("Redis service block not found.")
 end=next((i for i in range(start+1,len(lines)) if lines[i].startswith("  ") and not lines[i].startswith("    ") and lines[i].strip().endswith(":")),len(lines))
 block=lines[start:end]
-if any("/data/redis-users.acl" in line for line in block):
-    raise SystemExit("Redis ACL mount already exists; inspect the Compose file before continuing.")
-cmd_i=next((i for i,line in enumerate(block) if line.startswith("    command:")),None)
-vol_i=next((i for i,line in enumerate(block) if line.startswith("    volumes:")),None)
-if cmd_i is None or vol_i is None:
-    raise SystemExit("Expected one-line command and volumes entries; refusing to rewrite an unfamiliar Redis service.")
-prefix="    command:"
-raw=block[cmd_i][len(prefix):].strip()
-command=json.loads(raw)
-if not isinstance(command,list):
-    raise SystemExit("Expected the Redis command as a YAML/JSON argument list.")
-if "--aclfile" not in command:
-    command.extend(["--aclfile","/data/redis-users.acl"])
-block[cmd_i]=prefix+" "+json.dumps(command)
-block.insert(vol_i+1,"      - /opt/campus-food/secrets/redis-users.acl:/data/redis-users.acl:ro")
-lines[start:end]=block
-new_text="\n".join(lines)+"\n"
-yaml.safe_load(new_text)
-path.write_text(new_text)
+ci=next((i for i,x in enumerate(block) if x.startswith("    command:")),None)
+vi=next((i for i,x in enumerate(block) if x.startswith("    volumes:")),None)
+if ci is None or vi is None: raise SystemExit("Redis command or volume entry missing.")
+block[ci]="    command: "+json.dumps(out)
+if not any(mount in x for x in block): block.insert(vi+2,"      - "+mount)
+lines[start:end]=block; updated="\n".join(lines)+"\n"; yaml.safe_load(updated); p.write_text(updated)
 PY
 
-if ! REDIS_CURRENT_PASSWORD="$REDIS_CURRENT_PASSWORD" docker compose \
-  --project-directory /opt/shop --project-name shop \
-  -f "$COMPOSE" up -d --no-deps --wait --wait-timeout 120 "$REDIS_SERVICE"; then
-  cp -a "$BACKUP" "$COMPOSE"
-  REDIS_CURRENT_PASSWORD="$REDIS_CURRENT_PASSWORD" docker compose \
-    --project-directory /opt/shop --project-name shop \
-    -f "$COMPOSE" up -d --no-deps --wait --wait-timeout 120 "$REDIS_SERVICE" || true
-  echo "Redis did not become healthy; restored the original Compose file." >&2
-  exit 1
-fi
+python3 - "$WC" <<'PY'
+from pathlib import Path
+import re,sys,yaml
+p=Path(sys.argv[1]); text=p.read_text(); doc=yaml.safe_load(text)
+svc=doc.get("services",{}).get("workbench-api"); env=svc.get("environment",{}) if svc else {}
+if not isinstance(env,dict) or "REDIS_URL" not in env: raise SystemExit("Workbench Redis URL not found.")
+lines=text.splitlines(); start=next((i for i,x in enumerate(lines) if x=="  workbench-api:"),None)
+if start is None: raise SystemExit("Workbench API service block not found.")
+end=next((i for i in range(start+1,len(lines)) if lines[i].startswith("  ") and not lines[i].startswith("    ") and lines[i].strip().endswith(":")),len(lines))
+ix=next((i for i in range(start+1,end) if re.match(r"^\s+REDIS_URL:",lines[i])),None)
+if ix is None: raise SystemExit("Workbench REDIS_URL line not found.")
+indent=lines[ix][:len(lines[ix])-len(lines[ix].lstrip())]
+lines[ix]=indent+"REDIS_URL: redis://default:${REDIS_PASSWORD}@shop-redis:6379/0"
+updated="\n".join(lines)+"\n"; yaml.safe_load(updated); p.write_text(updated)
+PY
 
-docker exec -e REDISCLI_AUTH="$REDIS_CFD_PASSWORD" shop-redis redis-cli --user cfd-app ping | grep -qx PONG
-docker exec -e REDISCLI_AUTH="$REDIS_CURRENT_PASSWORD" shop-redis redis-cli ping | grep -qx PONG
-echo "Redis is back online with its existing default account and the restricted cfd-app account."
+docker compose --project-directory "$SHOP" --project-name shop --env-file "$SE" -f "$SC" config -q
+docker compose --project-directory "$WB" --project-name workbench --env-file "$WE" -f "$WC" config -q
+cp -a "$SE" "$BACK/shop-env-candidate"
+cp -a "$WE" "$BACK/workbench-env-candidate"
+cp -a "$SC" "$BACK/shop-compose-candidate"
+cp -a "$WC" "$BACK/workbench-compose-candidate"
+cp -a "$ACL" "$BACK/acl-candidate"
+chmod 600 "$BACK"/*-candidate "$BACK/acl-candidate"
+docker compose --project-directory "$SHOP" --project-name shop --env-file "$SE" -f "$SC" up -d --no-deps --force-recreate --wait --wait-timeout 120 redis
+
+docker exec -e REDISCLI_AUTH="$NEW" shop-redis redis-cli ping | grep -qx PONG
+docker exec -e REDISCLI_AUTH="$CFD_PASS" shop-redis redis-cli --user cfd-app ping | grep -qx PONG
+old_result=$(docker exec -e REDISCLI_AUTH="$OLD" shop-redis redis-cli ping 2>/dev/null || true)
+[ "$old_result" != PONG ]
+
+docker compose --project-directory "$SHOP" --project-name shop --env-file "$SE" -f "$SC" up -d --no-deps --force-recreate --wait --wait-timeout 240 shop-admin-app
+docker compose --project-directory "$SHOP" --project-name shop --env-file "$SE" -f "$SC" up -d --no-deps --force-recreate --wait --wait-timeout 240 shop-wx-app
+docker compose --project-directory "$WB" --project-name workbench --env-file "$WE" -f "$WC" up -d --no-deps --force-recreate --wait --wait-timeout 240 workbench-api
+
+trap - ERR
+unset NEW OLD CFD_PASS
+echo "Redis password rotated, cfd-app ACL installed, and Redis clients recreated."
+echo "Rollback snapshots are stored in $BACK"

@@ -29,7 +29,7 @@ Each Jenkins job builds only its own image, then runs `docker compose up` for on
 
 ## Redis account
 
-The existing Redis 7.4 container requires authentication and currently has only the unrestricted `default` ACL user, with no ACL file configured. Persisting a restricted campus-food user requires adding an ACL file to the existing container and restarting Redis once. That brief restart affects the current shop, AI knowledge base, workbench, and ERP clients. `enable-redis-acl.sh` preserves the current default-user password and permissions, adds a separate `cfd-app` user limited to `~cfd:*`, and updates the existing Compose definition to load the ACL file after restarts. The application session key uses the `cfd:` prefix. Schedule this restart when existing clients can reconnect.
+The existing Redis 7.4 container uses an unrestricted `default` account. `enable-redis-acl.sh` snapshots the Redis RDB and affected configuration, rotates the shared default password, installs a persistent ACL file, and adds a `cfd-app` account limited to `~cfd:*`. It then recreates the shop admin API, shop Mini Program API, and workbench API one at a time with the new credentials. The inspected host had no active Redis connections from the AI knowledge base or ERP containers. The project session key uses the `cfd:` prefix.
 
 ## Known production boundary
 
