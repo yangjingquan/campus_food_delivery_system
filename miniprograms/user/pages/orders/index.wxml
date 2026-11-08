@@ -1,0 +1,11 @@
+<view class="page tab-page">
+  <view class="h2">每一份，都有进度</view>
+  <scroll-view class="filters order-filters" scroll-x="true" show-scrollbar="false"><button wx:for="{{filters}}" wx:key="*this" class="chip {{filter === item ? 'on' : ''}}" data-value="{{item}}" bindtap="chooseFilter">{{item}}</button></scroll-view>
+  <view wx:for="{{visible}}" wx:key="id" class="card ordercard">
+    <view class="row"><view class="h3">{{item.merchantName}}</view><view class="orderstate">{{item.displayStatus}}</view></view>
+    <view class="muted order-summary">{{item.displayItems}}</view>
+    <view class="row order-bottom"><view class="small">{{item.refundStatus !== '无售后' ? '售后：' + item.refundStatus : item.createdAt}}</view><view class="h3">{{item.amountText}}</view></view>
+    <view class="actions"><button wx:if="{{item.isPayment}}" class="btn small-btn" data-id="{{item.paymentId}}" bindtap="openPayment">去付款</button><button wx:if="{{!item.isPayment}}" class="btn outline small-btn" data-id="{{item.id}}" bindtap="openOrder">查看详情</button></view>
+  </view>
+  <view wx:if="{{!visible.length && !loading}}" class="empty"><view class="h3">还没有相关订单</view><view class="muted" style="margin:16rpx 0 30rpx">先选一份喜欢的餐品，享受寝室里的好好一餐。</view><button class="btn" bindtap="goHome">去点餐</button></view>
+</view>

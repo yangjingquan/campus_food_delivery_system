@@ -1,0 +1,32 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  config:
+    # Nacos 中没有网关配置时，继续使用仓库内的默认路由。
+    import: optional:nacos:gateway.properties?group=DEFAULT_GROUP
+  application:
+    name: gateway
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+    gateway:
+      server:
+        webflux:
+          # 只开放端侧 API；/internal/v1 保持服务内部网络调用。
+          routes:
+            - id: admin-api
+              uri: lb://admin-api
+              predicates:
+                - Path=/api/admin/**
+            - id: user-api
+              uri: lb://user-api
+              predicates:
+                - Path=/api/user/**

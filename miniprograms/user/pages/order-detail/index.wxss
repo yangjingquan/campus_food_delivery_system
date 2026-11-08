@@ -1,0 +1,7 @@
+.detail-status { margin: 16rpx 0; }
+.step-row { display: flex; align-items: center; gap: 16rpx; padding: 15rpx 0; color: #a1a299; font-size: 24rpx; }
+.step-dot { width: 18rpx; height: 18rpx; border-radius: 50%; background: #dedfd6; }
+.step-active { color: #4a4d45; }
+.step-active .step-dot { background: #ee692f; }
+.map-link { display: block; text-align: left; }
+.confirm-item { padding: 16rpx 0; }

@@ -1,0 +1,2 @@
+.merchant-link { display: block; text-align: left; margin-bottom: 20rpx; }
+.cart-line { padding: 18rpx 0; }

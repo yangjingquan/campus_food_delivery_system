@@ -1,0 +1,2 @@
+.default-row { display: flex; align-items: center; justify-content: space-between; padding: 22rpx 2rpx; }
+.save-btn { margin-top: 28rpx; }

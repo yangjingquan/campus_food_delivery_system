@@ -1,0 +1,127 @@
+services:
+  nacos:
+    image: nacos/nacos-server:v3.1.1
+    environment:
+      MODE: standalone
+      # 本地开发仅绑定回环地址；生产环境必须启用鉴权并更换服务端凭据。
+      NACOS_AUTH_ENABLE: "false"
+      # Nacos 3.1 在启动脚本中要求配置 Base64 Token，即使本地关闭鉴权。
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-Y2FtcHVzLWxvY2FsLW5hY29zLWF1dGgta2V5LTAwMDE=}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-campus_local_identity}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:-campus_local_identity_value}
+    ports:
+      - "127.0.0.1:8848:8848"
+      - "127.0.0.1:8088:8080"
+    volumes:
+      - nacos_data:/home/nacos/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8848'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 45s
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: campus_admin
+      MYSQL_USER: campus
+      MYSQL_PASSWORD: ${DB_PASSWORD:-campus_local_only}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_local_only}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  admin-api:
+    build:
+      context: .
+      dockerfile: admin-api/Dockerfile
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/campus_admin?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USER: campus
+      DB_PASSWORD: ${DB_PASSWORD:-campus_local_only}
+      REDIS_HOST: redis
+      NACOS_SERVER_ADDR: nacos:8848
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-campus2026}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
+    volumes:
+      - ./.local/wechat-master.key:/run/secrets/wechat-master.key:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+  user-api:
+    build:
+      context: .
+      dockerfile: user-api/Dockerfile
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/campus_admin?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USER: campus
+      DB_PASSWORD: ${DB_PASSWORD:-campus_local_only}
+      NACOS_SERVER_ADDR: nacos:8848
+      SPRING_PROFILES_ACTIVE: ${USER_SPRING_PROFILE:-local}
+      WECHAT_USER_APP_ID: wxb2ef21a4d9800f4e
+      WECHAT_USER_APP_SECRET: ${WECHAT_USER_APP_SECRET:-}
+      USER_PAYMENT_MODE: ${USER_PAYMENT_MODE:-mock}
+      USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:-}
+      USER_LOCATION_EXPIRY_SECONDS: ${USER_LOCATION_EXPIRY_SECONDS:-60}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      SERVER_PORT: 8080
+      NACOS_SERVER_ADDR: nacos:8848
+    ports:
+      - "127.0.0.1:8082:8080"
+    depends_on:
+      nacos:
+        condition: service_healthy
+      admin-api:
+        condition: service_started
+      user-api:
+        condition: service_started
+  admin-web:
+    image: node:24-alpine
+    working_dir: /workspace
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "127.0.0.1:5190:5190"
+    volumes:
+      - ./admin-web:/workspace
+      - admin_node_modules:/workspace/node_modules
+    environment:
+      VITE_API_BASE_URL: /api/admin/v1
+      VITE_PROXY_TARGET: http://gateway:8080
+    depends_on:
+      - gateway
+    init: true
+volumes:
+  nacos_data:
+  mysql_data:
+  redis_data:
+  admin_node_modules:

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campusfood.admin.dao.WithdrawalDao">
+    <!-- 依赖幂等键唯一约束，重复申请不再插入新的意图记录。 -->
+    <insert id="insertIntentIfAbsent">
+        INSERT IGNORE INTO withdrawal_intent(request_key,account_id,requested_cents,status) VALUES(#{requestKey},
+        #{accountId},#{requestedCents},'处理中')
+    </insert>
+
+    <insert id="insertWithdrawal">
+        INSERT INTO withdrawal_request(id,applicant,applicant_type,amount_cents,status,created_at,
+        account_id,request_key) VALUES(#{id},#{applicant},#{applicantType},#{amount},#{status},
+        #{createdAt},#{accountId},#{requestKey})
+    </insert>
+
+    <insert id="insertReviewAudit">
+        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_state,reason) VALUES (#{actor},
+        #{action},#{targetId},#{beforeState},#{afterState},#{reason})
+    </insert>
+
+    <insert id="insertTransfer">
+        INSERT INTO withdrawal_transfer(id,withdrawal_id,status) VALUES(#{transferId},#{withdrawalId},'处理中')
+    </insert>
+
+    <insert id="insertChannelAudit">
+        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_state,reason) VALUES('渠道服务',
+        'withdrawal.channel',#{withdrawalId},'打款中',#{afterState},#{reason})
+    </insert>
+
+    <insert id="insertJournal">
+        INSERT INTO account_journal(account_id,event_type,reference_id,available_delta,frozen_delta,
+        request_key,debt_id) VALUES(#{accountId},#{eventType},#{referenceId},#{availableDelta},
+        #{frozenDelta},#{requestKey},#{debtId})
+    </insert>
+</mapper>

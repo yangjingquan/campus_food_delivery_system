@@ -1,0 +1,18 @@
+<view class="page tab-page">
+  <view wx:if="{{cartCount}}">
+    <view class="row"><view><view class="h2">想吃的，都在这里</view><view class="small">共 {{groups.length}} 家商户 · {{cartCount}} 份餐品</view></view><button class="small" bindtap="clear">清空</button></view>
+    <view wx:for="{{groups}}" wx:key="merchantId" class="card">
+      <button class="h3 merchant-link" data-id="{{item.merchantId}}" bindtap="openStore">{{item.merchantName}}　›</button>
+      <view wx:for="{{item.items}}" wx:for-item="food" wx:key="productId" class="foodline cart-line">
+        <view class="thumb" style="background:{{food.color}}">{{food.artwork === 'noodle' ? '🍜' : '🍱'}}</view>
+        <view class="info"><view class="h3">{{food.name}}</view><view class="row"><view class="price">{{food.priceText}}</view><view class="stepper"><button data-id="{{food.productId}}" data-delta="-1" bindtap="change">−</button><text>{{food.quantity}}</text><button data-id="{{food.productId}}" data-delta="1" bindtap="change">＋</button></view></view></view>
+      </view>
+      <view class="line"></view><view class="row small"><text>本商户固定配送费</text><text>{{item.feeText}}</text></view>
+    </view>
+    <view wx:if="{{groups.length > 1}}" class="hint">多店一起提交时合并付款，之后按商户拆分订单；每家商户独立出餐、配送与售后。</view>
+    <view wx:else class="hint">单店订单独立付款与配送。配送费按当前平台配置计算。</view>
+    <view class="card bill"><view class="row"><text>餐品金额</text><text>{{foodText}}</text></view><view class="row"><text>配送费（{{groups.length}} 笔）</text><text>{{feeText}}</text></view></view>
+    <view class="totalbar row"><view><view class="small">合计（含配送费）</view><view class="price">{{totalText}}</view></view><button class="btn" bindtap="checkout">去结算</button></view>
+  </view>
+  <view wx:else class="empty"><view class="h2">购物车还空着</view><view class="muted" style="margin:18rpx 0 30rpx">挑选喜欢的餐品，可单店下单，也可多店合并支付。</view><button class="btn" bindtap="openHome">去选餐</button></view>
+</view>

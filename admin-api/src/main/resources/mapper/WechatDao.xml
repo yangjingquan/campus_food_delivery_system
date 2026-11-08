@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campusfood.admin.dao.WechatDao">
+    <!-- 配置查询只返回敏感材料是否存在，不返回材料内容。 -->
+    <select id="listVersions" resultType="map">
+        SELECT id AS version,user_app_id AS userAppId,merchant_app_id AS merchantAppId,rider_app_id AS riderAppId,
+        merchant_no AS merchantNo,serial_no AS serialNo,public_key_id AS publicKeyId,payment_callback AS paymentCallback,
+        refund_callback AS refundCallback,transfer_callback AS transferCallback,(user_secret_id IS NOT NULL) AS userSecretSet,
+        (merchant_secret_id IS NOT NULL) AS merchantSecretSet,(rider_secret_id IS NOT NULL) AS riderSecretSet,
+        (api_v3_secret_id IS NOT NULL) AS apiV3KeySet,(merchant_private_secret_id IS NOT NULL) AS merchantPrivateKeySet,
+        (wechat_public_secret_id IS NOT NULL) AS wechatPublicKeySet,payment_enabled AS enabled,
+        operator,created_at AS createdAt FROM wechat_config ORDER BY id DESC
+    </select>
+
+    <select id="listAudits" resultType="map">
+        SELECT actor,action_name AS actionName,target_id AS targetId,before_state AS beforeState,
+        after_state AS afterState,reason,created_at AS createdAt FROM admin_audit_log WHERE action_name LIKE 'wechat.%' ORDER BY id DESC LIMIT 100
+    </select>
+
+    <insert id="insertSecret">
+        INSERT INTO wechat_secret(purpose,nonce,ciphertext,key_fingerprint) VALUES(#{purpose},
+        #{nonce},#{ciphertext},#{fingerprint})
+    </insert>
+
+    <!-- 在当前事务连接中读取刚插入的敏感材料编号。 -->
+    <select id="lastInsertedId" resultType="java.lang.Long">
+        SELECT LAST_INSERT_ID()
+    </select>
+
+    <insert id="insertVersion">
+        INSERT INTO wechat_config(user_app_id,merchant_app_id,rider_app_id,merchant_no,serial_no,
+        public_key_id,payment_callback,refund_callback,transfer_callback,operator,user_secret_id,
+        merchant_secret_id,rider_secret_id,api_v3_secret_id,merchant_private_secret_id,wechat_public_secret_id,
+        payment_enabled) VALUES(#{userAppId},#{merchantAppId},#{riderAppId},#{merchantNo},#{serialNo},
+        #{publicKeyId},#{paymentCallback},#{refundCallback},#{transferCallback},#{actor},#{userSecretId},
+        #{merchantSecretId},#{riderSecretId},#{apiV3SecretId},#{merchantPrivateSecretId},#{wechatPublicSecretId},
+        #{enabled})
+    </insert>
+
+    <insert id="insertAudit">
+        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_state,reason) VALUES(#{actor},
+        #{action},#{targetId},#{beforeState},#{afterState},#{reason})
+    </insert>
+</mapper>

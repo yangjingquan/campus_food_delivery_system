@@ -1,0 +1,45 @@
+server:
+  port: 8080
+  error:
+    include-message: always
+spring:
+  config:
+    # 本地保留文件配置作为兜底；Nacos 中创建同名 YAML 后可覆盖服务配置。
+    import: optional:nacos:admin-api.properties?group=DEFAULT_GROUP
+  application:
+    name: admin-api
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/campus_admin?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}
+    username: ${DB_USER:campus}
+    password: ${DB_PASSWORD:campus_local_only}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  flyway:
+    # 已执行的迁移脚本受校验和保护，新增数据库变更应使用新版本脚本。
+    enabled: true
+mybatis-plus:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    # 查询结果保留空字段，兼容现有接口的返回结构。
+    call-setters-on-nulls: true
+    jdbc-type-for-null: 'NULL'
+    # 事务内按语句读取最新结果，避免重复查询使用会话缓存。
+    local-cache-scope: STATEMENT
+app:
+  wechat-master-key-file: ${WECHAT_MASTER_KEY_FILE:}
+  internal-api-key: ${INTERNAL_API_KEY:}
+  bootstrap-user: ${ADMIN_USER:admin}
+  bootstrap-password: ${ADMIN_PASSWORD:campus2026}

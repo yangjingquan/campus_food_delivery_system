@@ -1,0 +1,21 @@
+<view class="page tab-page">
+  <view class="row">
+    <view><view class="subheading">HELLO, CAMPUS</view><view class="h2">今天想吃点什么？</view></view>
+    <view class="pill">送到寝室</view>
+  </view>
+  <button class="small address-link" bindtap="chooseAddress">⌖ {{addressLabel}}　›</button>
+  <view class="hero">
+    <view class="hero-copy"><view class="h1">下课了，<br/>好好吃顿饭。</view><view class="muted hero-sub">校外好味道 · 骑手分批送至寝室</view><button class="btn small-btn" bindtap="startOrder">开始点餐 →</button></view>
+    <view class="art">🍱</view>
+  </view>
+  <view class="row"><view class="small">● {{config.serviceStart || '午间配送'}} · 高峰每 {{config.peakBatchMinutes || 20}} 分钟一批</view><view class="small" bindtap="showRules">配送说明 ›</view></view>
+  <view class="search"><text>⌕</text><input value="{{keyword}}" placeholder="搜索商户、想吃的餐品" bindinput="inputKeyword" confirm-type="search" bindconfirm="search"/><button class="search-btn" bindtap="search">搜索</button></view>
+  <scroll-view class="filters" scroll-x="true" show-scrollbar="false"><button wx:for="{{categories}}" wx:key="*this" class="chip {{category === item ? 'on' : ''}}" data-value="{{item}}" bindtap="chooseCategory">{{item}}</button></scroll-view>
+  <view class="row section"><view class="h3">校园附近的好味道</view><view class="small">{{merchants.length}} 家入驻商户</view></view>
+  <button wx:for="{{merchants}}" wx:key="id" class="card store-card wide" data-id="{{item.id}}" bindtap="openStore">
+    <view class="thumb" style="background:{{item.products[0].color || '#eaeedb'}}">{{item.products[0].artwork === 'noodle' ? '🍜' : '🍱'}}</view>
+    <view class="info"><view class="row"><view class="h3">{{item.name}}</view><view wx:if="{{!item.open}}" class="pill">打烊</view></view><view class="small">{{item.address || '校外好味道，送到寝室门口'}}</view><view><text class="tag">每单配送 {{item.deliveryFeeText}}</text><text class="tag">{{item.open ? '营业中' : '暂不接单'}}</text></view></view>
+  </button>
+  <view wx:if="{{!loading && merchants.length === 0}}" class="empty muted">没有找到相关商户，换个关键词试试。</view>
+  <view class="foot">示例大学 · 单校单暂存点<br/>实际金额与配送时段以平台配置为准</view>
+</view>

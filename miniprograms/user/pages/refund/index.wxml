@@ -1,0 +1,11 @@
+<view class="page" wx:if="{{order}}">
+  <view class="h2">{{canPartial ? '申请退款 / 售后' : '接单前全额退款'}}</view>
+  <view class="muted refund-intro">{{canPartial ? '填写期望退款金额，最终金额由商户或平台处理。' : '商户尚未接单，按规则提交全额退款申请。'}}</view>
+  <view class="card"><view class="kv"><text class="label">原餐品金额</text><text>{{foodText}}</text></view><view class="kv"><text class="label">原订单实付</text><text>{{paidText}}</text></view><view class="kv"><text class="label">累计已退</text><text>{{refundedText}}</text></view><view class="kv"><text class="label">剩余可退餐品</text><text>{{remainingFoodText}}</text></view><view class="kv"><text class="label">剩余可退实付</text><text>{{remainingPaidText}}</text></view></view>
+  <view wx:if="{{canPartial}}" class="filters"><button class="chip {{type === 'partial' ? 'on' : ''}}" data-value="partial" bindtap="chooseType">部分退款 · 仅餐品</button><button class="chip {{type === 'full' ? 'on' : ''}}" data-value="full" bindtap="chooseType">剩余全额</button></view>
+  <view class="field"><label>期望退款金额（元）</label><input type="digit" value="{{amount}}" disabled="{{amountDisabled}}" bindinput="inputAmount" placeholder="0.00"/></view>
+  <view class="field"><label>申请原因</label><picker range="{{reasons}}" value="{{reasonIndex}}" bindchange="chooseReason"><view class="picker-value">{{reasons[reasonIndex]}}　⌄</view></picker></view>
+  <view class="field"><label>补充说明（选填，请勿填写真实隐私）</label><textarea maxlength="500" bindinput="inputDescription" placeholder="例如：收到的餐品与所选不符，希望协商处理。"/></view>
+  <view class="hint">部分退款仅退餐品，不含配送费。退款实际成功后订单关闭并停止后续配送；其他商户订单不受影响。</view>
+  <view class="error">{{error}}</view><button class="btn wide" bindtap="submit">提交申请</button>
+</view>

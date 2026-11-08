@@ -1,0 +1,5 @@
+.tabbar { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; display: flex; height: calc(132rpx + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); border-top: 2rpx solid #e9e7df; background: #fff; }
+.tab { position: relative; flex: 1; padding-top: 12rpx; color: #96988e; font-size: 20rpx; line-height: 1.4; }
+.tab.on { color: #ee692f; font-weight: 700; }
+.tab-icon { font-size: 40rpx; line-height: 48rpx; }
+.badge { position: absolute; top: 6rpx; right: 48rpx; min-width: 28rpx; padding: 2rpx 7rpx; border-radius: 24rpx; color: #fff; background: #ee692f; font-size: 17rpx; }

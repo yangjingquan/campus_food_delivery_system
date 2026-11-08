@@ -1,0 +1,27 @@
+CREATE TABLE admin_user (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(80) NOT NULL UNIQUE,
+  password_hash VARCHAR(100) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+CREATE TABLE merchant (
+  id VARCHAR(32) PRIMARY KEY, name VARCHAR(120) NOT NULL, contact VARCHAR(80) NOT NULL,
+  phone VARCHAR(32) NOT NULL, address VARCHAR(255) NOT NULL,
+  audit_status VARCHAR(30) NOT NULL, business_status VARCHAR(30) NOT NULL,
+  order_count INT NOT NULL DEFAULT 0, joined_at VARCHAR(32) NOT NULL, audit_reason VARCHAR(500)
+) ENGINE=InnoDB;
+CREATE TABLE rider (
+  id VARCHAR(32) PRIMARY KEY, name VARCHAR(120) NOT NULL, phone VARCHAR(32) NOT NULL,
+  gender VARCHAR(10) NOT NULL, available_time VARCHAR(160) NOT NULL,
+  audit_status VARCHAR(30) NOT NULL, deliveries INT NOT NULL DEFAULT 0,
+  balance_cents BIGINT NOT NULL DEFAULT 0, joined_at VARCHAR(32) NOT NULL, audit_reason VARCHAR(500)
+) ENGINE=InnoDB;
+CREATE TABLE admin_audit_log (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, actor VARCHAR(80) NOT NULL,
+  action_name VARCHAR(80) NOT NULL, target_id VARCHAR(80) NOT NULL,
+  before_state VARCHAR(80), after_state VARCHAR(80), reason VARCHAR(500),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+INSERT INTO merchant VALUES ('M01','热气面馆','李师傅','138****1021','大学路 18 号','待审核','休息中',0,'2026-11-07 09:20',NULL),('M02','南门轻食','周女士','139****3518','南门商业街 6 号','已通过','营业中',0,'2026-11-06 14:10',NULL);
+INSERT INTO rider VALUES ('R01','许同学','188****2215','男','11:00–13:30','已通过',0,0,'2026-11-02 10:40',NULL),('R02','陈同学','186****8732','女','11:30–14:00','待审核',0,0,'2026-11-07 09:45',NULL);

@@ -1,0 +1,8 @@
+CREATE TABLE wechat_config (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ user_app_id VARCHAR(64) NOT NULL DEFAULT '', merchant_app_id VARCHAR(64) NOT NULL DEFAULT '', rider_app_id VARCHAR(64) NOT NULL DEFAULT '',
+ merchant_no VARCHAR(64) NOT NULL DEFAULT '', serial_no VARCHAR(128) NOT NULL DEFAULT '', public_key_id VARCHAR(128) NOT NULL DEFAULT '',
+ payment_callback VARCHAR(512) NOT NULL DEFAULT '', refund_callback VARCHAR(512) NOT NULL DEFAULT '', transfer_callback VARCHAR(512) NOT NULL DEFAULT '',
+ operator VARCHAR(80) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+INSERT INTO wechat_config(operator) VALUES('系统初始化');

@@ -1,0 +1,1 @@
+ALTER TABLE admin_user ADD COLUMN session_version BIGINT NOT NULL DEFAULT 0;

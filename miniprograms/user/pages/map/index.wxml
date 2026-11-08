@@ -1,0 +1,8 @@
+<view class="page">
+  <view class="row map-heading"><view class="h2">{{stale ? '位置更新中断' : '骑手正在配送'}}</view><view class="pill">本订单</view></view>
+  <view class="hint" wx:if="{{location && location.available && !stale}}">位置仅用于本订单配送展示；平台按 {{location.expirySeconds || 60}} 秒配置判断新鲜度。</view>
+  <view class="hint orange" wx:elif="{{stale}}">位置已过期，地图展示最后已知位置，并非实时。骑手可能遇到网络或定位问题。</view>
+  <view class="hint" wx:else>{{stateText}}</view>
+  <view class="map-wrap"><map wx:if="{{markers.length}}" class="native-map" latitude="{{latitude}}" longitude="{{longitude}}" scale="{{scale}}" markers="{{markers}}" show-location="false" enable-scroll="true" enable-zoom="true"/><view wx:else class="map-placeholder"><view class="placeholder-grid"></view><view class="placeholder-badge">校园配送示意</view><view class="placeholder-h3">{{stateText}}</view><view class="small">骑手领取后才会开始分享本单位置</view></view></view>
+  <view class="small map-note">{{hint}}</view><button class="btn outline wide refresh-btn" bindtap="refresh">刷新位置</button>
+</view>

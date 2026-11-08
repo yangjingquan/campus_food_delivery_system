@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campusfood.admin.dao.AuthorizationDao">
+    <!-- 按当前启用的管理员及其角色查询权限，并对重复权限去重。 -->
+    <select id="findPermissions" resultType="java.lang.String">
+        SELECT DISTINCT rp.permission_code FROM admin_user u JOIN admin_user_role ur ON ur.user_id=u.id JOIN admin_role_permission rp ON rp.role_code=ur.role_code WHERE u.username=#{username} AND u.enabled=TRUE ORDER BY rp.permission_code
+    </select>
+
+    <select id="findRoles" resultType="java.lang.String">
+        SELECT r.name FROM admin_user u JOIN admin_user_role ur ON ur.user_id=u.id JOIN admin_role r ON r.code=ur.role_code WHERE u.username=#{username} AND u.enabled=TRUE ORDER BY r.code
+    </select>
+
+</mapper>

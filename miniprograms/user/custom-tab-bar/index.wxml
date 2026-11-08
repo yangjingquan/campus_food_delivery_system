@@ -1,0 +1,6 @@
+<view class="tabbar">
+  <button wx:for="{{tabs}}" wx:key="path" class="tab {{selected === index ? 'on' : ''}}" data-path="{{item.path}}" bindtap="switchTab">
+    <view class="tab-icon">{{item.icon}}</view><text>{{item.text}}</text>
+    <text wx:if="{{index === 1 && count}}" class="badge">{{count > 99 ? '99+' : count}}</text>
+  </button>
+</view>

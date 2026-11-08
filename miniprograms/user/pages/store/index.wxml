@@ -1,0 +1,11 @@
+<view class="page tab-page" wx:if="{{merchant}}">
+  <view class="row"><view><view class="pill">校外入驻商户</view><view class="h2 store-title">{{merchant.name}}</view><view class="small">{{merchant.address}}</view></view><view class="thumb">🍚</view></view>
+  <view class="row section"><view class="small">每商户订单固定配送 {{merchant.deliveryFeeText}}</view><button class="small" bindtap="contact">联系商户 ›</button></view>
+  <view class="hint green" wx:if="{{merchant.open}}">商户做好后送至校园暂存点，再由学生骑手送到寝室。</view>
+  <view class="hint orange" wx:else>商户已打烊，暂不接受新订单。餐品仅供浏览。</view>
+  <view class="h3 section">店内推荐</view>
+  <view wx:for="{{products}}" wx:key="id" class="card">
+    <view class="foodline"><view class="thumb" style="background:{{item.color}}">{{item.artwork === 'noodle' ? '🍜' : '🍱'}}</view><view class="info"><view class="h3">{{item.name}}</view><view class="small">{{item.description}}</view><view class="row product-row"><view class="price">{{item.priceText}}</view><view wx:if="{{item.availableStock === 0 || !merchant.open}}" class="chip">{{item.availableStock === 0 ? '已售罄' : '已打烊'}}</view><view wx:else class="stepper"><button data-id="{{item.id}}" data-delta="-1" bindtap="change">−</button><text>{{item.quantity}}</text><button data-id="{{item.id}}" data-delta="1" bindtap="change">＋</button></view></view><view class="small">剩余 {{item.availableStock}} 份</view></view></view>
+  </view>
+  <view class="totalbar row"><view><view class="small">已选 {{selectedCount}} 份 · 餐品</view><view class="price">{{selectedFoodText}}</view></view><button class="btn" bindtap="viewCart">查看购物车</button></view>
+</view>

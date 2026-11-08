@@ -1,0 +1,5 @@
+app:
+  payment:
+    mode: ${USER_PAYMENT_MODE:disabled}
+  demo-catalog:
+    enabled: false

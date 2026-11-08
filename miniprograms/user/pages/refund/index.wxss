@@ -1,0 +1,2 @@
+.refund-intro { margin: 16rpx 0 26rpx; }
+.picker-value { min-height: 84rpx; padding: 22rpx; border: 2rpx solid #e9e7df; border-radius: 18rpx; background: #fff; }

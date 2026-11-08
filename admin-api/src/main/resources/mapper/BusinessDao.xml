@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campusfood.admin.dao.BusinessDao">
+    <select id="listOrders" resultType="map">
+        SELECT id,payment_id AS paymentId,merchant_id AS merchantId,merchant,rider,items,food_cents AS foodCents,
+        delivery_cents AS deliveryCents,paid_cents AS paidCents,refunded_cents AS refundedCents,
+        food_refunded_cents AS foodRefundedCents,payment_status AS paymentStatus,fulfill_status AS fulfillStatus,
+        refund_status AS refundStatus,settlement_status AS settlementStatus,accepted,pending_refund AS pendingRefund,
+        locking,payment_count AS paymentCount,paid_at AS paidAt,completed_at AS completedAt,closed_at AS closedAt,
+        last_refund_at AS lastRefundAt,payment_last_refund_at AS paymentLastRefundAt,intervene,
+        intervene_reason AS interveneReason FROM business_order ORDER BY paid_at DESC
+    </select>
+
+    <!-- 数据库时间按 UTC 保存，此处将协调记录时间转换为北京时间。 -->
+    <select id="listOrderNotes" resultType="java.lang.String">
+        SELECT CONCAT(DATE_FORMAT(CONVERT_TZ(created_at,'+00:00','+08:00'),'%Y-%m-%d %H:%i:%s'),
+        ' · ',actor,' · ',note) FROM order_note WHERE order_id=#{orderId} ORDER BY id DESC
+    </select>
+
+    <select id="sumPaid" resultType="java.lang.Long">
+        SELECT COALESCE(SUM(paid_cents),0) FROM business_order WHERE payment_status='支付成功'
+    </select>
+
+    <select id="listRefunds" resultType="map">
+        SELECT id,order_id AS orderId,payment_id AS paymentId,reason,type,amount_cents AS amountCents,
+        status,channel_status AS channelStatus,channel_reason AS channelReason,created_at AS createdAt,
+        operator FROM refund_record ORDER BY created_at DESC
+    </select>
+
+    <select id="listWithdrawals" resultType="map">
+        SELECT id,applicant,applicant_type AS applicantType,amount_cents AS amountCents,status,
+        created_at AS createdAt,reason FROM withdrawal_request ORDER BY created_at DESC
+    </select>
+
+    <select id="listAccounts" resultType="map">
+        SELECT id,name,type,balance_cents AS balanceCents,frozen_cents AS frozenCents,status FROM finance_account ORDER BY id
+    </select>
+
+    <select id="listLedger" resultType="map">
+        SELECT id,order_id AS orderId,subject,type,CONCAT('¥',FORMAT(food_cents/100,2)) AS foodAmount,
+        CONCAT('¥',FORMAT(delivery_cents/100,2)) AS deliveryAmount,CONCAT('¥',FORMAT(paid_cents/100,
+        2)) AS paidAmount,CONCAT('¥',FORMAT(refund_cents/100,2)) AS refundAmount,settlement,created_at AS time FROM finance_ledger ORDER BY created_at DESC
+    </select>
+
+    <select id="listJournal" resultType="map">
+        SELECT j.id,j.account_id AS accountId,a.name,j.event_type AS eventType,j.reference_id AS referenceId,
+        j.request_key AS requestKey,j.debt_id AS debtId,j.available_delta AS availableDelta,j.frozen_delta AS frozenDelta,
+        j.created_at AS time FROM account_journal j JOIN finance_account a ON a.id=j.account_id ORDER BY j.id DESC
+    </select>
+
+    <select id="listDebts" resultType="map">
+        SELECT d.id,d.order_id AS orderId,d.merchant,d.rider,CONCAT('¥',FORMAT(d.rider_due_cents/100,
+        2)) AS riderDue,CONCAT('¥',FORMAT(COALESCE(a.balance_cents,d.merchant_balance_cents)/100,
+        2)) AS merchantBalance,CONCAT('¥',FORMAT(d.platform_advance_cents/100,2)) AS platformAdvance,
+        CONCAT('¥',FORMAT(d.recovered_cents/100,2)) AS recovered,d.note FROM finance_debt d LEFT JOIN finance_account a ON a.id=d.merchant_account_id ORDER BY d.id
+    </select>
+
+    <select id="listOperationsConfigs" resultType="map">
+        SELECT CONCAT('OPS-V',LPAD(id,3,'0')) AS version,fee_cents AS feeCents,food_rate AS foodRate,
+        delivery_rate AS deliveryRate,regular_batch AS regularBatch,peak_batch AS peakBatch,service_start AS serviceStart,
+        service_end AS serviceEnd,peak_start AS peakStart,peak_end AS peakEnd,accept_timeout AS acceptTimeout,
+        reminder_interval AS reminderInterval,effective_at AS effectiveAt,operator FROM operations_config ORDER BY id DESC
+    </select>
+
+    <insert id="insertOrderNote">
+        INSERT INTO order_note(order_id,actor,note) VALUES(#{orderId},#{actor},#{note})
+    </insert>
+
+    <insert id="insertOperationsConfig">
+        INSERT INTO operations_config(fee_cents,food_rate,delivery_rate,regular_batch,peak_batch,
+        service_start,service_end,peak_start,peak_end,accept_timeout,reminder_interval,operator) VALUES(#{fee},
+        #{foodRate},#{deliveryRate},#{regularBatch},#{peakBatch},#{serviceStart},#{serviceEnd},
+        #{peakStart},#{peakEnd},#{acceptTimeout},#{reminderInterval},#{actor})
+    </insert>
+
+    <insert id="insertAudit">
+        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_state,reason) VALUES(#{actor},
+        #{action},#{targetId},#{beforeState},#{afterState},#{reason})
+    </insert>
+
+</mapper>

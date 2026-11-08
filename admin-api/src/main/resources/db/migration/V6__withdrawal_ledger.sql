@@ -1,0 +1,6 @@
+ALTER TABLE finance_account ADD COLUMN frozen_cents BIGINT NOT NULL DEFAULT 0, ADD CONSTRAINT chk_frozen_nonnegative CHECK(frozen_cents >= 0);
+ALTER TABLE finance_debt ADD COLUMN merchant_account_id VARCHAR(64), ADD INDEX idx_debt_account(merchant_account_id);
+ALTER TABLE withdrawal_request ADD COLUMN account_id VARCHAR(64), ADD COLUMN request_key VARCHAR(100), ADD UNIQUE INDEX uq_withdraw_request(request_key), ADD INDEX idx_withdraw_account(account_id);
+CREATE TABLE withdrawal_intent (request_key VARCHAR(100) PRIMARY KEY, account_id VARCHAR(64) NOT NULL, requested_cents BIGINT NOT NULL, recovered_cents BIGINT NOT NULL DEFAULT 0, available_after BIGINT, status VARCHAR(30) NOT NULL, withdrawal_id VARCHAR(64), created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;
+CREATE TABLE account_journal (id BIGINT AUTO_INCREMENT PRIMARY KEY, account_id VARCHAR(64) NOT NULL, event_type VARCHAR(40) NOT NULL, reference_id VARCHAR(100) NOT NULL, available_delta BIGINT NOT NULL DEFAULT 0, frozen_delta BIGINT NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_journal(account_id,event_type,reference_id), FOREIGN KEY(account_id) REFERENCES finance_account(id)) ENGINE=InnoDB;
+INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES ('SYSTEM_PLATFORM','平台','平台',0,'正常');

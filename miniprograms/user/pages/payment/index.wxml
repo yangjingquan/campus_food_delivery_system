@@ -1,0 +1,11 @@
+<view class="page" wx:if="{{payment}}">
+  <view class="statusbig"><view class="pill">{{orders.length > 1 ? '多店合并支付' : '单店支付'}}</view><view class="h2 payment-title">{{payment.status === '未支付' ? '请在时限内完成付款' : payment.status}}</view><view class="muted">支付成功后，各商户订单分别履约。</view></view>
+  <view wx:for="{{orders}}" wx:key="id" class="card">
+    <view class="row"><view class="h3">{{item.merchantName || item.merchant}}</view><view class="orderstate">独立商户订单</view></view>
+    <view class="kv"><text class="label">餐品金额</text><text>{{item.foodText}}</text></view><view class="kv"><text class="label">本店配送费</text><text>{{item.feeText}}</text></view><view class="kv"><text class="label">小计</text><text class="price">{{item.amountText}}</text></view>
+  </view>
+  <view class="card"><view class="kv"><text class="label">餐品金额</text><text>{{foodText}}</text></view><view class="kv"><text class="label">配送费合计</text><text>{{feeText}}</text></view><view class="row"><text class="h3">{{orders.length > 1 ? '共同支付总额' : '订单应付'}}</text><text class="price">{{amountText}}</text></view><view class="line"></view><view class="small">合并支付记录：{{payment.id}}</view></view>
+  <button wx:if="{{payment.status === '未支付'}}" class="btn wide" bindtap="pay">{{mode === 'mock' ? '本地模拟支付' : '微信支付'}}</button>
+  <button class="btn outline wide more-btn" bindtap="backCart">返回</button>
+  <view wx:if="{{mode === 'mock'}}" class="foot">本地联调模式 · 不会真实扣款</view>
+</view>

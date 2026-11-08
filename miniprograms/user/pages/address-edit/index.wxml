@@ -1,0 +1,8 @@
+<view class="page">
+  <view class="field"><label>联系人</label><input maxlength="20" value="{{name}}" data-field="name" bindinput="input" placeholder="填写收餐人姓名"/></view>
+  <view class="field"><label>手机号码</label><input type="number" maxlength="11" value="{{phone}}" data-field="phone" bindinput="input" placeholder="用于配送联系"/></view>
+  <view class="field"><label>宿舍楼</label><input maxlength="80" value="{{building}}" data-field="building" bindinput="input" placeholder="例如：5号宿舍楼"/></view>
+  <view class="field"><label>寝室门牌</label><input maxlength="80" value="{{room}}" data-field="room" bindinput="input" placeholder="例如：302寝室"/></view>
+  <view class="default-row"><text>设为默认地址</text><switch checked="{{isDefault}}" color="#ee692f" bindchange="toggleDefault"/></view>
+  <view class="error">{{error}}</view><button class="btn wide save-btn" loading="{{saving}}" bindtap="save">保存地址</button>
+</view>

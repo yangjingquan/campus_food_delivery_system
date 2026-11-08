@@ -1,0 +1,6 @@
+<view class="page" wx:if="{{payment}}">
+  <view class="statusbig"><view class="successicon">{{payment.status === '支付成功' ? '✓' : '·'}}</view><view class="h2">{{payment.status}}</view><view class="muted">{{payment.status === '支付成功' ? '已按商户拆分，请分别查看出餐和配送进度。' : '未完成付款，订单保留到付款时限结束。'}}</view></view>
+  <view wx:for="{{orders}}" wx:key="id" class="card"><view class="row"><view class="h3">{{item.merchantName || item.merchant}}</view><view class="orderstate">{{item.status}}</view></view><view class="kv"><text class="label">独立商户订单</text><text>{{item.id}}</text></view><view class="kv"><text class="label">订单实付</text><text>{{item.amountText}}</text></view><button class="btn outline small-btn wide" data-id="{{item.id}}" bindtap="openOrder">查看订单</button></view>
+  <view class="card"><view class="kv"><text class="label">支付记录单号</text><text>{{payment.id}}</text></view><view class="row"><text>{{orders.length > 1 ? '合并付款' : '单店付款'}}</text><text class="price">{{amountText}}</text></view></view>
+  <button class="btn wide" bindtap="orders">查看全部订单</button>
+</view>

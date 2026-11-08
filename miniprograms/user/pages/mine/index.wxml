@@ -1,0 +1,14 @@
+<view class="page tab-page">
+  <view class="profile row"><view class="row"><view class="avatar">{{user ? user.initial : '食'}}</view><view><view class="h2">{{user ? user.displayName : '欢迎来到寝食记'}}</view><view class="small">{{user ? '已登录 · 校园用户' : '登录后可下单及查看本人订单'}}</view></view></view></view>
+  <button wx:if="{{!user}}" class="btn wide" bindtap="login">微信登录</button>
+  <view class="card menu-card">
+    <button class="menurow" data-action="orders" bindtap="open"><text>我的订单</text><text class="muted">›</text></button>
+    <button class="menurow" data-action="addresses" bindtap="open"><text>收餐地址</text><text class="muted">›</text></button>
+    <button class="menurow" data-action="rules" bindtap="open"><text>配送规则与费用</text><text class="muted">›</text></button>
+    <button class="menurow" data-action="contact" bindtap="open"><text>联系平台客服</text><text class="muted">›</text></button>
+    <button class="menurow" data-action="privacy" bindtap="open"><text>隐私与服务说明</text><text class="muted">›</text></button>
+    <button class="menurow" data-action="about" bindtap="open"><text>关于寝食记</text><text class="muted">›</text></button>
+  </view>
+  <button wx:if="{{user}}" class="btn secondary wide" bindtap="logout">退出登录</button>
+  <view class="foot">校园外卖用户端 · 一期<br/>无营销、无会员、无第三方外卖代取</view>
+</view>

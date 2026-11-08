@@ -1,0 +1,41 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/store/index",
+    "pages/cart/index",
+    "pages/confirm/index",
+    "pages/payment/index",
+    "pages/payment-result/index",
+    "pages/orders/index",
+    "pages/order-detail/index",
+    "pages/map/index",
+    "pages/refund/index",
+    "pages/aftersale/index",
+    "pages/addresses/index",
+    "pages/address-edit/index",
+    "pages/mine/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "寝食记",
+    "navigationBarBackgroundColor": "#faf9f4",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f6f5ef",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#96988e",
+    "selectedColor": "#ee692f",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "首页" },
+      { "pagePath": "pages/cart/index", "text": "购物车" },
+      { "pagePath": "pages/orders/index", "text": "订单" },
+      { "pagePath": "pages/mine/index", "text": "我的" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

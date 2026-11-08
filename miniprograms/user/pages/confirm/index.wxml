@@ -1,0 +1,16 @@
+<view class="page">
+  <button class="card address-card wide" bindtap="chooseAddress">
+    <view class="row"><view><view class="small">收餐地址 · 示例大学</view><view class="h3 address-title">{{address ? address.building + ' · ' + address.room : '请添加收餐地址'}}</view><view class="muted" wx:if="{{address}}">{{address.name}}　{{address.phone}}</view></view><view>›</view></view>
+  </button>
+  <view class="hint" wx:if="{{config.serviceStart}}">配送时段 {{config.serviceStart}}–{{config.serviceEnd}}；高峰每 {{config.peakBatchMinutes}} 分钟一批，其他时段每 {{config.regularBatchMinutes}} 分钟一批。时段外订单进入下一批。</view>
+  <view class="hint" wx:if="{{groups.length > 1}}">本次选择 {{groups.length}} 家商户，将合并支付，并按商户拆分为独立订单。</view>
+  <view class="hint" wx:if="{{groups.length === 1}}">本次为单店订单，单独付款并由该商户独立配送。</view>
+  <view wx:for="{{groups}}" wx:key="merchantId" class="card">
+    <view class="h3">{{item.merchantName}}</view>
+    <view wx:for="{{item.items}}" wx:for-item="food" wx:key="productId" class="row confirm-item"><text>{{food.name}} × {{food.quantity}}</text><text>{{food.amountText}}</text></view>
+    <view class="line"></view><view class="row small"><text>餐品 {{item.foodText}} + 配送费</text><text>{{item.orderText}}</text></view>
+  </view>
+  <view class="card bill"><view class="row"><text>餐品合计</text><text>{{foodText}}</text></view><view class="row"><text>固定配送费 × {{feeCount}}</text><text>{{feeText}}</text></view><view class="row"><text class="h3">{{groups.length > 1 ? '合并应付' : '订单应付'}}</text><text class="price">{{totalText}}</text></view></view>
+  <view class="muted" style="margin:24rpx 0">提交后暂占库存，{{config.unpaidTimeoutMinutes || 30}} 分钟内未付款将关闭订单并释放库存。最终价格按提交时平台数据校验。</view>
+  <view class="totalbar row"><view><view class="small">共 {{groups.length}} 家商户</view><view class="price">{{totalText}}</view></view><button class="btn" bindtap="submit">{{paymentEnabled ? '提交订单' : '支付渠道未配置'}}</button></view>
+</view>
