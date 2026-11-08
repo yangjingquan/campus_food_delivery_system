@@ -5,7 +5,7 @@
   "projectname": "寝食记-校园外卖用户端",
   "miniprogramRoot": "./",
   "setting": {
-    "urlCheck": false,
+    "urlCheck": true,
     "es6": true,
     "enhance": true,
     "postcss": true,

@@ -26,6 +26,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:}
       password: ${REDIS_PASSWORD:}
   flyway:
     # 已执行的迁移脚本受校验和保护，新增数据库变更应使用新版本脚本。
@@ -41,5 +42,6 @@ mybatis-plus:
 app:
   wechat-master-key-file: ${WECHAT_MASTER_KEY_FILE:}
   internal-api-key: ${INTERNAL_API_KEY:}
+  redis-key-prefix: ${REDIS_KEY_PREFIX:}
   bootstrap-user: ${ADMIN_USER:admin}
   bootstrap-password: ${ADMIN_PASSWORD:campus2026}

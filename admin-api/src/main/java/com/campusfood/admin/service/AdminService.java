@@ -41,6 +41,8 @@ public class AdminService {
     private String bootstrapUser;
     @Value("${app.bootstrap-password}")
     private String bootstrapPassword;
+    @Value("${app.redis-key-prefix:}")
+    private String redisKeyPrefix;
 
     public AdminService(AdminDao db, StringRedisTemplate redis, BusinessService business,
                         AuthorizationService authorization, WithdrawalService withdrawals, WechatService wechat,
@@ -72,7 +74,7 @@ public class AdminService {
         if (header == null || !header.startsWith("Bearer "))
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请登录");
         // Redis 保存用户名和会话版本；每次请求还需校验数据库中的最新版本。
-        String session = redis.opsForValue().get("admin:session:" + header.substring(7));
+        String session = redis.opsForValue().get(redisKeyPrefix + "admin:session:" + header.substring(7));
         if (session == null || !session.contains("\n"))
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录已失效");
         int separator = session.lastIndexOf('\n');
@@ -91,7 +93,7 @@ public class AdminService {
         byte[] bytes = new byte[32];
         random.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        redis.opsForValue().set("admin:session:" + token, username + "\n" + users.get(0).get("session_version"),
+        redis.opsForValue().set(redisKeyPrefix + "admin:session:" + token, username + "\n" + users.get(0).get("session_version"),
                 Duration.ofHours(8));
         return Map.of("token", token, "user",
                 Map.of("name", username, "role", String.join("、", authorization.roles(username)), "permissions",
@@ -100,7 +102,7 @@ public class AdminService {
 
     public Map<String, Object> logout(String authHeader) {
         actor(authHeader);
-        redis.delete("admin:session:" + authHeader.substring(7));
+        redis.delete(redisKeyPrefix + "admin:session:" + authHeader.substring(7));
         return Map.of("ok", true);
     }
 

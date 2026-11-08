@@ -26,6 +26,8 @@ Vue 管理端和用户小程序统一经 API Gateway 访问业务 API；Nacos �
 
 ## 启动
 
+生产环境 Docker Compose、域名反向代理、主机初始化步骤和四个独立 Jenkins 流水线位于 [`deploy/production`](deploy/production/README.md)。生产配置启用 Nacos 鉴权、隔离项目数据库和 Redis 会话键，并将小程序默认 API 地址设为 HTTPS；真实支付和退款尚未实现，生产支付保持关闭。
+
 首次在**全新数据库**使用前生成微信配置加密主密钥，之后启动服务：
 
 ```bash

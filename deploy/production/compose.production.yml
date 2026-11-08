@@ -1,0 +1,166 @@
+name: campus-food
+
+services:
+  nacos:
+    image: nacos/nacos-server:v3.1.1
+    container_name: campus-food-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_ADMIN_ENABLE: "true"
+      NACOS_AUTH_CONSOLE_ENABLE: "true"
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?set NACOS_AUTH_TOKEN}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-campus_food_identity}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:?set NACOS_AUTH_IDENTITY_VALUE}
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: shop-mysql
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: campus_food_nacos
+      MYSQL_SERVICE_USER: cfd_nacos
+      MYSQL_SERVICE_PASSWORD: ${NACOS_DB_PASSWORD:?set NACOS_DB_PASSWORD}
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+    volumes:
+      - /opt/campus-food/nacos/data:/home/nacos/data
+      - /opt/campus-food/nacos/logs:/home/nacos/logs
+    ports:
+      - "127.0.0.1:18848:8080"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8848'"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+    mem_limit: 768m
+    logging: &log-config
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "4"
+
+  admin-api:
+    image: campus-food/admin-api:${ADMIN_API_TAG:-latest}
+    container_name: campus-food-admin-api
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://shop-mysql:3306/campus_food_delivery?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true
+      DB_USER: cfd_app
+      DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
+      REDIS_HOST: shop-redis
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: cfd_app
+      REDIS_PASSWORD: ${REDIS_CFD_PASSWORD:?set REDIS_CFD_PASSWORD}
+      REDIS_KEY_PREFIX: cfd:
+      NACOS_SERVER_ADDR: campus-food-nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:?set NACOS_USERNAME}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?set NACOS_PASSWORD}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:?set ADMIN_BOOTSTRAP_PASSWORD}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
+      WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx512m
+    volumes:
+      - /opt/campus-food/secrets/wechat-master.key:/run/secrets/wechat-master.key:ro
+    networks:
+      - backend
+    depends_on:
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8080'"]
+      interval: 20s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    mem_limit: 768m
+    logging: *log-config
+
+  user-api:
+    image: campus-food/user-api:${USER_API_TAG:-latest}
+    container_name: campus-food-user-api
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://shop-mysql:3306/campus_food_delivery?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true
+      DB_USER: cfd_app
+      DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
+      NACOS_SERVER_ADDR: campus-food-nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:?set NACOS_USERNAME}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?set NACOS_PASSWORD}
+      WECHAT_USER_APP_ID: ${WECHAT_USER_APP_ID:?set WECHAT_USER_APP_ID}
+      WECHAT_USER_APP_SECRET: ${WECHAT_USER_APP_SECRET:-}
+      USER_PAYMENT_MODE: disabled
+      USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
+      USER_LOCATION_EXPIRY_SECONDS: "60"
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx512m
+    networks:
+      - backend
+    depends_on:
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8081'"]
+      interval: 20s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    mem_limit: 768m
+    logging: *log-config
+
+  gateway:
+    image: campus-food/gateway:${GATEWAY_TAG:-latest}
+    container_name: campus-food-gateway
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "8080"
+      NACOS_SERVER_ADDR: campus-food-nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:?set NACOS_USERNAME}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?set NACOS_PASSWORD}
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx384m
+    networks:
+      backend:
+      proxy:
+        aliases:
+          - campus-gateway
+    depends_on:
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8080'"]
+      interval: 20s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    mem_limit: 512m
+    logging: *log-config
+
+  admin-web:
+    image: campus-food/admin-web:${ADMIN_WEB_TAG:-latest}
+    container_name: campus-food-admin-web
+    restart: unless-stopped
+    networks:
+      proxy:
+        aliases:
+          - campus-admin-web
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 20s
+      timeout: 3s
+      retries: 5
+    mem_limit: 128m
+    logging: *log-config
+
+networks:
+  backend:
+    external: true
+    name: campus-food-backend
+  proxy:
+    external: true
+    name: campus-food-proxy

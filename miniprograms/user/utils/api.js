@@ -1,4 +1,4 @@
-const BASE_URL = wx.getStorageSync('userApiBaseUrl') || 'http://127.0.0.1:8082/api/user/v1';
+const BASE_URL = wx.getStorageSync('userApiBaseUrl') || 'https://cfdapi.nexbyte.top/api/user/v1';
 
 function request(method, path, data, options = {}) {
   return new Promise((resolve, reject) => {
