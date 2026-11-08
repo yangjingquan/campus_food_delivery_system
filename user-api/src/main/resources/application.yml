@@ -28,7 +28,9 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
 app:
+  wechat-master-key-file: ${WECHAT_MASTER_KEY_FILE:}
   wechat:
+    configuration-source: ${WECHAT_CONFIGURATION_SOURCE:environment}
     app-id: ${WECHAT_USER_APP_ID:wxb2ef21a4d9800f4e}
     app-secret: ${WECHAT_USER_APP_SECRET:}
   payment:

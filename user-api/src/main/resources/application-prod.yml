@@ -1,4 +1,6 @@
 app:
+  wechat:
+    configuration-source: database
   payment:
     mode: ${USER_PAYMENT_MODE:disabled}
   demo-catalog:

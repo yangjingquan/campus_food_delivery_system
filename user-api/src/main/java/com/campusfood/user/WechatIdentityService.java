@@ -15,20 +15,21 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class WechatIdentityService {
     private final RestClient http = RestClient.create();
-    @Value("${app.wechat.app-id}") private String appId;
-    @Value("${app.wechat.app-secret:}") private String appSecret;
+    private final WechatConfigurationService configuration;
     @Value("${app.wechat.mock-login:false}") private boolean mockLogin;
+
+    public WechatIdentityService(WechatConfigurationService configuration) {
+        this.configuration = configuration;
+    }
 
     public String exchangeCode(String code) {
         if (code == null || code.isBlank() || code.length() > 512) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "微信登录凭证无效");
         }
-        if (mockLogin) return "local:" + sha256(appId + ":" + code);
-        if (appSecret == null || appSecret.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "微信登录尚未配置 AppSecret");
-        }
+        if (mockLogin) return "local:" + sha256(configuration.currentAppId() + ":" + code);
+        var credentials = configuration.credentials();
         try {
-            String query = "appid=" + enc(appId) + "&secret=" + enc(appSecret) + "&js_code=" + enc(code) + "&grant_type=authorization_code";
+            String query = "appid=" + enc(credentials.appId()) + "&secret=" + enc(credentials.appSecret()) + "&js_code=" + enc(code) + "&grant_type=authorization_code";
             Map<String, Object> response = http.get()
                 .uri(URI.create("https://api.weixin.qq.com/sns/jscode2session?" + query))
                 .retrieve()

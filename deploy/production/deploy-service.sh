@@ -22,13 +22,6 @@ done
 trap 'rmdir "$lock" 2>/dev/null || true' EXIT HUP INT TERM
 
 test -s /prod/.env
-if [ "$SERVICE_NAME" = user-api ]; then
-  app_secret=$(sed -n 's/^WECHAT_USER_APP_SECRET=//p' /prod/.env | tail -n 1)
-  if [ -z "$app_secret" ] || [ "$app_secret" = CONFIGURE_WITH_WECHAT_APP_SECRET ]; then
-    echo "Set WECHAT_USER_APP_SECRET in /opt/campus-food/.env before deploying user-api." >&2
-    exit 1
-  fi
-fi
 
 cp /src/deploy/production/compose.production.yml /prod/compose.production.yml.new
 chmod 600 /prod/compose.production.yml.new

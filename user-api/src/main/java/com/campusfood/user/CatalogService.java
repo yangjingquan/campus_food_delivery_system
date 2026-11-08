@@ -13,11 +13,14 @@ public class CatalogService {
     private final JdbcTemplate db;
     @Value("${app.location-expiry-seconds:60}") private int locationExpirySeconds;
     @Value("${app.payment.mode:disabled}") private String paymentMode;
-    @Value("${app.wechat.app-id:}") private String appId;
+    private final WechatConfigurationService wechatConfiguration;
     @Value("${app.wechat.mock-login:false}") private boolean mockLogin;
     @Value("${app.unpaid-timeout-minutes:30}") private int unpaidTimeoutMinutes;
 
-    public CatalogService(JdbcTemplate db) { this.db = db; }
+    public CatalogService(JdbcTemplate db, WechatConfigurationService wechatConfiguration) {
+        this.db = db;
+        this.wechatConfiguration = wechatConfiguration;
+    }
 
     public Map<String, Object> config() {
         var config = db.queryForMap("SELECT fee_cents,regular_batch,peak_batch,service_start,service_end,peak_start,peak_end,accept_timeout,reminder_interval FROM operations_config ORDER BY id DESC LIMIT 1");
@@ -35,7 +38,7 @@ public class CatalogService {
         result.put("unpaidTimeoutMinutes", unpaidTimeoutMinutes);
         result.put("paymentMode", paymentMode);
         result.put("mockLogin", mockLogin);
-        result.put("appId", appId);
+        result.put("appId", wechatConfiguration.currentAppId());
         result.put("schoolName", "示例大学");
         return result;
     }

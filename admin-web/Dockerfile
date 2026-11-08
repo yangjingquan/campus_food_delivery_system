@@ -1,5 +1,6 @@
 FROM node:24-alpine AS build
 WORKDIR /app
+ENV NODE_OPTIONS="--max-old-space-size=384"
 COPY admin-web/package.json admin-web/package-lock.json ./
 RUN npm ci
 COPY admin-web/ ./

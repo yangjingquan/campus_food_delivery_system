@@ -68,7 +68,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:?set ADMIN_BOOTSTRAP_PASSWORD}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
       WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
-      JAVA_TOOL_OPTIONS: -Xms128m -Xmx512m
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
     volumes:
       - /opt/campus-food/secrets/wechat-master.key:/run/secrets/wechat-master.key:ro
     networks:
@@ -98,11 +98,13 @@ services:
       NACOS_USERNAME: ${NACOS_USERNAME:?set NACOS_USERNAME}
       NACOS_PASSWORD: ${NACOS_PASSWORD:?set NACOS_PASSWORD}
       WECHAT_USER_APP_ID: ${WECHAT_USER_APP_ID:?set WECHAT_USER_APP_ID}
-      WECHAT_USER_APP_SECRET: ${WECHAT_USER_APP_SECRET:-}
+      WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
       USER_PAYMENT_MODE: disabled
       USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
       USER_LOCATION_EXPIRY_SECONDS: "60"
-      JAVA_TOOL_OPTIONS: -Xms128m -Xmx512m
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
+    volumes:
+      - /opt/campus-food/secrets/wechat-master.key:/run/secrets/wechat-master.key:ro
     networks:
       - backend
     depends_on:
@@ -126,7 +128,7 @@ services:
       NACOS_SERVER_ADDR: campus-food-nacos:8848
       NACOS_USERNAME: ${NACOS_USERNAME:?set NACOS_USERNAME}
       NACOS_PASSWORD: ${NACOS_PASSWORD:?set NACOS_PASSWORD}
-      JAVA_TOOL_OPTIONS: -Xms128m -Xmx384m
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     networks:
       backend:
       proxy:

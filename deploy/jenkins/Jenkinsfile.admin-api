@@ -18,17 +18,18 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    host_workspace=$(printf '%s' "$WORKSPACE" | sed 's#^/var/jenkins_home#/opt/jenkins/jenkins_home#')
-                    test -f "$host_workspace/deploy/production/deploy-service.sh"
-                    docker run --rm \
+                    case "$WORKSPACE" in
+                      /var/jenkins_home/*) host_workspace="/opt/jenkins/jenkins_home/${WORKSPACE#/var/jenkins_home/}" ;;
+                      *) echo "Unsupported Jenkins workspace: $WORKSPACE" >&2; exit 1 ;;
+                    esac
+                    test -f "$WORKSPACE/deploy/production/deploy-service.sh"
+                    docker run --rm --entrypoint sh \
                       -v /var/run/docker.sock:/var/run/docker.sock \
-                      -v /usr/bin/docker:/usr/bin/docker:ro \
-                      -v /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro \
                       -v "$host_workspace:/src:ro" \
                       -v /opt/campus-food:/prod \
                       -e SERVICE_NAME="$CFD_SERVICE" \
                       -e SERVICE_TAG="$CFD_IMAGE_TAG" \
-                      alpine:3.20 sh /src/deploy/production/deploy-service.sh
+                      docker:29-cli /src/deploy/production/deploy-service.sh
                 '''
             }
         }

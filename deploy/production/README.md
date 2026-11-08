@@ -13,7 +13,7 @@ The host uses `campus-food-backend` for the application containers and the exist
 - `/etc/shop/tls/cfdnacos.nexbyte.top_bundle.pem` and `cfdnacos.nexbyte.top.key`: the Nacos domain certificate and private key. The supplied certificate must be renewed and replaced before expiry.
 - `/opt/campus-food/secrets/cfdnacos-basic-password`, mode `0600`: the Nginx Basic Auth password for user `nacos-ops`. The hashed password and Nginx configuration are mounted from `/opt/campus-food/nginx/`.
 
-The environment must set `APP_DB_PASSWORD`, `NACOS_DB_PASSWORD`, `REDIS_CFD_PASSWORD`, `NACOS_AUTH_TOKEN`, `NACOS_AUTH_IDENTITY_VALUE`, `NACOS_PASSWORD`, `ADMIN_BOOTSTRAP_PASSWORD`, `INTERNAL_API_KEY`, and `WECHAT_USER_APP_SECRET` before deploying `user-api`. Keep `USER_PAYMENT_MODE=disabled` until real payment and refund support is developed and verified. Set all four image tags to `latest` before the first deployment; a Jenkins release updates only its own tag after its health check succeeds.
+The environment must set `APP_DB_PASSWORD`, `NACOS_DB_PASSWORD`, `REDIS_CFD_PASSWORD`, `NACOS_AUTH_TOKEN`, `NACOS_AUTH_IDENTITY_VALUE`, `NACOS_PASSWORD`, `ADMIN_BOOTSTRAP_PASSWORD`, and `INTERNAL_API_KEY`. The user API reads the latest user mini-program AppID and encrypted AppSecret from the admin-managed configuration, using the same protected master key as the admin API. It can start before the AppSecret is configured, but real WeChat login returns unavailable until it is saved. Keep `USER_PAYMENT_MODE=disabled` until real payment and refund support is developed and verified. Set all four image tags to `latest` before the first deployment; a Jenkins release updates only its own tag after its health check succeeds.
 
 ## First installation order
 
@@ -35,7 +35,7 @@ The existing Redis 7.4 container uses an unrestricted `default` account. `enable
 
 ## Known production boundary
 
-The user API supports real WeChat login once the mini-program AppSecret is set. Payment and refund processing are not implemented; this deployment keeps payment disabled. The existing user-facing Mini Program defaults to `https://cfdapi.nexbyte.top/api/user/v1` and URL checking is enabled. Add that HTTPS API domain to the mini-program's allowed request domains before upload in a later release.
+The user API supports real WeChat login once the user mini-program AppID and AppSecret are saved in the admin console. Configuration changes are read on subsequent logins without redeploying the service. Payment and refund processing are not implemented; this deployment keeps payment disabled. The existing user-facing Mini Program defaults to `https://cfdapi.nexbyte.top/api/user/v1` and URL checking is enabled. Add that HTTPS API domain to the mini-program's allowed request domains before upload in a later release.
 
 The Nacos console is available at `https://cfdnacos.nexbyte.top/` behind Nginx Basic Auth and Nacos login. `cfdnacos.nginx.conf` is the TLS proxy configuration; `cfdnacos-http.conf` supplies the HTTP redirect and ACME challenge path. The existing `/opt/shop/docker-compose.yml` must retain the Nacos proxy network and the two `/opt/campus-food/nginx/` bind mounts when `shop-nginx` is recreated.
 
