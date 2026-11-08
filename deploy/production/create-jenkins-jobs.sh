@@ -53,7 +53,8 @@ for name,script in jobs.items():
  (root/f"{name}.xml").write_text(xml)
 PY
 
-curl --fail --silent --show-error --user "$USER:$PASS" "$BASE/crumbIssuer/api/json" -o "$WORK/crumb.json"
+curl --fail --silent --show-error --user "$USER:$PASS" \
+  --cookie-jar "$WORK/cookies" "$BASE/crumbIssuer/api/json" -o "$WORK/crumb.json"
 read -r CRUMB_FIELD CRUMB_VALUE < <(python3 - "$WORK/crumb.json" <<'PY'
 import json,sys
 x=json.load(open(sys.argv[1]))
@@ -71,6 +72,7 @@ for name in campus-food-gateway campus-food-admin-api campus-food-user-api campu
     method=POST
   fi
   curl --fail --silent --show-error --user "$USER:$PASS" \
+    --cookie "$WORK/cookies" \
     -H "$CRUMB_FIELD: $CRUMB_VALUE" -H 'Content-Type: application/xml' \
     -X "$method" --data-binary "@$file" "$url" -o /dev/null
   echo "Configured $name"
