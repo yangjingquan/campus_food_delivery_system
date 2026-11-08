@@ -1,6 +1,6 @@
 pipeline {
     agent any
-    options { disableConcurrentBuilds(); timestamps(); timeout(time: 45, unit: 'MINUTES') }
+    options { disableConcurrentBuilds(); timeout(time: 45, unit: 'MINUTES') }
     environment {
         CFD_SERVICE = 'admin-api'
         CFD_IMAGE = 'campus-food/admin-api'
