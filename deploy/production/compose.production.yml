@@ -58,7 +58,7 @@ services:
       DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
       REDIS_HOST: shop-redis
       REDIS_PORT: "6379"
-      REDIS_USERNAME: cfd_app
+      REDIS_USERNAME: cfd-app
       REDIS_PASSWORD: ${REDIS_CFD_PASSWORD:?set REDIS_CFD_PASSWORD}
       REDIS_KEY_PREFIX: "cfd:"
       NACOS_SERVER_ADDR: campus-food-nacos:8848
