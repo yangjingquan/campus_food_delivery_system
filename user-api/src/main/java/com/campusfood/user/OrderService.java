@@ -47,7 +47,9 @@ public class OrderService {
             return checkoutResponse(previous.get(0).get("id").toString());
         }
         List<OrderLine> lines = lockAndValidate(requested);
-        long feePerMerchant = ((Number) db.queryForObject("SELECT fee_cents FROM operations_config ORDER BY id DESC LIMIT 1", Long.class)).longValue();
+        Map<String, Object> operations = db.queryForMap(
+            "SELECT fee_cents,id,food_rate FROM operations_config ORDER BY id DESC LIMIT 1");
+        long feePerMerchant = ((Number) operations.get("fee_cents")).longValue();
         if (feePerMerchant < 0) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "配送费用配置无效");
 
         Map<String, List<OrderLine>> grouped = new LinkedHashMap<>();
@@ -85,8 +87,12 @@ public class OrderService {
             db.update("INSERT INTO business_order(id,payment_id,merchant_id,merchant,items,food_cents,delivery_cents,paid_cents,payment_status,fulfill_status,refund_status,settlement_status,accepted,pending_refund,locking,payment_count,paid_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 orderId, paymentId, entry.getKey(), first.merchantName(), limit(summary.toString(), 490), foodCents, feePerMerchant, merchantTotal,
                 "未支付", "待支付", "无售后", "待支付", false, false, false, 0, 0L);
-            db.update("INSERT INTO user_order_detail(order_id,user_id,payment_id,address_id,receiver_name,phone,building,room) VALUES(?,?,?,?,?,?,?,?)",
-                orderId, userId, paymentId, addressId, address.get("name"), address.get("phone"), address.get("building"), address.get("room"));
+            db.update("""
+                INSERT INTO user_order_detail(order_id,user_id,payment_id,address_id,receiver_name,phone,building,room,
+                    operations_rule_id,food_rate_snapshot)
+                VALUES(?,?,?,?,?,?,?,?,?,?)
+                """, orderId, userId, paymentId, addressId, address.get("name"), address.get("phone"),
+                address.get("building"), address.get("room"), operations.get("id"), operations.get("food_rate"));
             for (OrderLine line : merchantLines) {
                 CatalogLine item = line.product();
                 long amount = Math.multiplyExact(item.priceCents(), line.quantity());

@@ -1,0 +1,23 @@
+<import src="../../fragments/states.wxml" />
+<view class="screen">
+  <view class="heading">{{id ? '编辑商品' : '新增商品'}}</view>
+  <template is="state" data="{{error, loading}}" />
+  <block wx:if="{{!error && !loading}}">
+    <view class="card">
+      <text class="label">商品名称</text><input aria-label="商品名称" class="field" data-field="name" bindinput="input" value="{{form.name}}" maxlength="120" />
+      <text class="label">分类</text><input aria-label="分类" class="field" data-field="category" bindinput="input" value="{{form.category}}" maxlength="40" />
+      <text class="label">商品描述</text><textarea aria-label="商品描述" class="field" data-field="description" bindinput="input" value="{{form.description}}" maxlength="500" />
+      <text class="label">售价（元）</text><input aria-label="售价（元）" class="field" type="digit" data-field="price" bindinput="input" value="{{form.price}}" />
+      <text class="label">总库存（份）</text><input aria-label="总库存（份）" class="field" type="number" data-field="stock" bindinput="input" value="{{form.stock}}" />
+      <view class="hint">库存为 0 时显示售罄。待支付订单已预占 {{form.reserved || 0}} 份。</view>
+      <view class="row separator"><text>商品上架</text><switch aria-label="商品上架" checked="{{form.available}}" color="#167953" bindchange="availability" /></view>
+      <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
+      <button class="btn primary wide separator" bindtap="save" loading="{{saving}}" disabled="{{saving}}" hover-class="pressed">保存商品</button>
+    </view>
+    <view wx:if="{{id}}" class="card">
+      <view class="section">手动库存调整记录</view>
+      <view wx:if="{{!history.length}}" class="hint">暂无手动调整</view>
+      <view wx:for="{{history}}" wx:key="index" class="kv"><text>{{item.time}}</text><text>{{item.previousStock}} → {{item.newStock}} 份</text></view>
+    </view>
+  </block>
+</view>

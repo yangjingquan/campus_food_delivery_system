@@ -4,11 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +29,8 @@ class OrderServiceTest {
         when(addresses.require(8L, "ADDR-1")).thenReturn(Map.of(
             "name", "林同学", "phone", "13800000000", "building", "5号宿舍楼", "room", "302寝室"));
         when(db.queryForList(contains("SELECT id,request_fingerprint"), any(Object[].class))).thenReturn(List.of());
-        when(db.queryForObject(contains("SELECT fee_cents"), eq(Long.class))).thenReturn(400L);
+        when(db.queryForMap(contains("SELECT fee_cents"))).thenReturn(Map.of(
+            "id", 1L, "fee_cents", 400L, "food_rate", BigDecimal.TEN));
         when(db.update(anyString(), any(Object[].class))).thenReturn(1);
         doAnswer(invocation -> {
             RowMapper<?> mapper = invocation.getArgument(1);

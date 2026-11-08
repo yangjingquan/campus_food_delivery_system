@@ -69,6 +69,11 @@ services:
         condition: service_healthy
       nacos:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8080'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
   user-api:
     build:
       context: .
@@ -88,6 +93,32 @@ services:
       mysql:
         condition: service_healthy
       nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8081'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  merchant-api:
+    build:
+      context: .
+      dockerfile: merchant-api/Dockerfile
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/campus_admin?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USER: campus
+      DB_PASSWORD: ${DB_PASSWORD:-campus_local_only}
+      NACOS_SERVER_ADDR: nacos:8848
+      MERCHANT_USER_API_URL: http://user-api:8081
+      MERCHANT_ADMIN_API_URL: http://admin-api:8080
+      USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:-}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
+    volumes:
+      - ./.local/wechat-master.key:/run/secrets/wechat-master.key:ro
+    depends_on:
+      admin-api:
+        condition: service_healthy
+      user-api:
         condition: service_healthy
   gateway:
     build:

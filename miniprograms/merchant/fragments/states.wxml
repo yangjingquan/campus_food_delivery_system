@@ -1,0 +1,11 @@
+<template name="state">
+  <view wx:if="{{blocked}}" class="card empty">
+    <view class="section">{{blocked}}</view>
+    <button class="btn primary wide separator" hover-class="pressed" bindtap="onboarding">登录／查看入驻进度</button>
+  </view>
+  <view wx:elif="{{error}}" class="card empty">
+    <view class="notice error">{{error}}</view>
+    <button class="btn plain wide separator" hover-class="pressed" bindtap="refresh">重新加载</button>
+  </view>
+  <view wx:elif="{{loading}}" class="card empty muted" aria-live="polite">正在加载…</view>
+</template>

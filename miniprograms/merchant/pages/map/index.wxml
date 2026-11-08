@@ -1,0 +1,13 @@
+<import src="../../fragments/states.wxml" />
+<view class="screen">
+  <view class="heading">骑手位置</view>
+  <view class="hint">当前订单 · <text class="mono">{{position.riderName || '配送状态'}}</text></view>
+  <template is="state" data="{{error, loading}}" />
+  <map wx:if="{{position.available}}" class="map" latitude="{{position.latitude}}" longitude="{{position.longitude}}" scale="17" markers="{{markers}}" />
+  <view wx:if="{{position}}" class="card">
+    <view class="row"><text class="section">{{position.available ? '定位有效' : '位置暂不可用'}}</text><text class="badge {{position.available ? '' : 'warn'}}">{{position.available ? '配送中' : '未共享'}}</text></view>
+    <view class="hint">{{position.state === 'stale' ? '位置数据已过期，等待骑手更新' : position.message}}</view>
+    <view class="kv"><text>最近定位时间</text><text>{{time}}</text></view>
+    <button wx:if="{{position.state !== 'ended'}}" class="btn plain wide separator" bindtap="refresh" hover-class="pressed">刷新位置</button>
+  </view>
+</view>

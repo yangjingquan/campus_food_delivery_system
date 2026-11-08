@@ -1,0 +1,8 @@
+{
+  "appid": "wx8ebb7eaaac795c54",
+  "compileType": "miniprogram",
+  "projectname": "校园外卖商家",
+  "miniprogramRoot": "./",
+  "libVersion": "3.10.0",
+  "setting": { "urlCheck": true, "es6": true, "minified": true }
+}

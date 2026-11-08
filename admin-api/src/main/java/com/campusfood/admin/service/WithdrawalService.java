@@ -71,6 +71,9 @@ public class WithdrawalService {
         var a = matches.get(0);
         if (!"正常".equals(a.get("status")) || !List.of("商户", "骑手").contains(a.get("type")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "账户不可提现");
+        if ("商户".equals(a.get("type")) && requests.hasInFlight(account)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "已有进行中的提现申请，请先查看记录");
+        }
         long available = ((Number) a.get("balance_cents")).longValue(), recovered = 0;
         // 商户申请提现时先按欠款记录顺序扣回，并分别记录双方账本。
         if ("商户".equals(a.get("type"))) {

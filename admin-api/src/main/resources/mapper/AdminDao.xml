@@ -16,7 +16,15 @@
 
     <select id="listMerchants" resultType="map">
         SELECT id,name,contact,phone,address,audit_status AS auditStatus,business_status AS businessStatus,
-        order_count AS orderCount,joined_at AS joinedAt,audit_reason AS auditReason FROM merchant ORDER BY id
+        order_count AS orderCount,joined_at AS joinedAt,audit_reason AS auditReason,
+        EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=merchant.id) AS hasPhoto FROM merchant
+        UNION ALL
+        SELECT CONCAT('revision:',m.id),r.name,r.contact,r.phone,r.address,r.status,'资料变更',
+               m.order_count,m.joined_at,r.reason,r.image_data IS NOT NULL
+                   OR EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=m.id)
+        FROM merchant_profile_revision r JOIN merchant m ON m.id=r.merchant_id
+        WHERE r.status='待审核'
+        ORDER BY id
     </select>
 
     <select id="listRiders" resultType="map">

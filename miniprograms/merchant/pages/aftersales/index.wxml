@@ -1,0 +1,13 @@
+<import src="../../fragments/states.wxml" />
+<view class="screen">
+  <view class="heading">售后工作台</view>
+  <view class="hint">查看申请、处理结果与渠道状态</view>
+  <template is="state" data="{{error, loading: loading && !rows.length}}" />
+  <view wx:if="{{!loading && !error && !rows.length}}" class="card empty muted">本店暂无售后</view>
+  <view wx:for="{{rows}}" wx:key="id" class="card">
+    <view class="row summary"><text class="section">{{item.amount}}</text><text class="badge">{{item.status}}</text></view>
+    <view>{{item.reason}}</view>
+    <view class="hint">{{item.time}} · {{item.channelStatus}}</view>
+    <button class="btn plain wide separator" data-id="{{item.orderId}}" bindtap="open" hover-class="pressed">查看售后与订单</button>
+  </view>
+</view>

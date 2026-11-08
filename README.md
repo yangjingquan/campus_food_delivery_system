@@ -93,3 +93,7 @@ npm run dev
 用户端真实微信支付与退款客户端、回调验签与解密、微信账单对账、地图服务商/坐标配置、生产 request 域名、商户和骑手端真实内部调用、订单结算及自动扣费、消息与持久任务、生产级密钥轮换及安全加固仍需开发和联调。当前系统仅用于本地开发，不具备真实资金交易条件。
 
 隔离联调可执行 `python3 scripts/check-integration.py`；脚本在现有 MySQL 容器内创建随机临时数据库、随机账号和临时后端容器，结束后删除这些临时资源。执行需要本机安装 OpenSSL、Docker 正常运行并允许访问 Docker 守护进程。
+
+## 商户端
+
+商户 API 和原生微信小程序的启动及联调说明见 [merchant-api/README.md](merchant-api/README.md)。

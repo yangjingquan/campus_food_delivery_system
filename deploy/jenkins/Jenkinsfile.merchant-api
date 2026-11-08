@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+    options { disableConcurrentBuilds(); skipDefaultCheckout(); timeout(time: 45, unit: 'MINUTES') }
+    environment {
+        CFD_SERVICE = 'merchant-api'
+        CFD_IMAGE = 'campus-food/merchant-api'
+        CFD_DOCKERFILE = 'merchant-api/Dockerfile'
+    }
+    stages {
+        stage('Checkout') { steps { checkout scm; sh 'git rev-parse --short=12 HEAD' } }
+        stage('Build image') {
+            steps {
+                script { env.CFD_IMAGE_TAG = "${env.BUILD_NUMBER}-${sh(returnStdout: true, script: 'git rev-parse --short=12 HEAD').trim()}" }
+                sh '''
+                    set -eu
+                    case "$WORKSPACE" in
+                      /var/jenkins_home/*) host_workspace="/opt/jenkins/jenkins_home/${WORKSPACE#/var/jenkins_home/}" ;;
+                      *) echo "Unsupported Jenkins workspace: $WORKSPACE" >&2; exit 1 ;;
+                    esac
+                    test -f "$WORKSPACE/$CFD_DOCKERFILE"
+                    flock -x /var/jenkins_home/.campus-food-build.lock \
+                      docker run --rm --entrypoint docker \
+                      -v /var/run/docker.sock:/var/run/docker.sock \
+                      -v "$host_workspace:/src:ro" \
+                      -e DOCKER_BUILDKIT=1 \
+                      docker:29-cli build --label "campus-food.service=$CFD_SERVICE" \
+                      -t "$CFD_IMAGE:$CFD_IMAGE_TAG" -f "/src/$CFD_DOCKERFILE" /src
+                '''
+            }
+        }
+        stage('Deploy this service') {
+            steps {
+                sh '''
+                    set -eu
+                    case "$WORKSPACE" in
+                      /var/jenkins_home/*) host_workspace="/opt/jenkins/jenkins_home/${WORKSPACE#/var/jenkins_home/}" ;;
+                      *) echo "Unsupported Jenkins workspace: $WORKSPACE" >&2; exit 1 ;;
+                    esac
+                    test -f "$WORKSPACE/deploy/production/deploy-service.sh"
+                    docker run --rm --entrypoint sh \
+                      -v /var/run/docker.sock:/var/run/docker.sock \
+                      -v "$host_workspace:/src:ro" \
+                      -v /opt/campus-food:/prod \
+                      -e SERVICE_NAME="$CFD_SERVICE" \
+                      -e SERVICE_TAG="$CFD_IMAGE_TAG" \
+                      docker:29-cli /src/deploy/production/deploy-service.sh
+                '''
+            }
+        }
+    }
+    post {
+        success { echo "merchant-api deployed as ${env.CFD_IMAGE}:${env.CFD_IMAGE_TAG}" }
+        failure { echo 'Deployment failed. Review the stage log; a failed health check attempts to restore the last recorded image tag.' }
+    }
+}

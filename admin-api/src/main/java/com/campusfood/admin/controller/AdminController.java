@@ -5,6 +5,9 @@ import com.campusfood.admin.service.AdminService;
 
 import java.util.Map;
 
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /** 对外提供管理员登录、业务查询和管理操作接口。 */
@@ -37,6 +40,15 @@ public class AdminController {
     public Map<String, Object> workspace(@RequestParam String section,
                                          @RequestHeader(value = "Authorization", required = false) String authorization) {
         return service.workspace(section, authorization);
+    }
+
+    @GetMapping("/merchants/{id}/photo")
+    public ResponseEntity<byte[]> merchantPhoto(@PathVariable String id,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        var photo = service.merchantPhoto(id, authorization);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .contentType(MediaType.parseMediaType((String) photo.get("media_type")))
+                .body((byte[]) photo.get("image_data"));
     }
 
     @GetMapping("/overview")

@@ -1,0 +1,19 @@
+<import src="../../fragments/states.wxml" />
+<view class="screen">
+  <view class="heading">我的店铺</view>
+  <view class="hint">营业状态、审核资料和接单设备</view>
+  <template is="state" data="{{error, loading, blocked}}" />
+  <block wx:if="{{loggedIn && !error && !loading}}">
+    <view class="hero">
+      <view class="row"><text class="section flex">{{store.name || '提交商户入驻'}}</text><text class="badge">{{store.auditStatus || '未申请'}}</text></view>
+      <view class="muted separator">{{store.address || '完成资料提交后可查看审核进度'}}</view>
+    </view>
+    <view class="card">
+      <button class="list-button row" bindtap="shop" hover-class="pressed"><text>{{store.auditStatus === '已通过' ? '店铺资料与变更' : '入驻资料与进度'}}</text><text class="badge">{{revision.status || '查看'}}</text></button>
+      <button wx:if="{{store.auditStatus === '已通过'}}" class="list-button row" bindtap="business" disabled="{{saving}}" hover-class="pressed"><text>{{store.businessStatus === '营业中' ? '打烊' : '开始营业'}}</text><text class="badge">{{store.businessStatus}}</text></button>
+      <button wx:if="{{store.auditStatus === '已通过'}}" class="list-button row" bindtap="devices" hover-class="pressed"><text>打印设备与订阅消息</text><text class="badge">查看</text></button>
+    </view>
+    <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
+    <button class="btn plain wide separator" bindtap="logout" disabled="{{saving}}" hover-class="pressed">退出登录</button>
+  </block>
+</view>

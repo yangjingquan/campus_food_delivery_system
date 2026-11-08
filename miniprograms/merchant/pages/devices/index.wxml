@@ -1,0 +1,13 @@
+<view class="screen">
+  <view class="heading">打印与消息</view>
+  <view class="card">
+    <view class="row"><text class="section">打印设备</text><text class="badge warn">等待设备接入</text></view>
+    <view class="hint">接单后可在订单详情生成小票及领取码。连接实体打印机需要平台配置对应型号。</view>
+  </view>
+  <view class="card">
+    <view class="row"><text class="section">新订单提醒</text><text wx:if="{{!canSubscribe}}" class="badge warn">等待模板配置</text></view>
+    <view class="hint">使用微信订阅消息接收新订单提醒，也可在订单工作台下拉刷新。</view>
+    <button wx:if="{{canSubscribe}}" class="btn primary wide separator" bindtap="subscribe" hover-class="pressed">授权订阅</button>
+    <view wx:if="{{message}}" class="notice">{{message}}</view>
+  </view>
+</view>

@@ -1,0 +1,69 @@
+page {
+  --green: #167953;
+  --deep: #185b42;
+  --surface: #fff;
+  --canvas: #f5f7f5;
+  --ink: #202e29;
+  --muted: #53655b;
+  --line: #e1e9e2;
+  --tint: #e8f4ec;
+  --warn: #805015;
+  --warn-bg: #fff2df;
+  --danger: #a03830;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+view, text, button, input, textarea, navigator, picker, image { box-sizing: border-box; }
+button { margin: 0; font: inherit; }
+button::after { border: 0; }
+button[disabled] { opacity: .55; }
+.screen { max-width: 620px; margin: 0 auto; padding: 20px 16px max(28px, env(safe-area-inset-bottom)); }
+.heading { font-size: 25px; font-weight: 720; line-height: 1.25; overflow-wrap: anywhere; }
+.section { font-size: 17px; font-weight: 690; }
+.muted, .hint { color: var(--muted); font-size: 14px; }
+.hint { margin-top: 6px; }
+.mono { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.top { align-items: flex-start; }
+.wrap { flex-wrap: wrap; }
+.flex { flex: 1; min-width: 0; }
+.card { margin-top: 12px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+.hero { margin-top: 16px; padding: 18px; background: var(--deep); color: #fff; border-radius: 16px; }
+.hero .muted { color: #d2eadb; }
+.hero .number { font-size: 31px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hero .btn { color: var(--deep); background: #f0f7f0; }
+.kv { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.kv:last-child { border-bottom: 0; }
+.kv > text:last-child { text-align: right; overflow-wrap: anywhere; min-width: 0; }
+.badge { display: inline-block; background: var(--tint); color: var(--deep); border-radius: 6px; padding: 4px 8px; font-size: 13px; line-height: 1.35; }
+.badge.warn, .notice { background: var(--warn-bg); color: var(--warn); }
+.notice { border-radius: 10px; padding: 12px; margin-top: 12px; font-size: 14px; }
+.error { color: var(--danger); background: #faeae7; }
+.btn { min-height: 44px; padding: 8px 14px; display: flex; justify-content: center; align-items: center; border-radius: 9px; background: var(--tint); color: var(--deep); text-align: center; font-size: 15px; font-weight: 650; line-height: 1.3; }
+.btn.primary { background: var(--green); color: #fff; }
+.btn.plain { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+.btn.wide { width: 100%; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.actions .btn { flex: 1 1 auto; }
+.pressed { opacity: .76; }
+.list-button { width: 100%; min-height: 48px; padding: 10px 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; color: var(--ink); border-radius: 0; font-size: 15px; }
+.list-button:last-child { border-bottom: 0; }
+.search, .field { min-height: 46px; padding: 10px 12px; background: #edf2ee; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); }
+.search { margin-top: 16px; }
+.field { width: 100%; margin-top: 6px; }
+textarea.field { min-height: 92px; }
+.label { display: block; margin-top: 14px; font-size: 15px; font-weight: 650; }
+.filters { margin-top: 12px; white-space: nowrap; }
+.filter { display: inline-flex; align-items: center; min-height: 44px; padding: 0 13px; border-radius: 9px; background: #fff; color: var(--muted); font-size: 14px; margin-right: 6px; }
+.filter.active { background: #deeee2; color: var(--deep); font-weight: 700; }
+.empty { padding: 24px 16px; text-align: center; }
+.summary { border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 10px; }
+.price { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.photo { display: block; width: 100%; height: 140px; border-radius: 10px; margin-top: 10px; background: var(--canvas); }
+.map { width: 100%; height: 330px; margin-top: 14px; border-radius: 14px; overflow: hidden; }
+.separator { margin-top: 20px; }
+@media (min-width: 520px) { .screen { padding-left: 28px; padding-right: 28px; } }

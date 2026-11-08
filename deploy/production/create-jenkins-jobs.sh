@@ -26,6 +26,7 @@ jobs={
  "campus-food-gateway":"deploy/jenkins/Jenkinsfile.gateway",
  "campus-food-admin-api":"deploy/jenkins/Jenkinsfile.admin-api",
  "campus-food-user-api":"deploy/jenkins/Jenkinsfile.user-api",
+ "campus-food-merchant-api":"deploy/jenkins/Jenkinsfile.merchant-api",
  "campus-food-admin-web":"deploy/jenkins/Jenkinsfile.admin-web",
 }
 for name,script in jobs.items():
@@ -62,7 +63,15 @@ print(x["crumbRequestField"],x["crumb"])
 PY
 )
 
-for name in campus-food-gateway campus-food-admin-api campus-food-user-api campus-food-admin-web; do
+if [ "$#" -eq 0 ]; then
+  set -- campus-food-gateway campus-food-admin-api campus-food-user-api campus-food-merchant-api campus-food-admin-web
+fi
+
+for name in "$@"; do
+  case "$name" in
+    campus-food-gateway|campus-food-admin-api|campus-food-user-api|campus-food-merchant-api|campus-food-admin-web) ;;
+    *) echo "Unknown job: $name" >&2; exit 2 ;;
+  esac
   file="$WORK/$name.xml"
   if curl --silent --output /dev/null --write-out '%{http_code}' --user "$USER:$PASS" "$BASE/job/$name/api/json" | grep -q '^200$'; then
     url="$BASE/job/$name/config.xml"

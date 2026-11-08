@@ -16,10 +16,14 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class DeliveryService {
     private final JdbcTemplate db;
+    private final DeliveryBatches batches;
     @Value("${app.internal-api-key:}") private String internalApiKey;
     @Value("${app.location-expiry-seconds:60}") private int expirySeconds;
 
-    public DeliveryService(JdbcTemplate db) { this.db = db; }
+    public DeliveryService(JdbcTemplate db, DeliveryBatches batches) {
+        this.db = db;
+        this.batches = batches;
+    }
 
     public Map<String, Object> userLocation(long userId, String orderId) {
         List<Map<String, Object>> orders = db.queryForList("SELECT o.fulfill_status AS status,d.user_id FROM business_order o JOIN user_order_detail d ON d.order_id=o.id WHERE o.id=?", orderId);
@@ -36,6 +40,74 @@ public class DeliveryService {
         location.put("message", fresh ? "骑手正在配送" : "位置已过期，以下为最后已知位置");
         location.put("expirySeconds", expirySeconds);
         return location;
+    }
+
+    public Map<String, Object> merchantLocation(String merchant, String orderId) {
+        var owners = db.queryForList("""
+            SELECT d.user_id FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
+            WHERE o.id=? AND o.merchant_id=? AND o.paid_at>0
+            """, Long.class, orderId, merchant);
+        if (owners.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
+        return userLocation(owners.getFirst(), orderId);
+    }
+
+    @Transactional
+    public Map<String, Object> merchantStatus(String merchant, String orderId, String action) {
+        var orders = db.queryForList("""
+            SELECT o.fulfill_status,o.paid_at,o.pending_refund,o.refund_status
+            FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
+            WHERE o.id=? AND o.merchant_id=? AND o.paid_at>0 FOR UPDATE
+            """, orderId, merchant);
+        if (orders.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
+        Map<String, Object> order = orders.getFirst();
+        String next = switch (action) {
+            case "accept" -> "商户出餐中";
+            case "arrive" -> "已到暂存点 / 待领取";
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知履约操作");
+        };
+        if (next.equals(order.get("fulfill_status"))) return Map.of("orderId", orderId, "status", next);
+        if (Boolean.TRUE.equals(order.get("pending_refund"))
+                || List.of("退款失败", "平台介入").contains(order.get("refund_status"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单售后尚待处理");
+        }
+        if ("accept".equals(action)) {
+            Integer timeout = db.queryForObject("SELECT accept_timeout FROM operations_config ORDER BY id DESC LIMIT 1", Integer.class);
+            long paidAt = ((Number) order.get("paid_at")).longValue();
+            if (System.currentTimeMillis() >= paidAt + timeout * 60_000L) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "已超过接单时限");
+            }
+        }
+        return updateStatus(orderId, Map.of("status", next, "actor", "商户"));
+    }
+
+    @Transactional
+    public Map<String, Object> pickup(String token, String riderId) {
+        if (token == null || !token.matches("[A-Za-z0-9_-]{22}") || riderId == null || riderId.length() > 32) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "领取码或骑手编号无效");
+        }
+        var riders = db.queryForList("SELECT name FROM rider WHERE id=? AND audit_status='已通过'",
+            String.class, riderId);
+        if (riders.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "骑手未通过审核");
+
+        // 锁住订单而不是只锁二维码，扫码与其他履约入口使用同一行状态互斥。
+        var orders = db.queryForList("""
+            SELECT o.id,o.fulfill_status,o.pending_refund,o.refund_status,d.pickup_rider_id
+            FROM merchant_pickup_ticket t JOIN business_order o ON o.id=t.order_id
+            JOIN user_order_detail d ON d.order_id=o.id WHERE t.token=? FOR UPDATE
+            """, token);
+        if (orders.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "领取码无效");
+        Map<String, Object> order = orders.getFirst();
+        String id = order.get("id").toString();
+        if ("配送中".equals(order.get("fulfill_status")) && riderId.equals(order.get("pickup_rider_id"))) {
+            return Map.of("orderId", id, "status", "配送中");
+        }
+        if (Boolean.TRUE.equals(order.get("pending_refund"))
+                || List.of("退款失败", "平台介入").contains(order.get("refund_status"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单售后尚待处理");
+        }
+        var result = updateStatus(id, Map.of("status", "配送中", "riderName", riders.getFirst(), "actor", "骑手扫码"));
+        db.update("UPDATE user_order_detail SET pickup_rider_id=? WHERE order_id=?", riderId, id);
+        return result;
     }
 
     @Transactional
@@ -57,12 +129,18 @@ public class DeliveryService {
         } else if ("配送中".equals(next)) {
             String rider = text(body, "riderName");
             if (rider.isBlank() || rider.length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "骑手名称无效");
-            db.update("UPDATE business_order SET fulfill_status=?,rider=? WHERE id=?", next, rider, orderId);
+            db.update("""
+                UPDATE business_order SET fulfill_status=?,rider=?,
+                    intervene=IF(intervene_reason=?,FALSE,intervene),
+                    intervene_reason=IF(intervene_reason=?,NULL,intervene_reason)
+                WHERE id=?
+                """, next, rider, DeliveryBatches.OVERDUE, DeliveryBatches.OVERDUE, orderId);
         } else if ("已完成".equals(next)) {
             db.update("UPDATE business_order SET fulfill_status=?,completed_at=?,settlement_status='待结算' WHERE id=?", next, now, orderId);
             db.update("DELETE FROM delivery_location WHERE order_id=?", orderId);
         } else {
             db.update("UPDATE business_order SET fulfill_status=? WHERE id=?", next, orderId);
+            batches.recordArrival(orderId, now);
         }
         db.update("INSERT INTO order_note(order_id,actor,note) VALUES(?,?,?)", orderId, text(body, "actor").isBlank() ? "履约服务" : text(body, "actor"), previous + " → " + next);
         return Map.of("orderId", orderId, "previousStatus", previous, "status", next, "updatedAt", now);

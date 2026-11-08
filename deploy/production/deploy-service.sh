@@ -8,6 +8,7 @@ case "$SERVICE_NAME" in
   gateway) tag_variable=GATEWAY_TAG ;;
   admin-api) tag_variable=ADMIN_API_TAG ;;
   user-api) tag_variable=USER_API_TAG ;;
+  merchant-api) tag_variable=MERCHANT_API_TAG ;;
   admin-web) tag_variable=ADMIN_WEB_TAG ;;
   *) echo "Unknown service: $SERVICE_NAME" >&2; exit 2 ;;
 esac

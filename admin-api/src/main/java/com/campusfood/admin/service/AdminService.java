@@ -220,6 +220,16 @@ public class AdminService {
         return Map.of("ok", true);
     }
 
+    public Map<String, Object> merchantPhoto(String id, String authHeader) {
+        authorization.require(actor(authHeader), "merchant.view");
+        Map<String, Object> photo = id.startsWith("revision:")
+                ? merchants.revisionPhoto(id.substring("revision:".length())) : merchants.currentPhoto(id);
+        if (photo == null || !(photo.get("image_data") instanceof byte[])) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商户图片不存在");
+        }
+        return photo;
+    }
+
     @Transactional
     public Map<String, Object> action(AdminActionRequest body, String authHeader) {
         String username = actor(authHeader);
@@ -252,9 +262,20 @@ public class AdminService {
                 (decision.equals("reject") && reason.isBlank()) || reason.length() > 500)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审核决定或驳回原因无效");
         String result = decision.equals("approve") ? "已通过" : "已驳回";
-        int changed = type.equals("merchant.audit")
+        int changed;
+        if (type.equals("merchant.audit") && id.startsWith("revision:")) {
+            String storeId = id.substring("revision:".length());
+            merchants.lockStore(storeId);
+            changed = merchants.reviewRevision(storeId, result, reason);
+            if (changed == 1 && decision.equals("approve")) {
+                merchants.applyRevision(storeId);
+                merchants.applyPhotoRevision(storeId);
+            }
+        } else {
+            changed = type.equals("merchant.audit")
                 ? merchants.updatePendingAudit(result, reason.isBlank() ? null : reason, id)
                 : riders.updatePendingAudit(result, reason.isBlank() ? null : reason, id);
+        }
         if (changed != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "记录不存在或已处理");
         db.insertAudit(username, type, id, "待审核", result, reason);
         return Map.of("ok", true);

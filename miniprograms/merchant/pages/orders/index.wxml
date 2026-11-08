@@ -1,0 +1,44 @@
+<import src="../../fragments/states.wxml" />
+<view class="screen">
+  <view class="row top">
+    <view class="flex">
+      <view class="heading">{{store.name || '订单工作台'}}</view>
+      <view class="hint">查看本店订单，接单并确认到点</view>
+    </view>
+    <text wx:if="{{store && !blocked}}" class="badge">{{store.businessStatus === '营业中' ? '营业中' : '已打烊'}}</text>
+  </view>
+  <template is="state" data="{{blocked, error, loading: loading && !rows.length}}" />
+  <block wx:if="{{!blocked && !error && (!loading || rows.length)}}">
+    <view class="hero row">
+      <view>
+        <view class="muted">待接单</view>
+        <view class="number">{{counts.waiting || 0}} <text class="muted">单</text></view>
+      </view>
+      <button class="btn" bindtap="aftersales" hover-class="pressed">售后待办 {{counts.aftersales || 0}}</button>
+    </view>
+    <view class="row search">
+      <input class="flex" aria-label="订单号或商品名称" placeholder="订单号或商品名称" value="{{q}}" bindinput="search" bindconfirm="submitSearch" confirm-type="search" maxlength="64" />
+      <button class="btn plain" bindtap="submitSearch" hover-class="pressed">搜索</button>
+    </view>
+    <scroll-view class="filters" scroll-x>
+      <button wx:for="{{filters}}" wx:key="label" class="filter {{index === filter ? 'active' : ''}}" data-index="{{index}}" bindtap="filter" hover-class="pressed">{{item.label}}</button>
+    </scroll-view>
+    <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
+    <view wx:if="{{!rows.length}}" class="card empty muted">没有符合条件的订单</view>
+    <view wx:for="{{rows}}" wx:key="id" class="card">
+      <view class="row summary">
+        <text class="section mono">#{{item.suffix}}</text>
+        <text class="badge {{item.status === '待商户接单' ? 'warn' : ''}}">{{item.status}}</text>
+      </view>
+      <view class="row top"><text class="flex">{{item.items}}</text><text class="price">{{item.amount}}</text></view>
+      <view class="hint">{{item.time}}</view>
+      <view wx:if="{{item.status === '待商户接单'}}" class="hint">{{item.acceptExpired ? '已过接单时限' : '接单截止 ' + item.deadline}}</view>
+      <view wx:if="{{item.intervene}}" class="notice">{{item.interveneReason || '待管理员介入'}}</view>
+      <view class="actions">
+        <button class="btn plain" data-id="{{item.id}}" bindtap="details" hover-class="pressed">订单详情</button>
+        <button wx:if="{{!item.pendingRefund && !item.intervene && !item.acceptExpired && item.status === '待商户接单'}}" class="btn primary" data-id="{{item.id}}" data-action="accept" bindtap="update" disabled="{{saving}}" hover-class="pressed">确认接单</button>
+        <button wx:if="{{!item.pendingRefund && item.status === '商户出餐中'}}" class="btn primary" data-id="{{item.id}}" data-action="arrive" bindtap="update" disabled="{{saving}}" hover-class="pressed">确认到点</button>
+      </view>
+    </view>
+  </block>
+</view>

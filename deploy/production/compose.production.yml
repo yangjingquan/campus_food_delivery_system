@@ -119,6 +119,41 @@ services:
     mem_limit: 768m
     logging: *log-config
 
+  merchant-api:
+    image: campus-food/merchant-api:${MERCHANT_API_TAG:-latest}
+    container_name: campus-food-merchant-api
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:mysql://shop-mysql:3306/campus_food_delivery?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true
+      DB_USER: cfd_app
+      DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
+      NACOS_SERVER_ADDR: campus-food-nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:?set NACOS_USERNAME}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?set NACOS_PASSWORD}
+      WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
+      MERCHANT_USER_API_URL: http://user-api:8081
+      MERCHANT_ADMIN_API_URL: http://admin-api:8080
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
+      USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
+    volumes:
+      - /opt/campus-food/secrets/wechat-master.key:/run/secrets/wechat-master.key:ro
+    networks:
+      - backend
+    depends_on:
+      admin-api:
+        condition: service_healthy
+      user-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8083'"]
+      interval: 20s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    mem_limit: 768m
+    logging: *log-config
+
   gateway:
     image: campus-food/gateway:${GATEWAY_TAG:-latest}
     container_name: campus-food-gateway

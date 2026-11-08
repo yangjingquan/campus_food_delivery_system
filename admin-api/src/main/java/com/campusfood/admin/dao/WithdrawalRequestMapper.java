@@ -16,6 +16,11 @@ public interface WithdrawalRequestMapper extends BaseMapper<WithdrawalRequest> {
                 .eq(WithdrawalRequest::getStatus, "待审核")));
     }
 
+    default boolean hasInFlight(String accountId) {
+        return exists(Wrappers.<WithdrawalRequest>lambdaQuery().eq(WithdrawalRequest::getAccountId, accountId)
+                .in(WithdrawalRequest::getStatus, "待审核", "待打款", "打款中", "待收款确认"));
+    }
+
     default List<Map<String, Object>> lockWithdrawal(String id) {
         return selectMaps(Wrappers.<WithdrawalRequest>lambdaQuery()
                 .select(WithdrawalRequest::getId, WithdrawalRequest::getAccountId,

@@ -1,5 +1,6 @@
 package com.campusfood.user;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +25,10 @@ public class RefundService {
     @Transactional
     public Map<String, Object> apply(long userId, String orderId, Map<String, Object> body) {
         Map<String, Object> order = lockedOrder(userId, orderId);
-        if (!"支付成功".equals(order.get("mergedPaymentStatus"))) throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单当前不能申请售后");
+        if (!"支付成功".equals(order.get("mergedPaymentStatus"))
+                || "可提现".equals(order.get("settlement_status"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单当前不能申请售后");
+        }
         long now = System.currentTimeMillis();
         ensureWithinWindow(order, now);
         if (hasInFlight(orderId)) throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单已有处理中售后，请先查看处理进度");
@@ -34,7 +38,7 @@ public class RefundService {
         boolean accepted = Boolean.TRUE.equals(order.get("accepted"));
         boolean beforeAcceptance = !accepted && "待商户接单".equals(order.get("fulfill_status"));
         if (beforeAcceptance && !"full".equals(type)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户接单前仅支持全额退款");
-        if (beforeAcceptance && !"mock".equalsIgnoreCase(paymentMode)) {
+        if (beforeAcceptance && !mockChannel(order.get("paymentMode"))) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "微信退款渠道尚未接入，未创建退款申请");
         }
 
@@ -137,14 +141,35 @@ public class RefundService {
         if (actualAmount != expectedAmount) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "线下退款金额须与该申请金额一致");
         String channel = text(body, "channel"), proof = text(body, "proof");
         if (channel.isBlank() || channel.length() > 80 || proof.isBlank() || proof.length() > 500) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写线下渠道和处理凭据");
-        String oldFailure = String.valueOf(refund.get("channel_reason"));
-        db.update("UPDATE user_refund_detail SET original_online_failure=? WHERE refund_id=?", oldFailure, refundId);
-        long actualAt = System.currentTimeMillis();
+        String operator = text(body, "operator");
+        if (operator.length() > 80) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "操作人无效");
+        if (operator.isEmpty()) operator = "管理员线下核实";
+        long now = System.currentTimeMillis();
+        long actualAt = now;
+        if (body.get("actualAt") != null) {
+            try {
+                actualAt = Long.parseLong(body.get("actualAt").toString());
+            } catch (NumberFormatException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "线下实际退款时间无效");
+            }
+        }
+        if (actualAt < number(refund, "created_at") || actualAt > now) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "线下实际退款时间无效");
+        }
+        // 原线上失败留在售后详情，线下凭据与处理时间单独保存。
+        Object oldFailure = refund.get("channel_reason");
+        db.update("""
+            INSERT INTO user_refund_detail(refund_id,original_online_failure) VALUES(?,?)
+            ON DUPLICATE KEY UPDATE original_online_failure=?
+            """, refundId, oldFailure, oldFailure);
         completeRefund(refundId, refund.get("order_id").toString(), actualAt, "已核实线下实际退款成功：" + channel);
-        db.update("UPDATE refund_record SET status='线下已处理',channel_status='线上失败；线下已核实',channel_reason=?,operator='线下核实' WHERE id=?", limit(proof, 500), refundId);
+        db.update("""
+            UPDATE refund_record SET status='线下已处理',channel_status='线上失败；线下已核实',
+                channel_reason=?,operator=?,offline_channel=?,offline_proof=?,offline_operator=?,offline_actual_at=?
+            WHERE id=?
+            """, oldFailure, operator, channel, proof, operator, actualAt, refundId);
         db.update("UPDATE business_order SET refund_status='线下已处理' WHERE id=?", refund.get("order_id"));
-        db.update("UPDATE user_refund_detail SET original_online_failure=? WHERE refund_id=?", oldFailure, refundId);
-        addEvent(refundId, "线下已处理", "已记录实际退款渠道、凭据与时间", actualAt);
+        addEvent(refundId, "线下已处理", "已记录实际退款渠道、凭据与时间", now);
         return publicDetail(refundId);
     }
 
@@ -165,8 +190,9 @@ public class RefundService {
 
     @Transactional
     public void processWaitingRefunds() {
+        if (!"mock".equalsIgnoreCase(paymentMode)) return;
         long now = System.currentTimeMillis();
-        List<String> ids = db.queryForList("SELECT r.id FROM refund_record r JOIN user_refund_detail x ON x.refund_id=r.id WHERE r.status='等待退款提交' AND x.wait_until<=? ORDER BY x.wait_until LIMIT 50", String.class, now);
+        List<String> ids = db.queryForList("SELECT r.id FROM refund_record r JOIN user_refund_detail x ON x.refund_id=r.id JOIN payment_order p ON p.id=r.payment_id WHERE p.payment_mode='mock' AND r.status='等待退款提交' AND x.wait_until<=? ORDER BY x.wait_until LIMIT 50", String.class, now);
         for (String id : ids) {
             Map<String, Object> refund = lockedRefund(id);
             if ("等待退款提交".equals(refund.get("status"))) issueLocalRefund(id, refund.get("order_id").toString(), now);
@@ -197,8 +223,120 @@ public class RefundService {
         return merchantDecision(refundId, text(body, "decision"), text(body, "reason"));
     }
 
+    @Transactional
+    public Map<String, Object> merchantOperation(String merchant, String orderId, Map<String, Object> body) {
+        String action = text(body, "action");
+        String refundId = text(body, "refundId");
+        String reason = text(body, "reason");
+        if (reason.length() > 500) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "原因最多 500 个字符");
+        if (!refundId.isBlank()) {
+            // 先锁现有售后记录，沿用既有审核和渠道结果处理的加锁顺序。
+            var matches = db.queryForList("""
+                SELECT r.status FROM refund_record r JOIN business_order o ON o.id=r.order_id
+                WHERE r.id=? AND o.id=? AND o.merchant_id=? FOR UPDATE
+                """, String.class, refundId, orderId, merchant);
+            if (matches.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "售后记录不存在");
+            if ("reject".equals(action)) return merchantDecision(refundId, action, reason);
+            if ("end".equals(action) && "拒绝退款".equals(matches.getFirst())) {
+                db.update("UPDATE refund_record SET status='已结束',operator='商户协商结束' WHERE id=?", refundId);
+                db.update("""
+                    UPDATE business_order SET refund_status='已结束'
+                    WHERE id=? AND refund_status='拒绝退款' AND pending_refund=FALSE
+                    """, orderId);
+                addEvent(refundId, "售后结束", "双方协商不退款，履约节点保持不变", System.currentTimeMillis());
+                return publicDetail(refundId);
+            }
+            if (!"approve".equals(action) || !"待商户处理".equals(matches.getFirst())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "该售后当前不能执行此操作");
+            }
+        } else if (!"negotiate".equals(action) || reason.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写协商退款原因");
+        }
+        if (!"mock".equalsIgnoreCase(paymentMode)) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "微信退款渠道尚未接入，未提交退款");
+        }
+        var orders = db.queryForList("""
+            SELECT o.*,d.first_closed_at,p.payment_mode AS paymentMode
+            FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
+            JOIN payment_order p ON p.id=o.payment_id
+            WHERE o.id=? AND o.merchant_id=? AND p.status='支付成功' FOR UPDATE
+            """, orderId, merchant);
+        if (orders.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
+        Map<String, Object> order = orders.getFirst();
+        if (!mockChannel(order.get("paymentMode"))) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "原支付单的真实退款渠道尚未接入");
+        }
+        if (!Boolean.TRUE.equals(order.get("accepted")) || Boolean.TRUE.equals(order.get("locking"))
+                || List.of("可提现", "已结算", "已提现").contains(order.get("settlement_status"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单当前不能提交商户退款");
+        }
+        long now = System.currentTimeMillis();
+        boolean negotiated = refundId.isBlank();
+        String type = text(body, "type");
+        if (negotiated) {
+            String requestKey = text(body, "requestKey");
+            if (!requestKey.matches("[A-Za-z0-9_-]{8,64}")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "协商退款请求编号无效");
+            }
+            // 超时或响应丢失后用原请求编号获取结果，防止重复扣减同一笔拆单。
+            String scope = merchant + ":" + orderId + ":" + requestKey;
+            refundId = "AS-M-" + UUID.nameUUIDFromBytes(scope.getBytes(StandardCharsets.UTF_8));
+            var previous = db.queryForList("""
+                SELECT r.type,r.amount_cents,r.reason,d.restore_stock
+                FROM refund_record r JOIN user_refund_detail d ON d.refund_id=r.id
+                WHERE r.id=? FOR UPDATE
+                """, refundId);
+            if (!previous.isEmpty()) {
+                var existing = previous.getFirst();
+                if (!type.equals(existing.get("type")) || !reason.equals(existing.get("reason"))
+                        || ("partial".equals(type) && number(existing, "amount_cents") != parseCents(body.get("amountCents")))
+                        || Boolean.TRUE.equals(existing.get("restore_stock")) != Boolean.TRUE.equals(body.get("restoreStock"))) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "请求编号已用于其他退款内容，请刷新订单");
+                }
+                return publicDetail(refundId);
+            }
+            ensureWithinWindow(order, now);
+            if (hasInFlight(orderId) || "退款失败".equals(order.get("refund_status"))) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "已有待处理退款，请查看原售后记录");
+            }
+        }
+        long remaining = number(order, "paid_cents") - number(order, "refunded_cents");
+        long food = number(order, "food_cents") - number(order, "food_refunded_cents");
+        long amount = "full".equals(type) ? remaining : parseCents(body.get("amountCents"));
+        if (!List.of("full", "partial").contains(type) || amount <= 0 || amount > remaining
+                || ("partial".equals(type) && amount > food)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额超过该订单剩余可退范围");
+        }
+        if (negotiated) {
+            db.update("""
+                INSERT INTO refund_record(id,order_id,payment_id,reason,type,amount_cents,status,channel_status,created_at,operator)
+                VALUES(?,?,?,?,?,?,'退款处理中','本地模拟退款处理中',?,'商户协商')
+                """, refundId, orderId, order.get("payment_id"), reason, type, amount, now);
+            db.update("INSERT INTO user_refund_detail(refund_id,description,restore_stock) VALUES(?,?,?)",
+                refundId, reason, Boolean.TRUE.equals(body.get("restoreStock")));
+        } else {
+            db.update("""
+                UPDATE refund_record SET type=?,amount_cents=?,status='退款处理中',
+                    channel_status='本地模拟退款处理中',operator='商户处理' WHERE id=?
+                """, type, amount, refundId);
+            db.update("""
+                INSERT INTO user_refund_detail(refund_id,restore_stock) VALUES(?,?)
+                ON DUPLICATE KEY UPDATE restore_stock=?
+                """, refundId, Boolean.TRUE.equals(body.get("restoreStock")), Boolean.TRUE.equals(body.get("restoreStock")));
+        }
+        db.update("UPDATE business_order SET refund_status='退款处理中',pending_refund=TRUE WHERE id=?", orderId);
+        addEvent(refundId, "商户确认退款", negotiated ? reason : "商户同意退款申请", now);
+        issueLocalRefund(refundId, orderId, now);
+        return publicDetail(refundId);
+    }
+
     private void createTimeoutRefund(String orderId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT o.payment_id,o.paid_cents,o.refunded_cents,o.id FROM business_order o WHERE o.id=? FOR UPDATE", orderId);
+        List<Map<String, Object>> rows = db.queryForList("""
+            SELECT o.payment_id,o.paid_cents,o.refunded_cents,o.id,p.payment_mode AS paymentMode
+            FROM business_order o JOIN payment_order p ON p.id=o.payment_id
+            WHERE o.id=? AND o.fulfill_status='待商户接单' AND o.accepted=FALSE AND o.pending_refund=FALSE
+              AND o.refund_status='无售后' FOR UPDATE
+            """, orderId);
         if (rows.isEmpty()) return;
         Map<String, Object> order = rows.get(0);
         long amount = number(order, "paid_cents") - number(order, "refunded_cents");
@@ -210,7 +348,7 @@ public class RefundService {
         db.update("INSERT INTO user_refund_detail(refund_id,description) VALUES(?,?)", refundId, "商户超过运营配置的接单时限未接单");
         db.update("UPDATE business_order SET refund_status='退款处理中',pending_refund=TRUE WHERE id=?", orderId);
         addEvent(refundId, "商户接单超时，自动发起退款", "接单超时时长按运营配置执行", now);
-        if ("mock".equalsIgnoreCase(paymentMode)) issueLocalRefund(refundId, orderId, now);
+        if (mockChannel(order.get("paymentMode"))) issueLocalRefund(refundId, orderId, now);
         else {
             db.update("UPDATE refund_record SET status='退款失败',channel_status='渠道未配置',channel_reason='微信退款渠道未配置，需管理员线下核实' WHERE id=?", refundId);
             db.update("UPDATE business_order SET refund_status='退款失败',pending_refund=FALSE,intervene=TRUE,intervene_reason='退款渠道未配置，需线下核实' WHERE id=?", orderId);
@@ -220,7 +358,11 @@ public class RefundService {
 
     private void issueLocalRefund(String refundId, String orderId, long now) {
         Map<String, Object> order = db.queryForMap("SELECT payment_id FROM business_order WHERE id=? FOR UPDATE", orderId);
-        Map<String, Object> payment = db.queryForMap("SELECT refund_count,last_refund_at FROM payment_order WHERE id=? FOR UPDATE", order.get("payment_id"));
+        Map<String, Object> payment = db.queryForMap("SELECT refund_count,last_refund_at,payment_mode FROM payment_order WHERE id=? FOR UPDATE", order.get("payment_id"));
+        // 全部模拟提交入口都检查支付单原始渠道，切换环境模式不会模拟退真实款项。
+        if (!mockChannel(payment.get("payment_mode"))) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "原支付单的真实退款渠道尚未接入");
+        }
         int count = ((Number) payment.get("refund_count")).intValue();
         Object lastRaw = payment.get("last_refund_at");
         Long last = lastRaw instanceof Number n ? n.longValue() : null;
@@ -257,7 +399,15 @@ public class RefundService {
             amount, foodRefund, now, now, now, orderId);
         db.update("UPDATE user_order_detail SET first_closed_at=COALESCE(first_closed_at,?) WHERE order_id=?", now, orderId);
         db.update("UPDATE refund_record SET status='退款成功',channel_status=?,channel_reason=NULL WHERE id=?", message, refundId);
-        if (!Boolean.TRUE.equals(order.get("accepted")) && "待商户接单".equals(order.get("fulfill_status"))) restoreStock(orderId);
+        boolean restore = !Boolean.TRUE.equals(order.get("accepted")) && "待商户接单".equals(order.get("fulfill_status"));
+        if (Boolean.TRUE.equals(order.get("accepted"))) {
+            // 同一订单多次部分退款，只能恢复一份原订单库存。
+            restore = db.update("""
+                UPDATE user_order_detail d JOIN user_refund_detail r ON r.refund_id=?
+                SET d.stock_restored=TRUE WHERE d.order_id=? AND d.stock_restored=FALSE AND r.restore_stock=TRUE
+                """, refundId, orderId) == 1;
+        }
+        if (restore) restoreStock(orderId);
         db.update("DELETE FROM delivery_location WHERE order_id=?", orderId);
         addEvent(refundId, "退款成功，订单已关闭", message, now);
     }
@@ -265,7 +415,7 @@ public class RefundService {
     private void restoreStock(String orderId) {
         List<Map<String, Object>> items = db.queryForList("SELECT product_id,quantity FROM user_order_item WHERE order_id=?", orderId);
         for (Map<String, Object> item : items) {
-            db.update("UPDATE merchant_product SET stock=stock+?,reserved=GREATEST(0,reserved-?) WHERE id=?",
+            db.update("UPDATE merchant_product SET stock=stock+?,sold_count=GREATEST(0,sold_count-?) WHERE id=?",
                 item.get("quantity"), item.get("quantity"), item.get("product_id"));
         }
     }
@@ -285,7 +435,7 @@ public class RefundService {
     }
 
     private Map<String, Object> lockedOrder(long userId, String orderId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id,o.paid_cents,o.food_cents,o.refunded_cents,o.food_refunded_cents,o.payment_status,o.fulfill_status,o.accepted,o.completed_at,d.first_closed_at,p.status AS mergedPaymentStatus FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE o.id=? AND d.user_id=? FOR UPDATE", orderId, userId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id,o.paid_cents,o.food_cents,o.refunded_cents,o.food_refunded_cents,o.payment_status,o.fulfill_status,o.settlement_status,o.accepted,o.completed_at,d.first_closed_at,p.status AS mergedPaymentStatus,p.payment_mode AS paymentMode FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE o.id=? AND d.user_id=? FOR UPDATE", orderId, userId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
         return rows.get(0);
     }
@@ -313,6 +463,10 @@ public class RefundService {
 
     private void addEvent(String refundId, String status, String message, long now) {
         db.update("INSERT INTO user_after_sale_event(refund_id,status,message,created_at) VALUES(?,?,?,?)", refundId, status, message, Timestamp.from(java.time.Instant.ofEpochMilli(now)));
+    }
+
+    private boolean mockChannel(Object originalMode) {
+        return "mock".equalsIgnoreCase(paymentMode) && "mock".equalsIgnoreCase(String.valueOf(originalMode));
     }
 
     private static long parseCents(Object value) {

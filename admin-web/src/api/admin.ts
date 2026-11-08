@@ -33,6 +33,9 @@ export const adminApi = {
   workspace<T = unknown>(section: SectionKey) {
     return unwrap<T>(http.get('/workspace', { params: { section } }))
   },
+  merchantPhoto(id: string) {
+    return unwrap<Blob>(http.get(`/merchants/${encodeURIComponent(id)}/photo`, { responseType: 'blob' }))
+  },
   action<T = unknown>(type: string, payload: Record<string, unknown>) {
     return unwrap<T>(http.post('/actions', { type, payload }))
   },

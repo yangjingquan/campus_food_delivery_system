@@ -1,0 +1,25 @@
+{
+  "pages": [
+    "pages/orders/index", "pages/products/index", "pages/finance/index", "pages/mine/index",
+    "pages/onboarding/index", "pages/order/index", "pages/aftersales/index", "pages/product/index",
+    "pages/ticket/index", "pages/map/index", "pages/records/index", "pages/withdraw/index", "pages/devices/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "校园外卖商家",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f5f7f5"
+  },
+  "tabBar": {
+    "color": "#52665d",
+    "selectedColor": "#167953",
+    "backgroundColor": "#ffffff",
+    "list": [
+      { "pagePath": "pages/orders/index", "text": "订单", "iconPath": "assets/orders.png", "selectedIconPath": "assets/orders-active.png" },
+      { "pagePath": "pages/products/index", "text": "商品", "iconPath": "assets/products.png", "selectedIconPath": "assets/products-active.png" },
+      { "pagePath": "pages/finance/index", "text": "经营", "iconPath": "assets/finance.png", "selectedIconPath": "assets/finance-active.png" },
+      { "pagePath": "pages/mine/index", "text": "我的", "iconPath": "assets/mine.png", "selectedIconPath": "assets/mine-active.png" }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

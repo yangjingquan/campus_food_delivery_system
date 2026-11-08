@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
@@ -31,6 +31,9 @@ const activeFinanceTab = ref('accounts')
 const finance = ref<{ accounts: Row[]; ledger: Row[]; debts: Row[]; journal: Row[] }>({ accounts: [], ledger: [], debts: [], journal: [] })
 const drawer = ref(false)
 const activeRow = ref<Row | null>(null)
+const merchantPhoto = ref('')
+const photoError = ref('')
+let photoRequest = 0
 const keyNames: Record<string, string> = {
   id: '编号', name: '名称', contact: '联系人', phone: '联系方式', address: '地址', auditStatus: '审核状态', auditReason: '审核说明', businessStatus: '营业状态', orderCount: '订单数', joinedAt: '登记时间',
   gender: '性别', availableTime: '可送餐时间', deliveries: '配送单数', balanceCents: '可提现余额', paymentId: '合并支付单号', merchantId: '商户编号', merchant: '商户', rider: '骑手', items: '商品摘要', foodCents: '餐品金额', deliveryCents: '配送费', paidCents: '用户实付', refundedCents: '累计退款', foodRefundedCents: '累计退餐品', paymentStatus: '支付状态', fulfillStatus: '履约状态', refundStatus: '售后状态', settlementStatus: '结算状态', accepted: '商户已接单', pendingRefund: '存在处理中退款', locking: '结算锁定', paymentCount: '支付单退款次数', paidAt: '支付时间', completedAt: '完成时间', closedAt: '关闭时间', intervene: '待管理员介入', interveneReason: '介入原因', coordinationNotes: '协调记录',
@@ -132,7 +135,28 @@ function statusType(value: string) {
   if (['已驳回', '退款失败', '审核拒绝', '打款失败', '已关闭', '休息中'].includes(value)) return 'danger'
   return 'info'
 }
-function openDetails(row: Row) { activeRow.value = row; drawer.value = true }
+function clearPhoto() {
+  photoRequest++
+  if (merchantPhoto.value) URL.revokeObjectURL(merchantPhoto.value)
+  merchantPhoto.value = ''
+  photoError.value = ''
+}
+
+onUnmounted(clearPhoto)
+
+async function openDetails(row: Row) {
+  clearPhoto()
+  activeRow.value = row
+  drawer.value = true
+  if (section.value !== 'merchants' || !row.hasPhoto) return
+  const request = photoRequest
+  try {
+    const blob = await adminApi.merchantPhoto(String(row.id))
+    if (request === photoRequest) merchantPhoto.value = URL.createObjectURL(blob)
+  } catch {
+    if (request === photoRequest) photoError.value = '店铺图片加载失败'
+  }
+}
 function keyLabel(key: string) { return keyNames[key] || key }
 function detailValue(value: unknown, key: string) {
   if (typeof value === 'number' && /Cents$/.test(key)) return money(value)
@@ -247,7 +271,7 @@ function runRowAction(row: Row) {
         <template #default="scope">
           <template v-if="section === 'merchants' || section === 'riders'">
             <el-button link type="primary" @click="runRowAction(scope.row)">{{ rowActionText(scope.row) }}</el-button>
-            <template v-if="scope.row.auditStatus === '待审核' && auth.can(section === 'merchants' ? 'merchant.audit' : 'rider.audit')"><el-button link type="success" @click="audit(scope.row, section === 'merchants' ? '商户入驻' : '骑手入驻', 'approve')">通过</el-button><el-button link type="danger" @click="audit(scope.row, section === 'merchants' ? '商户入驻' : '骑手入驻', 'reject')">驳回</el-button></template>
+            <template v-if="scope.row.auditStatus === '待审核' && auth.can(section === 'merchants' ? 'merchant.audit' : 'rider.audit')"><el-button link type="success" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === '资料变更' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'approve')">通过</el-button><el-button link type="danger" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === '资料变更' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'reject')">驳回</el-button></template>
           </template>
           <template v-else-if="section === 'orders'"><el-button link type="primary" @click="handlePrimary(scope.row)">订单详情</el-button><el-button v-if="scope.row.intervene && auth.can('order.coordinate')" link type="warning" @click="coordinate(scope.row as unknown as Order)">记录协调</el-button></template>
           <template v-else-if="section === 'aftersales'"><el-button link type="primary" @click="openDetails(scope.row)">详情</el-button></template>
@@ -258,12 +282,16 @@ function runRowAction(row: Row) {
     </el-table>
   </div>
 
-  <el-drawer v-model="drawer" :title="activeRow?.name || activeRow?.id || '记录详情'" size="min(560px, 94vw)" destroy-on-close>
+  <el-drawer v-model="drawer" :title="activeRow?.name || activeRow?.id || '记录详情'" size="min(560px, 94vw)" destroy-on-close @close="clearPhoto">
     <template v-if="activeRow">
+      <div v-if="merchantPhoto || photoError" class="detail-section">
+        <img v-if="merchantPhoto" :src="merchantPhoto" alt="待审核或当前店铺图片" style="display:block;max-width:100%;max-height:240px;object-fit:contain">
+        <p v-else class="muted">{{ photoError }}</p>
+      </div>
       <div class="drawer-intro"><el-tag :type="statusType(String(activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || 'info'))" effect="light" round>{{ activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || '信息记录' }}</el-tag></div>
       <div v-if="section === 'riders'" class="student-card-preview"><div class="id-placeholder"><el-icon><Avatar /></el-icon><span>证件待接入</span></div><div><strong>学生身份材料</strong></div></div>
       <div class="detail-grid">
-        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow[key], key) }}</strong></div></template>
+        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot','hasPhoto'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow[key], key) }}</strong></div></template>
       </div>
       <template v-if="section === 'orders'">
         <div class="detail-section"><h3>合并支付单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.paymentId === activeRow?.paymentId)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ linked.fulfillStatus }} · {{ money(linked.paidCents) }}</span></div></div>

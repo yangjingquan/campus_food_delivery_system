@@ -1,0 +1,33 @@
+<import src="../../fragments/states.wxml" />
+<view class="screen">
+  <view class="heading">经营与账户</view>
+  <view class="hint">查看本店实收、退款与账户资金</view>
+  <template is="state" data="{{blocked, error, loading}}" />
+  <block wx:if="{{!blocked && !error && !loading && account}}">
+    <view class="hero">
+      <view class="row top">
+        <view><view class="muted">可提现余额</view><view class="number">{{account.available}}</view></view>
+        <button class="btn" bindtap="withdraw" hover-class="pressed">申请提现</button>
+      </view>
+      <view class="row muted wrap"><text>冻结 {{account.frozen}}</text><text>待扣回 {{account.debt}}</text></view>
+    </view>
+    <view class="card">
+      <view class="section">销售概况</view>
+      <view class="filters">
+        <button wx:for="{{periods}}" wx:key="days" class="filter {{item.days === days ? 'active' : ''}}" data-days="{{item.days}}" bindtap="period" hover-class="pressed">{{item.label}}</button>
+      </view>
+      <view class="kv"><text>支付订单</text><text>{{sales.count}} 单</text></view>
+      <view class="kv"><text>实付金额</text><text>{{sales.paid}}</text></view>
+      <view class="kv"><text>餐品金额</text><text>{{sales.food}}</text></view>
+      <view class="kv"><text>已退金额</text><text>{{sales.refunded}}</text></view>
+      <view class="kv"><text>扣除退款后实收</text><text class="price">{{sales.net}}</text></view>
+      <view class="hint">按北京时间支付日期归集。实收含配送费，商户收入以结算与流水为准。</view>
+    </view>
+    <view class="card">
+      <button class="list-button row" data-kind="settlements" bindtap="records" hover-class="pressed"><text>订单结算</text><text class="badge">查看</text></button>
+      <button class="list-button row" data-kind="debts" bindtap="records" hover-class="pressed"><text>欠款与扣回</text><text class="badge">查看</text></button>
+      <button class="list-button row" data-kind="ledger" bindtap="records" hover-class="pressed"><text>资金流水</text><text class="badge">查看</text></button>
+      <button class="list-button row" data-kind="withdrawals" bindtap="records" hover-class="pressed"><text>提现记录</text><text class="badge">查看</text></button>
+    </view>
+  </block>
+</view>

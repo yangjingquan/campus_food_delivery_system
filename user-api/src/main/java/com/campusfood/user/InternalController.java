@@ -2,6 +2,7 @@ package com.campusfood.user;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,6 +15,34 @@ public class InternalController {
     private final DeliveryService delivery;
     private final RefundService refunds;
     public InternalController(DeliveryService delivery, RefundService refunds) { this.delivery = delivery; this.refunds = refunds; }
+
+    @PostMapping("/merchants/{merchant}/orders/{orderId}/status")
+    public Map<String, Object> merchantStatus(@PathVariable String merchant, @PathVariable String orderId,
+            @RequestBody Map<String, String> body, HttpServletRequest request) {
+        delivery.requireInternal(request);
+        return delivery.merchantStatus(merchant, orderId, body.getOrDefault("action", ""));
+    }
+
+    @GetMapping("/merchants/{merchant}/orders/{orderId}/location")
+    public Map<String, Object> merchantLocation(@PathVariable String merchant, @PathVariable String orderId,
+            HttpServletRequest request) {
+        delivery.requireInternal(request);
+        return delivery.merchantLocation(merchant, orderId);
+    }
+
+    @PostMapping("/merchants/{merchant}/orders/{orderId}/refund")
+    public Map<String, Object> merchantRefund(@PathVariable String merchant, @PathVariable String orderId,
+            @RequestBody Map<String, Object> body, HttpServletRequest request) {
+        delivery.requireInternal(request);
+        return refunds.merchantOperation(merchant, orderId, body);
+    }
+
+    // 骑手服务鉴权后转发骑手编号，接口不经过小程序网关。
+    @PostMapping("/delivery/pickup")
+    public Map<String, Object> pickup(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        delivery.requireInternal(request);
+        return delivery.pickup(body.get("token"), body.get("riderId"));
+    }
 
     @PostMapping("/orders/{orderId}/status")
     public Map<String, Object> updateStatus(@PathVariable String orderId, @RequestBody Map<String, Object> body, HttpServletRequest request) {
