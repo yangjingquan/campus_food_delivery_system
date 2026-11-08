@@ -50,6 +50,8 @@ done
 for network in campus-food-backend campus-food-proxy; do
   docker network inspect "$network" >/dev/null 2>&1 || docker network create --driver bridge "$network" >/dev/null
 done
+docker network inspect campus-nacos-proxy >/dev/null 2>&1 || \
+  docker network create --driver bridge --internal campus-nacos-proxy >/dev/null
 
 for container in shop-mysql shop-redis; do
   if ! docker inspect "$container" --format '{{json .NetworkSettings.Networks}}' | grep -q 'campus-food-backend'; then
@@ -59,6 +61,9 @@ done
 
 if ! docker inspect shop-nginx --format '{{json .NetworkSettings.Networks}}' | grep -q 'campus-food-proxy'; then
   docker network connect campus-food-proxy shop-nginx
+fi
+if ! docker inspect shop-nginx --format '{{json .NetworkSettings.Networks}}' | grep -q 'campus-nacos-proxy'; then
+  docker network connect campus-nacos-proxy shop-nginx
 fi
 
 echo "Created the private campus-food Docker networks and attached existing dependencies."

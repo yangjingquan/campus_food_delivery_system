@@ -30,7 +30,10 @@ services:
     ports:
       - "127.0.0.1:18848:8080"
     networks:
-      - backend
+      backend: {}
+      console:
+        aliases:
+          - campus-food-nacos-console
     healthcheck:
       test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8848'"]
       interval: 15s
@@ -161,6 +164,9 @@ networks:
   backend:
     external: true
     name: campus-food-backend
+  console:
+    external: true
+    name: campus-nacos-proxy
   proxy:
     external: true
     name: campus-food-proxy

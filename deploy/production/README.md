@@ -2,7 +2,7 @@
 
 This directory contains the production Compose definition and the reverse-proxy configuration for the existing server. The stack uses the server's MySQL and Redis, with dedicated campus-food schemas and credentials. The two business APIs currently share business tables, so they use one restricted application account and one schema; Nacos has its own schema and account.
 
-The host requires two Docker networks: `campus-food-backend` joins only the application containers and the existing `shop-mysql` and `shop-redis`; `campus-food-proxy` joins only `shop-nginx`, the gateway, and the admin web container. Nacos console port 8080 is published only on host loopback port 18848 for SSH-tunneled administration. Nacos API and gRPC ports remain on the private Docker network.
+The host uses `campus-food-backend` for the application containers and the existing MySQL and Redis, `campus-food-proxy` for the gateway and admin web proxy, and the internal `campus-nacos-proxy` network between `shop-nginx` and the Nacos console. Nacos console port 8080 is also published on host loopback port 18848; its API and gRPC ports remain on the private backend network.
 
 ## Required host files
 
@@ -10,6 +10,8 @@ The host requires two Docker networks: `campus-food-backend` joins only the appl
 - `/opt/campus-food/secrets/wechat-master.key`, mode `0600`: Base64-encoded 32-byte AES key. Back it up separately from MySQL.
 - `/opt/campus-food/secrets/cfdadmin.nexbyte.top.key` and `cfdapi.nexbyte.top.key`, mode `0600`.
 - `/opt/campus-food/secrets/cfdadmin.nexbyte.top_bundle.pem` and `cfdapi.nexbyte.top_bundle.pem`, mode `0644`.
+- `/etc/shop/tls/cfdnacos.nexbyte.top_bundle.pem` and `cfdnacos.nexbyte.top.key`: the Nacos domain certificate and private key. The supplied certificate must be renewed and replaced before expiry.
+- `/opt/campus-food/secrets/cfdnacos-basic-password`, mode `0600`: the Nginx Basic Auth password for user `nacos-ops`. The hashed password and Nginx configuration are mounted from `/opt/campus-food/nginx/`.
 
 The environment must set `APP_DB_PASSWORD`, `NACOS_DB_PASSWORD`, `REDIS_CFD_PASSWORD`, `NACOS_AUTH_TOKEN`, `NACOS_AUTH_IDENTITY_VALUE`, `NACOS_PASSWORD`, `ADMIN_BOOTSTRAP_PASSWORD`, `INTERNAL_API_KEY`, and `WECHAT_USER_APP_SECRET` before deploying `user-api`. Keep `USER_PAYMENT_MODE=disabled` until real payment and refund support is developed and verified. Set all four image tags to `latest` before the first deployment; a Jenkins release updates only its own tag after its health check succeeds.
 
@@ -34,3 +36,5 @@ The existing Redis 7.4 container uses an unrestricted `default` account. `enable
 ## Known production boundary
 
 The user API supports real WeChat login once the mini-program AppSecret is set. Payment and refund processing are not implemented; this deployment keeps payment disabled. The existing user-facing Mini Program defaults to `https://cfdapi.nexbyte.top/api/user/v1` and URL checking is enabled. Add that HTTPS API domain to the mini-program's allowed request domains before upload in a later release.
+
+The Nacos console is available at `https://cfdnacos.nexbyte.top/` behind Nginx Basic Auth and Nacos login. `cfdnacos.nginx.conf` is the TLS proxy configuration; `cfdnacos-http.conf` supplies the HTTP redirect and ACME challenge path. The existing `/opt/shop/docker-compose.yml` must retain the Nacos proxy network and the two `/opt/campus-food/nginx/` bind mounts when `shop-nginx` is recreated.
