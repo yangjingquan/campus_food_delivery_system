@@ -1,5 +1,5 @@
-const { baseUrl } = require('./config');
-const sessionKey = 'merchant-session';
+const { apiEnvironment, baseUrl } = require('./config');
+const sessionKey = 'merchant-session:' + apiEnvironment;
 
 function token() {
   return wx.getStorageSync(sessionKey) || '';

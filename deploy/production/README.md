@@ -29,6 +29,13 @@ The environment must set `APP_DB_PASSWORD`, `NACOS_DB_PASSWORD`, `REDIS_CFD_PASS
 
 Each Jenkins job builds only its own image, then runs `docker compose up` for only that service. Jenkins serializes image builds, and deployments serialize through a host lock. A failed health check attempts to restore the previous image tag. Image rollback cannot reverse a Flyway schema migration; database changes remain forward-only and need a compatible expand/migrate/contract plan.
 
+## Enable the merchant API route
+
+1. Run the `campus-food-merchant-api` and `campus-food-gateway` Jenkins jobs from a revision that includes the merchant service and the gateway's `/api/merchant/**` route.
+2. On the production host, update the active `cfdapi.conf` for `shop-nginx` with the `/api/merchant/` location from `cfdapi.nginx.conf`. Preserve host-specific settings and existing certificate files. Run `docker exec shop-nginx nginx -t` before reloading with `docker exec shop-nginx nginx -s reload`.
+3. Verify that an empty JSON body sent to `POST https://cfdapi.nexbyte.top/api/merchant/v1/auth/login` returns HTTP 400 with a JSON response. Verify that the existing user configuration endpoint still returns 200.
+4. Save the merchant mini-program AppID and its matching AppSecret in the production admin console. The AppID must match `WECHAT_MERCHANT_APP_ID` in the merchant service and the mini-program's `project.config.json`. Then retry with a new WeChat login code from the developer tools.
+
 ## Redis account
 
 The existing Redis 7.4 container uses an unrestricted `default` account. `enable-redis-acl.sh` snapshots the Redis RDB and affected configuration, rotates the shared default password, installs a persistent ACL file, and adds a `cfd-app` account limited to `~cfd:*`. It then recreates the shop admin API, shop Mini Program API, and workbench API one at a time with the new credentials. The inspected host had no active Redis connections from the AI knowledge base or ERP containers. The project session key uses the `cfd:` prefix.

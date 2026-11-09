@@ -111,6 +111,7 @@ services:
       NACOS_SERVER_ADDR: nacos:8848
       MERCHANT_USER_API_URL: http://user-api:8081
       MERCHANT_ADMIN_API_URL: http://admin-api:8080
+      WECHAT_MERCHANT_APP_ID: ${WECHAT_MERCHANT_APP_ID:-wxc93dfbb2d1cb6fb4}
       USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:-}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
       WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key

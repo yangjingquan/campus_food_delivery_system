@@ -134,6 +134,7 @@ services:
       WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
       MERCHANT_USER_API_URL: http://user-api:8081
       MERCHANT_ADMIN_API_URL: http://admin-api:8080
+      WECHAT_MERCHANT_APP_ID: ${WECHAT_MERCHANT_APP_ID:-wxc93dfbb2d1cb6fb4}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
       USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m

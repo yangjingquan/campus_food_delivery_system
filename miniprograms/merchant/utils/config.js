@@ -1,12 +1,16 @@
-// 开发版走本机网关；体验版及正式版使用微信后台已登记的 HTTPS 域名。
-const developOrigin = 'http://127.0.0.1:8082';
-const releaseOrigin = 'https://cfdapi.nexbyte.top';
+// 手动切换接口环境，修改后在微信开发者工具重新编译。
+const apiEnvironment = 'production'; // development 或 production
+
+const apiOrigins = {
+  development: 'http://127.0.0.1:8082',
+  production: 'https://cfdapi.nexbyte.top'
+};
 
 function baseUrl() {
-  const { miniProgram } = wx.getAccountInfoSync();
-  const origin = miniProgram.envVersion === 'develop' ? developOrigin : releaseOrigin;
-  if (!origin) throw new Error('商户接口域名尚未配置');
-  return origin + '/api/merchant/v1';
+  if (!Object.prototype.hasOwnProperty.call(apiOrigins, apiEnvironment)) {
+    throw new Error('商户接口环境配置无效');
+  }
+  return apiOrigins[apiEnvironment] + '/api/merchant/v1';
 }
 
-module.exports = { baseUrl, templateId: '' };
+module.exports = { apiEnvironment, baseUrl, templateId: '' };
