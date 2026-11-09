@@ -247,13 +247,12 @@ public class AdminService {
             case "withdrawal.review" -> "withdrawal.review";
             case "config.save" -> "config.edit";
             case "wechat.save-app", "wechat.save-payment", "wechat.rollback" -> "wechat.edit";
-            case "wechat.toggle" -> "wechat.toggle";
             default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "操作不存在");
         };
         authorization.require(username, permission);
         if (!(body.payload() instanceof Map<?, ?> payload))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少审核信息");
-        // 回滚可能影响支付开关，因此同时要求修改和启停权限。
+        // 回滚可能恢复旧版支付材料，继续要求额外的支付管理权限。
         if (type.equals("wechat.rollback")) authorization.require(username, "wechat.toggle");
         if (type.startsWith("wechat.")) return wechat.action(type, payload, username);
         if (type.equals("withdrawal.review")) return withdrawals.review(payload, username);

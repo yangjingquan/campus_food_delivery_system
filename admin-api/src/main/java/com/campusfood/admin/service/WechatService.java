@@ -30,6 +30,8 @@ public class WechatService {
     private final SecureRandom random = new SecureRandom();
     @Value("${app.wechat-master-key-file:}")
     private String keyFile;
+    @Value("${USER_PAYMENT_MODE:disabled}")
+    private String paymentMode;
 
     public WechatService(WechatDao db, WechatSecretMapper secrets, ConfigurationLockMapper configurationLocks,
                          WechatConfigMapper configurations) {
@@ -44,15 +46,13 @@ public class WechatService {
         return v == null ? "" : v.toString().trim();
     }
 
-    private static boolean enabled(Object x) {
-        return Boolean.TRUE.equals(x) || x instanceof Number n && n.intValue() != 0;
-    }
-
     /** 只返回配置及敏感材料的存在状态，不返回材料明文。 */
     public Map<String, Object> workspace() {
         var all = db.listVersions();
         var audit = db.listAudits();
-        return Map.of("config", all.get(0), "history", all.subList(1, all.size()), "audit", audit);
+        var current = new LinkedHashMap<>(all.get(0));
+        current.put("enabled", "wechat".equals(paymentMode));
+        return Map.of("config", current, "history", all.subList(1, all.size()), "audit", audit);
     }
 
     private Long encrypt(String purpose, String content) {
@@ -144,15 +144,7 @@ public class WechatService {
         if (!String.valueOf(current.get("id")).equals(value(p, "version")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "配置已变化，请刷新后重试");
         String previousVersion = String.valueOf(current.get("id")), reason = "";
-        if (type.equals("wechat.toggle")) {
-            if (!(p.get("enabled") instanceof Boolean target))
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少开关状态");
-            // 真实支付渠道尚未联调，不能仅凭保存配置就启用支付。
-            if (target) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "微信支付渠道尚未联调，不能启用新支付");
-            current.put("payment_enabled", false);
-            reason = "关闭新支付";
-        } else if (type.equals("wechat.save-app")) {
+        if (type.equals("wechat.save-app")) {
             String appType = value(p, "appType");
             if (!List.of("user", "merchant", "rider").contains(appType))
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "小程序类型无效");
@@ -197,8 +189,6 @@ public class WechatService {
             if (matches.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "目标版本不存在");
             current = matches.get(0);
             reason = "目标版本 " + target + "；" + reason;
-            if (enabled(current.get("payment_enabled")))
-                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "渠道尚未联调，不能回滚至启用状态");
         } else throw new ResponseStatusException(HttpStatus.NOT_FOUND, "未知微信配置操作");
         Set<String> ids = new HashSet<>();
         for (String key : List.of("user_app_id", "merchant_app_id", "rider_app_id")) {
@@ -206,14 +196,12 @@ public class WechatService {
             if (!id.isEmpty() && !ids.add(id))
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "三端 AppID 不可重复");
         }
-        if (enabled(current.get("payment_enabled")))
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "启用状态的配置需先关闭后修改");
         db.insertVersion(current.get("user_app_id"), current.get("merchant_app_id"), current.get("rider_app_id"),
                 current.get("merchant_no"), current.get("serial_no"), current.get("public_key_id"),
                 current.get("payment_callback"), current.get("refund_callback"), current.get("transfer_callback"),
                 actor, current.get("user_secret_id"), current.get("merchant_secret_id"), current.get("rider_secret_id"),
                 current.get("api_v3_secret_id"), current.get("merchant_private_secret_id"),
-                current.get("wechat_public_secret_id"), current.get("payment_enabled"));
+                current.get("wechat_public_secret_id"));
         db.insertAudit(actor, type, previousVersion, "旧版本", "新版本",
                 reason.isEmpty() ? "仅记录字段变更，不含材料内容" : reason);
         return Map.of("ok", true);

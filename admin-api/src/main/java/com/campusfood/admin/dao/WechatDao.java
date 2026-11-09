@@ -26,7 +26,7 @@ public interface WechatDao {
                       @Param("userSecretId") Object userSecretId, @Param("merchantSecretId") Object merchantSecretId,
                       @Param("riderSecretId") Object riderSecretId, @Param("apiV3SecretId") Object apiV3SecretId,
                       @Param("merchantPrivateSecretId") Object merchantPrivateSecretId,
-                      @Param("wechatPublicSecretId") Object wechatPublicSecretId, @Param("enabled") Object enabled);
+                      @Param("wechatPublicSecretId") Object wechatPublicSecretId);
 
     int insertAudit(@Param("actor") String actor, @Param("action") String action, @Param("targetId") Object targetId,
                     @Param("beforeState") String beforeState, @Param("afterState") String afterState,

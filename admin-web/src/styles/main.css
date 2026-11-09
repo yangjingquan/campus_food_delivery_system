@@ -461,7 +461,6 @@ button { color: inherit; }
 .wx-app-cards button.active { border-color:#9fbff4; background:#f3f8ff; }
 .wx-app-cards button small { color:#8595a9; }
 @media (max-width:700px) { .wx-app-cards { grid-template-columns:1fr; } }
-.wx-toggle { display:flex; align-items:center; gap:8px; padding:4px 10px; border:1px solid #e4eaf2; border-radius:7px; color:#536b88; font-size:12px; }
 .wechat-page .status-tile > span { font-size:13px; }
 .wechat-page .status-tile > small { font-size:11px; }
 .wechat-page .wechat-tabs > .el-tabs__header .el-tabs__item { font-size:14px; }

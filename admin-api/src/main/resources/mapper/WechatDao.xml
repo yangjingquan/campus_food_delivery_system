@@ -30,11 +30,10 @@
     <insert id="insertVersion">
         INSERT INTO wechat_config(user_app_id,merchant_app_id,rider_app_id,merchant_no,serial_no,
         public_key_id,payment_callback,refund_callback,transfer_callback,operator,user_secret_id,
-        merchant_secret_id,rider_secret_id,api_v3_secret_id,merchant_private_secret_id,wechat_public_secret_id,
-        payment_enabled) VALUES(#{userAppId},#{merchantAppId},#{riderAppId},#{merchantNo},#{serialNo},
+        merchant_secret_id,rider_secret_id,api_v3_secret_id,merchant_private_secret_id,wechat_public_secret_id)
+        VALUES(#{userAppId},#{merchantAppId},#{riderAppId},#{merchantNo},#{serialNo},
         #{publicKeyId},#{paymentCallback},#{refundCallback},#{transferCallback},#{actor},#{userSecretId},
-        #{merchantSecretId},#{riderSecretId},#{apiV3SecretId},#{merchantPrivateSecretId},#{wechatPublicSecretId},
-        #{enabled})
+        #{merchantSecretId},#{riderSecretId},#{apiV3SecretId},#{merchantPrivateSecretId},#{wechatPublicSecretId})
     </insert>
 
     <insert id="insertAudit">

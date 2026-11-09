@@ -57,7 +57,7 @@ try:
     run(['docker','compose','run','-d','--no-deps','--name',container,'-p','127.0.0.1::8080',
          '-e','DB_URL=jdbc:mysql://mysql:3306/'+database+'?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true',
          '-e','DB_USER='+user,'-e','DB_PASSWORD='+password,'-e','ADMIN_USER=testadmin','-e','ADMIN_PASSWORD='+admin_password,
-         '-e','INTERNAL_API_KEY='+internal_key,'-e','NACOS_SERVER_ADDR=nacos:8848',
+         '-e','INTERNAL_API_KEY='+internal_key,'-e','NACOS_SERVER_ADDR=nacos:8848','-e','USER_PAYMENT_MODE=wechat',
          '-e','SPRING_CLOUD_NACOS_DISCOVERY_REGISTER_ENABLED=false','admin-api'])
     created_container=True
     port=run(['docker','port',container,'8080/tcp']).split(':')[-1]
@@ -175,6 +175,8 @@ try:
     check(200,call('POST',secondpath+'result',success,internal=True),'success replay')
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='RTEST'")=='2000,0'
     wx=check(200,call('GET','/api/admin/v1/workspace?section=wechat',token=token),'wechat read')['config']
+    assert wx['enabled'] is True
+    assert sql("SELECT payment_enabled FROM wechat_config ORDER BY id DESC LIMIT 1")=='0'
     secret='0123456789abcdef0123456789abcdef'
     check(200,action('wechat.save-app',{'version':wx['version'],'appType':'user','appId':'wx0123456789abcdef','appSecret':secret},token),'save secret')
     state=check(200,call('GET','/api/admin/v1/workspace?section=wechat',token=token),'wechat read back')
@@ -196,10 +198,10 @@ try:
     oldversion=check(200,call('GET','/api/admin/v1/workspace?section=wechat',token=token),'wechat version after payment')['config']['version']
     check(400,action('wechat.save-payment',{'version':oldversion,'apiV3Key':'short'},token),'invalid key')
     assert check(200,call('GET','/api/admin/v1/workspace?section=wechat',token=token),'no change')['config']['version']==oldversion
-    check(503,action('wechat.toggle',{'version':oldversion,'enabled':True},token),'gateway unavailable')
+    check(404,action('wechat.toggle',{'version':oldversion,'enabled':True},token),'removed payment toggle')
     check(200,action('wechat.rollback',{'version':oldversion,'targetVersion':1,'reason':'验证历史回滚'},token),'wechat rollback')
     state=check(200,call('GET','/api/admin/v1/workspace?section=wechat',token=token),'wechat rollback read')
-    assert not state['config']['userSecretSet'] and len(state['history'])>=2
+    assert state['config']['enabled'] is True and not state['config']['userSecretSet'] and len(state['history'])>=2
     print('PASS: RBAC, session revocation, last-super protection, debt recovery, idempotency, freeze/unfreeze, transfer failure, concurrency and encrypted secrets')
 except BaseException:
     if created_container:
