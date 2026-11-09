@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the user mini-program API against an isolated MySQL schema via Compose."""
 import json
+import base64
 import secrets
 import subprocess
 import sys
@@ -25,20 +26,30 @@ def run(args):
 def root_sql(statement):
     return run(['docker', 'compose', 'exec', '-T', 'mysql', 'sh', '-c', 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --default-character-set=utf8mb4 -uroot -N -e "$1"', '_', statement])
 
-def call(method, path, body=None, token=None, key=None):
-    headers = {'Content-Type': 'application/json'}
+def call(method, path, body=None, token=None, key=None, content_type='application/json'):
+    headers = {'Content-Type': content_type}
     if token: headers['Authorization'] = 'Bearer ' + token
     if key: headers['X-Internal-Key'] = key
-    data = None if body is None else json.dumps(body).encode('utf-8')
+    data = body if isinstance(body, bytes) or body is None else json.dumps(body).encode('utf-8')
     try:
         with urllib.request.urlopen(urllib.request.Request(base + path, data=data, headers=headers, method=method), timeout=8) as response:
-            return response.status, json.loads(response.read() or b'{}')
+            payload = response.read()
+            return response.status, payload if response.headers.get_content_type().startswith('image/') else json.loads(payload or b'{}')
     except urllib.error.HTTPError as error:
         return error.code, json.loads(error.read() or b'{}')
 
 def expect(code, result, label):
     if result[0] != code: raise AssertionError(f'{label}: HTTP {result[0]} expected {code}: {result[1]}')
     return result[1]
+
+def update_profile(token, display_name, avatar):
+    boundary = 'campus-profile-test'
+    body = (
+        f'--{boundary}\r\nContent-Disposition: form-data; name="displayName"\r\n\r\n{display_name}\r\n'
+        f'--{boundary}\r\nContent-Disposition: form-data; name="avatar"; filename="avatar.png"\r\n'
+        'Content-Type: image/png\r\n\r\n'
+    ).encode() + avatar + f'\r\n--{boundary}--\r\n'.encode()
+    return call('POST', '/api/user/v1/me', body, token, content_type=f'multipart/form-data; boundary={boundary}')
 
 try:
     root_sql('CREATE DATABASE `' + database + '` CHARACTER SET utf8mb4')
@@ -79,6 +90,18 @@ try:
     else: raise RuntimeError('local demo catalogue was not seeded')
     assert config['appId'] == 'wxb2ef21a4d9800f4e' and config['paymentMode'] == 'mock'
     token = expect(200, call('POST', '/api/user/v1/auth/wechat', {'code': 'local-user-it-01'}), 'mock login')['token']
+    avatar = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aE1sAAAAASUVORK5CYII=')
+    profile_path = '/api/user/v1/me'
+    assert expect(200, update_profile(token, '资料测试', avatar), 'save nickname and avatar')['hasAvatar']
+    expect(400, update_profile(token, '不应覆盖', b'not an image'), 'reject invalid avatar')
+    assert expect(200, call('GET', profile_path, token=token), 'read saved profile')['displayName'] == '资料测试'
+    assert expect(200, call('PUT', profile_path, {'displayName': '新昵称'}, token), 'update nickname only')['hasAvatar']
+    assert expect(200, call('GET', profile_path + '/avatar', token=token), 'read own avatar') == avatar
+    expect(401, call('GET', profile_path + '/avatar'), 'reject anonymous avatar access')
+    other = expect(200, call('POST', '/api/user/v1/auth/wechat', {'code': 'local-user-it-02'}), 'other user login')
+    expect(404, call('GET', profile_path + '/avatar', token=other['token']), 'other user cannot read avatar')
+    relogin = expect(200, call('POST', '/api/user/v1/auth/wechat', {'code': 'local-user-it-01'}), 'login again')['user']
+    assert relogin['displayName'] == '新昵称' and relogin['hasAvatar']
     address = expect(200, call('POST', '/api/user/v1/addresses', {'name': '测试同学', 'phone': '13800000000', 'building': '5号宿舍楼', 'room': '302寝室'}, token), 'create address')
 
     one = expect(200, call('POST', '/api/user/v1/checkout', {'addressId': address['id'], 'requestKey': 'single_test_001', 'items': [{'productId': 'P-M03-001', 'quantity': 1}]}, token), 'single-store checkout')

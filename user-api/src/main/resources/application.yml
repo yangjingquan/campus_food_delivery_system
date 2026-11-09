@@ -3,6 +3,10 @@ server:
   error:
     include-message: always
 spring:
+  servlet:
+    multipart:
+      max-file-size: 512KB
+      max-request-size: 640KB
   config:
     # 本地保留文件配置作为兜底；Nacos 中创建同名 YAML 后可覆盖服务配置。
     import: optional:nacos:user-api.properties?group=DEFAULT_GROUP

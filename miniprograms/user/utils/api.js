@@ -18,10 +18,52 @@ function request(method, path, data, options = {}) {
   });
 }
 
+function updateProfile(displayName, avatarPath) {
+  if (!avatarPath) return request('PUT', '/me', { displayName });
+  return new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: BASE_URL + '/me',
+      filePath: avatarPath,
+      name: 'avatar',
+      formData: { displayName },
+      header: { Authorization: 'Bearer ' + wx.getStorageSync('userToken') },
+      timeout: 12000,
+      success({ statusCode, data: body }) {
+        let data;
+        try { data = JSON.parse(body); } catch {}
+        if (statusCode === 200 && data?.id) {
+          resolve({ data });
+          return;
+        }
+        const message = statusCode === 413 ? '头像大小须在 512 KB 以内' : data?.message || '资料保存失败，请重试';
+        reject(Object.assign(new Error(message), { statusCode }));
+      },
+      fail: () => reject(new Error('头像上传失败，请重试'))
+    });
+  });
+}
+
+function downloadAvatar(token) {
+  return new Promise((resolve, reject) => {
+    wx.downloadFile({
+      url: BASE_URL + '/me/avatar',
+      header: { Authorization: 'Bearer ' + token },
+      timeout: 12000,
+      success({ statusCode, tempFilePath }) {
+        if (statusCode === 200 && tempFilePath) resolve(tempFilePath);
+        else reject(new Error('头像加载失败'));
+      },
+      fail: reject
+    });
+  });
+}
+
 module.exports = {
   get: (path, options) => request('GET', path, undefined, options),
   post: (path, data, options) => request('POST', path, data, options),
   put: (path, data, options) => request('PUT', path, data, options),
   delete: (path, options) => request('DELETE', path, undefined, options),
+  updateProfile,
+  downloadAvatar,
   baseUrl: BASE_URL
 };

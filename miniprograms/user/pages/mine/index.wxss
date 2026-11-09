@@ -2,3 +2,12 @@
 .profile-copy .h2 { margin-bottom: 4px; }
 .menu-card { margin-top: 16px; padding: 5px 15px; }
 .profile-message { margin-top: 10px; }
+.profile-copy .h2 { overflow-wrap: anywhere; }
+.profile-form { margin-top: 16px; }
+.profile-form .avatar-picker { padding: 10px 0; }
+.avatar-label { display: flex; align-items: center; gap: 10px; }
+.avatar-label .avatar { width: 40px; height: 40px; border-radius: 12px; font-size: 17px; }
+.nickname-field { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.nickname-field input { flex: 1; min-width: 0; font-size: 15px; }
+.profile-actions { display: flex; gap: 8px; margin-top: 8px; }
+.profile-actions .btn { flex: 1; min-width: 0; }

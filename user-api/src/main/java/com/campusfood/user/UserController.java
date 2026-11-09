@@ -2,6 +2,8 @@ package com.campusfood.user;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,19 +15,22 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/user/v1")
 public class UserController {
     private final AuthService auth;
+    private final ProfileService profiles;
     private final CatalogService catalog;
     private final AddressService addresses;
     private final OrderService orders;
     private final RefundService refunds;
     private final DeliveryService delivery;
 
-    public UserController(AuthService auth, CatalogService catalog, AddressService addresses, OrderService orders, RefundService refunds, DeliveryService delivery) {
+    public UserController(AuthService auth, CatalogService catalog, AddressService addresses, OrderService orders, RefundService refunds, DeliveryService delivery, ProfileService profiles) {
         this.auth = auth; this.catalog = catalog; this.addresses = addresses; this.orders = orders; this.refunds = refunds; this.delivery = delivery;
+        this.profiles = profiles;
     }
 
     @PostMapping("/auth/wechat")
@@ -33,7 +38,32 @@ public class UserController {
     @PostMapping("/auth/logout")
     public Map<String, Object> logout(HttpServletRequest request) { auth.logout(request); return Map.of("ok", true); }
     @GetMapping("/me")
-    public Map<String, Object> me(HttpServletRequest request) { var user = auth.require(request); return Map.of("id", user.userId(), "displayName", user.displayName()); }
+    public ProfileService.Profile me(HttpServletRequest request) {
+        return profiles.get(auth.require(request).userId());
+    }
+
+    @PostMapping(path = "/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ProfileService.Profile updateProfile(HttpServletRequest request, @RequestParam String displayName,
+            @RequestParam(required = false) MultipartFile avatar) {
+        return profiles.update(auth.require(request).userId(), displayName, avatar);
+    }
+
+    @PutMapping(path = "/me", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ProfileService.Profile updateNickname(HttpServletRequest request, @RequestBody Nickname body) {
+        return profiles.update(auth.require(request).userId(), body.displayName(), null);
+    }
+
+    public record Nickname(String displayName) {}
+
+    @GetMapping("/me/avatar")
+    public ResponseEntity<byte[]> avatar(HttpServletRequest request) {
+        var avatar = profiles.avatar(auth.require(request).userId());
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType(avatar.mediaType()))
+            .cacheControl(CacheControl.noStore())
+            .header("X-Content-Type-Options", "nosniff")
+            .body(avatar.data());
+    }
 
     @GetMapping("/config")
     public Map<String, Object> config() { return catalog.config(); }

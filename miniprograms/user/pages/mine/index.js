@@ -2,23 +2,31 @@ const api = require('../../utils/api');
 const { money } = require('../../utils/display');
 
 Page({
-  data: { user: null, config: {}, working: false, message: '' },
+  data: {
+    user: null, config: {}, working: false, message: '',
+    editing: false, avatarPath: '', draftAvatar: '', draftName: '', profileError: ''
+  },
 
   onShow() {
     this.getTabBar?.()?.refresh('pages/mine/index');
-    this.refresh();
+    if (!this.data.editing && !this.data.working) this.refresh();
   },
 
   async refresh() {
     getApp().getConfig().then(config => this.setData({ config })).catch(() => {});
-    if (!wx.getStorageSync('userToken')) return;
+    const token = wx.getStorageSync('userToken');
+    if (!token) {
+      this.setData({ user: null, avatarPath: '' });
+      return;
+    }
     try {
       const { data } = await api.get('/me');
-      this.showUser(data);
+      if (wx.getStorageSync('userToken') === token) this.showUser(data);
     } catch (error) {
+      if (wx.getStorageSync('userToken') !== token) return;
       if (error.statusCode === 401) {
         getApp().clearSession();
-        this.setData({ user: null });
+        this.setData({ user: null, avatarPath: '' });
       } else {
         this.setData({ message: error.message });
       }
@@ -27,16 +35,74 @@ Page({
 
   showUser(user) {
     const displayName = user.displayName || '同学';
-    this.setData({ user: { ...user, displayName, initial: displayName.slice(0, 1) }, message: '' });
+    const keepAvatar = user.hasAvatar && this.data.user?.id === user.id;
+    getApp().globalData.user = user;
+    this.setData({
+      user: { ...user, displayName, initial: Array.from(displayName)[0] },
+      avatarPath: keepAvatar ? this.data.avatarPath : '',
+      message: ''
+    });
+    const token = wx.getStorageSync('userToken');
+    if (user.hasAvatar && token) {
+      const pending = api.downloadAvatar(token);
+      this.avatarRequest = pending;
+      pending.then(path => {
+        if (this.avatarRequest === pending && wx.getStorageSync('userToken') === token) {
+          this.setData({ avatarPath: path });
+        }
+      }).catch(() => {});
+    }
   },
 
   async login() {
     if (this.data.working) return;
     this.setData({ working: true, message: '' });
     try {
-      this.showUser(await getApp().ensureLogin());
+      const user = await getApp().ensureLogin();
+      this.showUser(user);
+      if (user.hasAvatar === false && user.displayName === '同学') this.openProfile();
     } catch (error) {
       this.setData({ message: error.message || '微信登录暂不可用，请重试。' });
+    } finally {
+      this.setData({ working: false });
+    }
+  },
+
+  openProfile() {
+    this.setData({
+      editing: true, draftName: this.data.user.displayName, draftAvatar: '', profileError: ''
+    });
+  },
+
+  closeProfile() {
+    this.setData({ editing: false, draftAvatar: '', profileError: '' });
+  },
+
+  chooseAvatar({ detail }) {
+    if (detail.avatarUrl) this.setData({ draftAvatar: detail.avatarUrl, profileError: '' });
+  },
+
+  async saveProfile({ detail }) {
+    if (this.data.working) return;
+    const displayName = (detail.value.displayName || '').trim();
+    if (!displayName || Array.from(displayName).length > 32) {
+      this.setData({ profileError: '请输入 1–32 个字符的昵称' });
+      return;
+    }
+    this.setData({ working: true, profileError: '' });
+    try {
+      const { data } = await api.updateProfile(displayName, this.data.draftAvatar);
+      this.showUser(data);
+      this.closeProfile();
+      wx.showToast({ title: '资料已保存' });
+    } catch (error) {
+      if (error.statusCode === 401) {
+        getApp().clearSession();
+        this.closeProfile();
+        this.setData({ user: null, avatarPath: '', message: '登录已失效，请重新登录' });
+      } else {
+        this.setData({ profileError: error.message });
+      }
     } finally {
       this.setData({ working: false });
     }
@@ -56,7 +122,8 @@ Page({
       this.setData({ working: false });
     }
     getApp().clearSession();
-    this.setData({ user: null });
+    this.closeProfile();
+    this.setData({ user: null, avatarPath: '' });
   },
 
   open(event) {

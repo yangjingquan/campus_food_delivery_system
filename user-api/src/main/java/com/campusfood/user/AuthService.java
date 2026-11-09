@@ -22,12 +22,14 @@ public class AuthService {
     public record Principal(long userId, String displayName) {}
     private final JdbcTemplate db;
     private final WechatIdentityService wechat;
+    private final ProfileService profiles;
     private final SecureRandom random = new SecureRandom();
     @Value("${app.session-hours:24}") private int sessionHours;
 
-    public AuthService(JdbcTemplate db, WechatIdentityService wechat) {
+    public AuthService(JdbcTemplate db, WechatIdentityService wechat, ProfileService profiles) {
         this.db = db;
         this.wechat = wechat;
+        this.profiles = profiles;
     }
 
     @Transactional
@@ -48,8 +50,7 @@ public class AuthService {
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         Instant expires = Instant.now().plus(sessionHours, ChronoUnit.HOURS);
         db.update("INSERT INTO user_session(token_hash,user_id,expires_at) VALUES(?,?,?)", hash(token), userId, Timestamp.from(expires));
-        String name = db.queryForObject("SELECT display_name FROM user_profile WHERE id=?", String.class, userId);
-        return Map.of("token", token, "expiresAt", expires.toEpochMilli(), "user", Map.of("id", userId, "displayName", name));
+        return Map.of("token", token, "expiresAt", expires.toEpochMilli(), "user", profiles.get(userId));
     }
 
     public Principal require(HttpServletRequest request) {
