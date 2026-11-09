@@ -35,8 +35,8 @@ public class ProfileService {
 
     @Transactional
     public Profile update(long userId, String displayName, MultipartFile file) {
-        String name = displayName == null ? "" : displayName.strip();
-        if (name.isEmpty() || name.codePointCount(0, name.length()) > 32
+        String name = displayName == null ? null : displayName.strip();
+        if (name == null ? file == null : name.isEmpty() || name.codePointCount(0, name.length()) > 32
                 || name.codePoints().anyMatch(Character::isISOControl)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请输入 1–32 个字符的昵称");
         }
@@ -44,7 +44,7 @@ public class ProfileService {
             db.update("UPDATE user_profile SET display_name=? WHERE id=?", name, userId);
         } else {
             Avatar avatar = readAvatar(file);
-            db.update("UPDATE user_profile SET display_name=?, avatar_data=?, avatar_media_type=? WHERE id=?",
+            db.update("UPDATE user_profile SET display_name=COALESCE(?, display_name), avatar_data=?, avatar_media_type=? WHERE id=?",
                 name, avatar.data(), avatar.mediaType(), userId);
         }
         return get(userId);

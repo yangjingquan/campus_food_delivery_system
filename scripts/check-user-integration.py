@@ -44,8 +44,11 @@ def expect(code, result, label):
 
 def update_profile(token, display_name, avatar):
     boundary = 'campus-profile-test'
-    body = (
+    nickname = '' if display_name is None else (
         f'--{boundary}\r\nContent-Disposition: form-data; name="displayName"\r\n\r\n{display_name}\r\n'
+    )
+    body = (
+        nickname +
         f'--{boundary}\r\nContent-Disposition: form-data; name="avatar"; filename="avatar.png"\r\n'
         'Content-Type: image/png\r\n\r\n'
     ).encode() + avatar + f'\r\n--{boundary}--\r\n'.encode()
@@ -96,6 +99,7 @@ try:
     expect(400, update_profile(token, '不应覆盖', b'not an image'), 'reject invalid avatar')
     assert expect(200, call('GET', profile_path, token=token), 'read saved profile')['displayName'] == '资料测试'
     assert expect(200, call('PUT', profile_path, {'displayName': '新昵称'}, token), 'update nickname only')['hasAvatar']
+    assert expect(200, update_profile(token, None, avatar), 'update avatar only')['displayName'] == '新昵称'
     assert expect(200, call('GET', profile_path + '/avatar', token=token), 'read own avatar') == avatar
     expect(401, call('GET', profile_path + '/avatar'), 'reject anonymous avatar access')
     other = expect(200, call('POST', '/api/user/v1/auth/wechat', {'code': 'local-user-it-02'}), 'other user login')

@@ -18,14 +18,12 @@ function request(method, path, data, options = {}) {
   });
 }
 
-function updateProfile(displayName, avatarPath) {
-  if (!avatarPath) return request('PUT', '/me', { displayName });
+function updateAvatar(avatarPath) {
   return new Promise((resolve, reject) => {
     wx.uploadFile({
       url: BASE_URL + '/me',
       filePath: avatarPath,
       name: 'avatar',
-      formData: { displayName },
       header: { Authorization: 'Bearer ' + wx.getStorageSync('userToken') },
       timeout: 12000,
       success({ statusCode, data: body }) {
@@ -63,7 +61,7 @@ module.exports = {
   post: (path, data, options) => request('POST', path, data, options),
   put: (path, data, options) => request('PUT', path, data, options),
   delete: (path, options) => request('DELETE', path, undefined, options),
-  updateProfile,
+  updateAvatar,
   downloadAvatar,
   baseUrl: BASE_URL
 };

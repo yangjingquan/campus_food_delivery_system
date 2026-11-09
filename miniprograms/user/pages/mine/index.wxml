@@ -1,36 +1,33 @@
 <view class="page tab-page mine-page">
   <view class="profile">
-    <image wx:if="{{avatarPath}}" class="avatar" src="{{avatarPath}}" mode="aspectFill" aria-hidden="true" />
-    <view wx:else class="avatar" aria-hidden="true">{{user ? user.initial : '食'}}</view>
+    <button wx:if="{{user}}" class="profile-avatar" open-type="chooseAvatar" bindchooseavatar="chooseAvatar"
+      disabled="{{working}}" aria-label="更换头像">
+      <image wx:if="{{avatarPath}}" class="avatar" src="{{avatarPath}}" mode="aspectFill" aria-hidden="true" />
+      <view wx:else class="avatar" aria-hidden="true">{{user.initial}}</view>
+    </button>
+    <view wx:else class="avatar" aria-hidden="true">食</view>
     <view class="profile-copy">
-      <view class="h2">{{user ? user.displayName : '欢迎来到寝食记'}}</view>
-      <view class="small">{{user ? '已登录 · 校园用户' : '登录后可下单及查看本人订单'}}</view>
+      <form wx:if="{{editingNickname}}" bindsubmit="saveNickname">
+        <input class="nickname-input" type="{{manualNickname ? 'text' : 'nickname'}}" name="displayName"
+          value="{{draftName}}" focus="{{!working}}" placeholder="请输入昵称"
+          bindinput="trackNickname" disabled="{{working}}" aria-label="昵称" />
+        <view class="nickname-actions">
+          <button class="link" bindtap="cancelNickname" disabled="{{working}}">取消</button>
+          <button class="link nickname-save" form-type="submit" disabled="{{working}}">保存</button>
+          <button wx:if="{{!manualNickname}}" class="link" bindtap="useManualNickname" disabled="{{working}}">手动填写</button>
+        </view>
+      </form>
+      <button wx:elif="{{user}}" class="profile-name" bindtap="editNickname" disabled="{{working}}"
+        aria-label="修改昵称 {{user.displayName}}">
+        <text class="h2">{{user.displayName}}</text><text class="muted" aria-hidden="true">›</text>
+      </button>
+      <view wx:else class="h2">欢迎来到寝食记</view>
+      <view wx:if="{{!editingNickname}}" class="small">{{user ? '已登录 · 校园用户' : '登录后可下单及查看本人订单'}}</view>
     </view>
   </view>
   <button wx:if="{{!user}}" class="btn wide" bindtap="login" loading="{{working}}" disabled="{{working}}">微信登录</button>
   <view wx:if="{{message}}" class="hint orange profile-message">{{message}}</view>
-  <form wx:if="{{user && editing}}" class="card profile-form" bindsubmit="saveProfile">
-    <view class="h3">编辑个人资料</view>
-    <button class="menurow avatar-picker" open-type="chooseAvatar" bindchooseavatar="chooseAvatar" disabled="{{working}}">
-      <view class="avatar-label">
-        <image wx:if="{{draftAvatar || avatarPath}}" class="avatar" src="{{draftAvatar || avatarPath}}" mode="aspectFill" />
-        <view wx:else class="avatar">{{user.initial}}</view>
-        <text>选择头像</text>
-      </view>
-      <text class="muted">›</text>
-    </button>
-    <label class="nickname-field">
-      <text>昵称</text>
-      <input type="nickname" name="displayName" value="{{draftName}}" placeholder="输入昵称或选择微信昵称" disabled="{{working}}" />
-    </label>
-    <view wx:if="{{profileError}}" class="hint orange profile-message">{{profileError}}</view>
-    <view class="profile-actions">
-      <button class="btn secondary wide" bindtap="closeProfile" disabled="{{working}}">取消</button>
-      <button class="btn wide" form-type="submit" loading="{{working}}" disabled="{{working}}">保存</button>
-    </view>
-  </form>
   <view class="card menu-card">
-    <button wx:if="{{user && !editing}}" class="menurow" bindtap="openProfile"><text>编辑个人资料</text><text class="muted">›</text></button>
     <button class="menurow" data-action="orders" bindtap="open"><text>我的订单</text><text class="muted">›</text></button>
     <button class="menurow" data-action="addresses" bindtap="open"><text>收餐地址</text><text class="muted">›</text></button>
     <button class="menurow" data-action="rules" bindtap="open"><text>配送规则与费用</text><text class="muted">›</text></button>

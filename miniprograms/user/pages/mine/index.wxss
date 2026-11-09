@@ -1,13 +1,10 @@
-.profile-copy { min-width: 0; }
-.profile-copy .h2 { margin-bottom: 4px; }
+.profile-copy { flex: 1; min-width: 0; }
+.profile-copy .h2 { margin-bottom: 4px; overflow-wrap: anywhere; }
+.page button.profile-avatar { flex: 0 0 auto; border-radius: 20px; overflow: hidden; }
+.page button.profile-name { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 4px; text-align: left; }
+.profile-name .h2 { min-width: 0; margin-bottom: 0; }
+.nickname-input { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.nickname-actions { display: flex; flex-wrap: wrap; column-gap: 12px; }
+.page button.nickname-save { color: var(--action); }
 .menu-card { margin-top: 16px; padding: 5px 15px; }
 .profile-message { margin-top: 10px; }
-.profile-copy .h2 { overflow-wrap: anywhere; }
-.profile-form { margin-top: 16px; }
-.profile-form .avatar-picker { padding: 10px 0; }
-.avatar-label { display: flex; align-items: center; gap: 10px; }
-.avatar-label .avatar { width: 40px; height: 40px; border-radius: 12px; font-size: 17px; }
-.nickname-field { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
-.nickname-field input { flex: 1; min-width: 0; font-size: 15px; }
-.profile-actions { display: flex; gap: 8px; margin-top: 8px; }
-.profile-actions .btn { flex: 1; min-width: 0; }

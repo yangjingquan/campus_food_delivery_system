@@ -4,12 +4,12 @@ const { money } = require('../../utils/display');
 Page({
   data: {
     user: null, config: {}, working: false, message: '',
-    editing: false, avatarPath: '', draftAvatar: '', draftName: '', profileError: ''
+    editingNickname: false, avatarPath: '', draftName: '', manualNickname: false
   },
 
   onShow() {
     this.getTabBar?.()?.refresh('pages/mine/index');
-    if (!this.data.editing && !this.data.working) this.refresh();
+    if (!this.data.editingNickname && !this.data.working) this.refresh();
   },
 
   async refresh() {
@@ -19,11 +19,13 @@ Page({
       this.setData({ user: null, avatarPath: '' });
       return;
     }
+    const pending = api.get('/me');
+    this.profileRefresh = pending;
     try {
-      const { data } = await api.get('/me');
-      if (wx.getStorageSync('userToken') === token) this.showUser(data);
+      const { data } = await pending;
+      if (this.profileRefresh === pending && wx.getStorageSync('userToken') === token) this.showUser(data);
     } catch (error) {
-      if (wx.getStorageSync('userToken') !== token) return;
+      if (this.profileRefresh !== pending || wx.getStorageSync('userToken') !== token) return;
       if (error.statusCode === 401) {
         getApp().clearSession();
         this.setData({ user: null, avatarPath: '' });
@@ -33,17 +35,18 @@ Page({
     }
   },
 
-  showUser(user) {
+  showUser(user, selectedAvatar) {
     const displayName = user.displayName || '同学';
     const keepAvatar = user.hasAvatar && this.data.user?.id === user.id;
     getApp().globalData.user = user;
     this.setData({
       user: { ...user, displayName, initial: Array.from(displayName)[0] },
-      avatarPath: keepAvatar ? this.data.avatarPath : '',
+      avatarPath: selectedAvatar || (keepAvatar ? this.data.avatarPath : ''),
       message: ''
     });
+    this.avatarRequest = null;
     const token = wx.getStorageSync('userToken');
-    if (user.hasAvatar && token) {
+    if (!selectedAvatar && user.hasAvatar && token) {
       const pending = api.downloadAvatar(token);
       this.avatarRequest = pending;
       pending.then(path => {
@@ -58,9 +61,7 @@ Page({
     if (this.data.working) return;
     this.setData({ working: true, message: '' });
     try {
-      const user = await getApp().ensureLogin();
-      this.showUser(user);
-      if (user.hasAvatar === false && user.displayName === '同学') this.openProfile();
+      this.showUser(await getApp().ensureLogin());
     } catch (error) {
       this.setData({ message: error.message || '微信登录暂不可用，请重试。' });
     } finally {
@@ -68,40 +69,63 @@ Page({
     }
   },
 
-  openProfile() {
+  editNickname() {
+    if (this.data.working || !this.data.user) return;
+    this.profileName = this.data.user.displayName;
     this.setData({
-      editing: true, draftName: this.data.user.displayName, draftAvatar: '', profileError: ''
+      editingNickname: true, draftName: this.profileName, manualNickname: false, message: ''
     });
   },
 
-  closeProfile() {
-    this.setData({ editing: false, draftAvatar: '', profileError: '' });
+  cancelNickname() {
+    this.setData({ editingNickname: false, message: '' });
   },
 
   chooseAvatar({ detail }) {
-    if (detail.avatarUrl) this.setData({ draftAvatar: detail.avatarUrl, profileError: '' });
+    if (this.data.working || !this.data.user) return;
+    if (detail.avatarUrl) {
+      return this.saveProfileChange(() => api.updateAvatar(detail.avatarUrl), '头像已更新', detail.avatarUrl);
+    } else if (detail.errno === 112 || /not declared in the privacy agreement/i.test(detail.errMsg || '')) {
+      this.setData({ message: '微信头像暂不可用，请稍后重试。' });
+    }
   },
 
-  async saveProfile({ detail }) {
-    if (this.data.working) return;
+  trackNickname({ detail }) {
+    this.profileName = detail.value;
+  },
+
+  useManualNickname() {
+    this.setData({ manualNickname: true, draftName: this.profileName });
+  },
+
+  saveNickname({ detail }) {
+    if (this.data.working || !this.data.user) return;
     const displayName = (detail.value.displayName || '').trim();
+    this.profileName = displayName;
     if (!displayName || Array.from(displayName).length > 32) {
-      this.setData({ profileError: '请输入 1–32 个字符的昵称' });
+      this.setData({ message: '请输入 1–32 个字符的昵称' });
       return;
     }
-    this.setData({ working: true, profileError: '' });
+    return this.saveProfileChange(() => api.put('/me', { displayName }), '昵称已更新');
+  },
+
+  async saveProfileChange(save, title, selectedAvatar) {
+    const token = wx.getStorageSync('userToken');
+    this.profileRefresh = null;
+    this.setData({ working: true, message: '' });
     try {
-      const { data } = await api.updateProfile(displayName, this.data.draftAvatar);
-      this.showUser(data);
-      this.closeProfile();
-      wx.showToast({ title: '资料已保存' });
+      const { data } = await save();
+      if (wx.getStorageSync('userToken') !== token) return;
+      this.showUser(data, selectedAvatar);
+      if (!selectedAvatar) this.cancelNickname();
+      wx.showToast({ title });
     } catch (error) {
+      if (wx.getStorageSync('userToken') !== token) return;
       if (error.statusCode === 401) {
         getApp().clearSession();
-        this.closeProfile();
-        this.setData({ user: null, avatarPath: '', message: '登录已失效，请重新登录' });
+        this.setData({ user: null, editingNickname: false, avatarPath: '', message: '登录已失效，请重新登录' });
       } else {
-        this.setData({ profileError: error.message });
+        this.setData({ message: error.message });
       }
     } finally {
       this.setData({ working: false });
@@ -122,8 +146,7 @@ Page({
       this.setData({ working: false });
     }
     getApp().clearSession();
-    this.closeProfile();
-    this.setData({ user: null, avatarPath: '' });
+    this.setData({ user: null, editingNickname: false, avatarPath: '', message: '' });
   },
 
   open(event) {

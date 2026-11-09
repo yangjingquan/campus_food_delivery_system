@@ -43,7 +43,7 @@ public class UserController {
     }
 
     @PostMapping(path = "/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ProfileService.Profile updateProfile(HttpServletRequest request, @RequestParam String displayName,
+    public ProfileService.Profile updateProfile(HttpServletRequest request, @RequestParam(required = false) String displayName,
             @RequestParam(required = false) MultipartFile avatar) {
         return profiles.update(auth.require(request).userId(), displayName, avatar);
     }
