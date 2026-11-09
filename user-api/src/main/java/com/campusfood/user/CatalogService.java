@@ -36,23 +36,56 @@ public class CatalogService {
         result.put("reminderIntervalMinutes", ((Number) config.get("reminder_interval")).intValue());
         result.put("locationExpirySeconds", locationExpirySeconds);
         result.put("unpaidTimeoutMinutes", unpaidTimeoutMinutes);
-        result.put("paymentMode", paymentMode);
+        result.put("paymentMode", "wechat".equals(paymentMode) && wechatConfiguration.currentPaymentVersion() == null
+            ? "disabled" : paymentMode);
         result.put("mockLogin", mockLogin);
         result.put("appId", wechatConfiguration.currentAppId());
         result.put("schoolName", "示例大学");
         return result;
     }
 
-    public List<Map<String, Object>> catalog(String keyword, String category) {
+    public record Photo(byte[] bytes, String mediaType) {}
+
+    public Photo photo(boolean product, String id) {
+        String table = product ? "merchant_product_photo" : "merchant_store_photo";
+        if (!photoTableExists(table)) throw photoMissing();
+        String sql = product ? """
+            SELECT x.image_data,x.media_type FROM merchant_product_photo x
+            JOIN merchant_product p ON p.id=x.product_id JOIN merchant m ON m.id=p.merchant_id
+            WHERE p.id=? AND p.available=TRUE AND m.audit_status='已通过'
+            """ : """
+            SELECT x.image_data,x.media_type FROM merchant_store_photo x JOIN merchant m ON m.id=x.merchant_id
+            WHERE m.id=? AND m.audit_status='已通过'
+            """;
+        Photo photo = db.query(sql, rs -> rs.next() ? new Photo(rs.getBytes(1), rs.getString(2)) : null, id);
+        if (photo == null || !List.of("image/png", "image/jpeg").contains(photo.mediaType())) throw photoMissing();
+        return photo;
+    }
+
+    private boolean photoTableExists(String table) {
+        return Boolean.TRUE.equals(db.queryForObject("""
+            SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?)
+            """, Boolean.class, table));
+    }
+
+    private static org.springframework.web.server.ResponseStatusException photoMissing() {
+        return new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "图片不存在");
+    }
+
+    public List<Map<String, Object>> catalog(String keyword, String category, String merchantId) {
         String term = keyword == null ? "" : keyword.trim();
         String categoryFilter = category == null || category.isBlank() || category.equals("全部") ? "" : category.trim();
-        String sql = "SELECT m.id AS merchant_id,m.name AS merchant_name,m.address AS merchant_address,m.business_status," +
+        String storePhoto = photoTableExists("merchant_store_photo")
+            ? "EXISTS(SELECT 1 FROM merchant_store_photo x WHERE x.merchant_id=m.id)" : "FALSE";
+        String productPhoto = photoTableExists("merchant_product_photo")
+            ? "EXISTS(SELECT 1 FROM merchant_product_photo x WHERE x.product_id=p.id)" : "FALSE";
+        String sql = "SELECT " + storePhoto + " AS store_photo," + productPhoto + " AS product_photo,m.id AS merchant_id,m.name AS merchant_name,m.address AS merchant_address,m.business_status," +
             "p.id AS product_id,p.name AS product_name,p.description,p.category,p.price_cents,p.stock,p.reserved,p.artwork,p.color,p.available " +
             "FROM merchant m LEFT JOIN merchant_product p ON p.merchant_id=m.id AND p.available=TRUE " +
-            "WHERE m.audit_status='已通过' AND (?='' OR m.name LIKE ? OR p.name LIKE ?) AND (?='' OR p.category=?) " +
+            "WHERE m.audit_status='已通过' AND (?='' OR m.id=?) AND (?='' OR m.name LIKE ? OR p.name LIKE ?) AND (?='' OR p.category=?) " +
             "ORDER BY m.id,p.display_order,p.name";
         String like = "%" + term + "%";
-        List<Map<String, Object>> rows = db.queryForList(sql, term, like, like, categoryFilter, categoryFilter);
+        List<Map<String, Object>> rows = db.queryForList(sql, merchantId, merchantId, term, like, like, categoryFilter, categoryFilter);
         long feePerMerchant = ((Number) config().get("deliveryFeeCents")).longValue();
         Map<String, Map<String, Object>> grouped = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
@@ -65,12 +98,16 @@ public class CatalogService {
                 value.put("businessStatus", row.get("business_status"));
                 value.put("open", "营业中".equals(row.get("business_status")));
                 value.put("deliveryFeeCents", feePerMerchant);
+                if (hasPhoto(row.get("store_photo"))) value.put("photoPath", "/catalog/merchants/" + id + "/photo");
                 value.put("products", new ArrayList<Map<String, Object>>());
                 return value;
             });
             if (row.get("product_id") == null) continue;
             Map<String, Object> product = new LinkedHashMap<>();
             product.put("id", row.get("product_id"));
+            if (hasPhoto(row.get("product_photo"))) {
+                product.put("photoPath", "/catalog/products/" + row.get("product_id") + "/photo");
+            }
             product.put("name", row.get("product_name"));
             product.put("description", row.get("description"));
             product.put("category", row.get("category"));
@@ -85,5 +122,8 @@ public class CatalogService {
             products.add(product);
         }
         return new ArrayList<>(grouped.values());
+    }
+    private static boolean hasPhoto(Object value) {
+        return Boolean.TRUE.equals(value) || value instanceof Number number && number.intValue() == 1;
     }
 }

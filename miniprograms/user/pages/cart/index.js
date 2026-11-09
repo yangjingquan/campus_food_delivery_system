@@ -1,29 +1,36 @@
-const api = require('../../utils/api');
 const cart = require('../../utils/cart');
+const display = require('../../utils/display');
 Page({
-  data: { groups: [], totals: {}, feeText: '¥0.00', foodText: '¥0.00', totalText: '¥0.00', cartCount: 0 },
-  onShow() { this.load(); },
+  data: { groups: [], totals: {}, feeText: '¥0.00', foodText: '¥0.00', totalText: '¥0.00', cartCount: 0, loading: true, loadError: '' },
+  onShow() {
+    this.getTabBar?.()?.refresh('pages/cart/index');
+    this.load();
+  },
   async load() {
+    this.setData({ loading: true, loadError: '' });
     try {
-      const { data: config } = await api.get('/config');
+      const config = await getApp().getConfig();
       const items = cart.read();
       const totals = cart.totals(items, config.deliveryFeeCents);
       const groups = cart.groups(items).map(group => ({
         ...group,
-        items: group.items.map(item => ({ ...item, priceText: `¥${(item.priceCents / 100).toFixed(2)}`, amountText: `¥${(item.priceCents * item.quantity / 100).toFixed(2)}` })),
+        items: group.items.map(item => ({ ...item, picture: display.photo(item.photoPath, item.artwork), fallback: display.illustration(item.artwork), priceText: `¥${(item.priceCents / 100).toFixed(2)}`, amountText: `¥${(item.priceCents * item.quantity / 100).toFixed(2)}` })),
         foodCents: group.items.reduce((sum, item) => sum + item.priceCents * item.quantity, 0),
         foodText: `¥${(group.items.reduce((sum, item) => sum + item.priceCents * item.quantity, 0) / 100).toFixed(2)}`,
         feeText: `¥${(config.deliveryFeeCents / 100).toFixed(2)}`
       }));
-      this.feeCents = config.deliveryFeeCents;
-      this.setData({ groups, totals, foodText: `¥${(totals.foodCents / 100).toFixed(2)}`, feeText: `¥${(totals.deliveryFeeCents / 100).toFixed(2)}`, totalText: `¥${(totals.totalCents / 100).toFixed(2)}`, cartCount: items.reduce((sum, item) => sum + item.quantity, 0) });
-    } catch (error) { wx.showToast({ title: error.message || '暂时无法加载购物车', icon: 'none' }); }
+      this.setData({ loading: false, groups, totals, foodText: `¥${(totals.foodCents / 100).toFixed(2)}`, feeText: `¥${(totals.deliveryFeeCents / 100).toFixed(2)}`, totalText: `¥${(totals.totalCents / 100).toFixed(2)}`, cartCount: items.reduce((sum, item) => sum + item.quantity, 0) });
+    } catch (error) { this.setData({ loading: false, loadError: error.message }); }
+  },
+  imageError(event) {
+    const { group, index } = event.currentTarget.dataset;
+    this.setData({ [`groups[${group}].items[${index}].picture`]: this.data.groups[group].items[index].fallback });
   },
   change(event) {
     const item = cart.read().find(row => row.productId === event.currentTarget.dataset.id);
     if (!item) return;
     const delta = Number(event.currentTarget.dataset.delta);
-    const next = Math.max(0, Math.min(item.availableStock, item.quantity + delta));
+    const next = delta < 0 ? Math.max(0, item.quantity + delta) : Math.min(99, item.availableStock, item.quantity + delta);
     cart.save(cart.read().map(row => row.productId === item.productId ? { ...row, quantity: next } : row).filter(row => row.quantity > 0));
     this.load();
     const tab = this.getTabBar(); if (tab) tab.refresh();

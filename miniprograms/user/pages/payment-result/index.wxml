@@ -1,6 +1,30 @@
-<view class="page" wx:if="{{payment}}">
-  <view class="statusbig"><view class="successicon">{{payment.status === '支付成功' ? '✓' : '·'}}</view><view class="h2">{{payment.status}}</view><view class="muted">{{payment.status === '支付成功' ? '已按商户拆分，请分别查看出餐和配送进度。' : '未完成付款，订单保留到付款时限结束。'}}</view></view>
-  <view wx:for="{{orders}}" wx:key="id" class="card"><view class="row"><view class="h3">{{item.merchantName || item.merchant}}</view><view class="orderstate">{{item.status}}</view></view><view class="kv"><text class="label">独立商户订单</text><text>{{item.id}}</text></view><view class="kv"><text class="label">订单实付</text><text>{{item.amountText}}</text></view><button class="btn outline small-btn wide" data-id="{{item.id}}" bindtap="openOrder">查看订单</button></view>
-  <view class="card"><view class="kv"><text class="label">支付记录单号</text><text>{{payment.id}}</text></view><view class="row"><text>{{orders.length > 1 ? '合并付款' : '单店付款'}}</text><text class="price">{{amountText}}</text></view></view>
-  <button class="btn wide" bindtap="orders">查看全部订单</button>
+<view class="page payment-result-page">
+  <include src="../../templates/load-state.wxml"/>
+  <block wx:if="{{payment && !loadError}}">
+    <view class="statusbig">
+      <view wx:if="{{payment.status === '支付成功'}}" class="successicon">
+        <image src="/assets/check.svg" aria-hidden="true"/>
+      </view>
+      <view class="h2">{{payment.status === '未支付' && payment.mode === 'wechat' ? '待确认付款结果' : payment.status}}</view>
+      <view class="muted">{{payment.status === '支付成功' ? '可分别查看各商户的配送进度。' : payment.status === '已关闭' ? '此支付单已结束。' : '付款后请刷新支付结果。'}}</view>
+    </view>
+    <view wx:if="{{syncError}}" class="hint orange">{{syncError}}</view>
+    <block wx:if="{{payment.status === '支付成功'}}">
+      <view wx:for="{{orders}}" wx:key="id" class="card">
+        <view class="row"><view class="h3">{{item.merchantName || item.merchant}}</view><text class="orderstate">{{item.status}}</text></view>
+        <view class="kv"><text class="label">商户订单号</text><text>{{item.id}}</text></view>
+        <view class="kv"><text class="label">订单实付</text><text>{{item.amountText}}</text></view>
+        <button class="btn outline small-btn wide" data-id="{{item.id}}" bindtap="openOrder">查看订单</button>
+      </view>
+    </block>
+    <view class="card">
+      <view class="kv"><text class="label">{{orders.length > 1 ? '共同支付记录单号' : '支付记录单号'}}</text><text>{{payment.id}}</text></view>
+      <view class="kv"><text class="label">{{payment.status === '支付成功' ? '已付金额' : '支付单金额'}}</text><text>{{amountText}}</text></view>
+    </view>
+    <view class="column">
+      <button wx:if="{{payment.status === '未支付'}}" class="btn outline wide" bindtap="load">刷新支付结果</button>
+      <button wx:if="{{payment.status === '未支付'}}" class="btn secondary wide" bindtap="openPayment">返回支付单</button>
+      <button class="btn wide" bindtap="orders">查看全部订单</button>
+    </view>
+  </block>
 </view>

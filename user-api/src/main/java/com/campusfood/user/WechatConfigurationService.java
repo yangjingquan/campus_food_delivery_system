@@ -59,33 +59,86 @@ public class WechatConfigurationService {
 
     public Credentials credentials() {
         if (!"database".equals(source)) return checked(fallbackAppId, fallbackSecret);
+        List<Map<String, Object>> rows = db.queryForList(CURRENT_CONFIG);
+        if (rows.isEmpty()) throw unavailable();
+        Map<String, Object> row = rows.get(0);
+        return checked(appId(row), decrypt(row, "user_appsecret"));
+    }
+
+    record PaymentCredentials(long version, String appId, String merchant, String serial, String publicKeyId,
+            String callback, String apiKey, String merchantKey, String publicKey) {
+        @Override public String toString() { return "PaymentCredentials[version=" + version + "]"; }
+    }
+
+    Long currentPaymentVersion() {
+        if (!"database".equals(source)) return null;
+        return db.query("""
+                SELECT id, user_app_id, merchant_no, serial_no, public_key_id, payment_callback,
+                    api_v3_secret_id, merchant_private_secret_id, wechat_public_secret_id
+                FROM wechat_config ORDER BY id DESC LIMIT 1
+                """, rs -> {
+            if (!rs.next()) return null;
+            for (String column : List.of("user_app_id", "merchant_no", "serial_no", "public_key_id", "payment_callback")) {
+                if (rs.getString(column).isBlank()) return null;
+            }
+            for (String column : List.of("api_v3_secret_id", "merchant_private_secret_id", "wechat_public_secret_id")) {
+                if (rs.getObject(column) == null) return null;
+            }
+            return rs.getLong("id");
+        });
+    }
+
+    PaymentCredentials payment(long version) {
+        Map<String, Object> row = db.queryForMap("SELECT * FROM wechat_config WHERE id=?", version);
+        return new PaymentCredentials(version, appId(row), required(row, "merchant_no"), required(row, "serial_no"),
+            required(row, "public_key_id"), required(row, "payment_callback"),
+            paymentSecret(row, "api_v3_secret_id", "api_v3"),
+            paymentSecret(row, "merchant_private_secret_id", "merchant_private"),
+            paymentSecret(row, "wechat_public_secret_id", "wechat_public"));
+    }
+
+    private String paymentSecret(Map<String, Object> config, String field, String purpose) {
+        List<Map<String, Object>> rows = db.queryForList(
+            "SELECT purpose,nonce,ciphertext,key_fingerprint FROM wechat_secret WHERE id=?", config.get(field));
+        if (rows.isEmpty()) throw paymentUnavailable();
+        return decrypt(rows.get(0), purpose);
+    }
+
+    private static String required(Map<String, Object> row, String field) {
+        String value = Objects.toString(row.get(field), "").trim();
+        if (value.isEmpty()) throw paymentUnavailable();
+        return value;
+    }
+
+    private String decrypt(Map<String, Object> row, String purpose) {
         byte[] key = null;
         byte[] plain = null;
         try {
-            List<Map<String, Object>> rows = db.queryForList(CURRENT_CONFIG);
-            if (rows.isEmpty()) throw unavailable();
-            Map<String, Object> row = rows.get(0);
-            if (!"user_appsecret".equals(row.get("purpose")) || !(row.get("nonce") instanceof byte[] nonce)
-                    || !(row.get("ciphertext") instanceof byte[] ciphertext) || keyFile.isBlank()) throw unavailable();
+            if (!purpose.equals(row.get("purpose")) || !(row.get("nonce") instanceof byte[] nonce)
+                    || !(row.get("ciphertext") instanceof byte[] ciphertext) || keyFile.isBlank()) {
+                throw new IllegalArgumentException("微信密钥材料不完整");
+            }
             key = Base64.getDecoder().decode(Files.readString(Path.of(keyFile), StandardCharsets.US_ASCII).trim());
-            if (key.length != 32 || nonce.length != 12) throw unavailable();
+            if (key.length != 32 || nonce.length != 12) throw new IllegalArgumentException("微信密钥格式错误");
             String fingerprint = Objects.toString(row.get("key_fingerprint"), "");
             String actual = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(key));
             if (!fingerprint.isEmpty() && !MessageDigest.isEqual(fingerprint.getBytes(StandardCharsets.US_ASCII),
-                    actual.getBytes(StandardCharsets.US_ASCII))) throw unavailable();
+                    actual.getBytes(StandardCharsets.US_ASCII))) throw new IllegalArgumentException("微信主密钥不匹配");
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, nonce));
-            cipher.updateAAD("user_appsecret".getBytes(StandardCharsets.UTF_8));
+            cipher.updateAAD(purpose.getBytes(StandardCharsets.UTF_8));
             plain = cipher.doFinal(ciphertext);
-            return checked(appId(row), new String(plain, StandardCharsets.UTF_8));
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            throw unavailable();
+            return new String(plain, StandardCharsets.UTF_8);
+        } catch (Exception error) {
+            throw "user_appsecret".equals(purpose) ? unavailable() : paymentUnavailable();
         } finally {
             if (key != null) Arrays.fill(key, (byte) 0);
             if (plain != null) Arrays.fill(plain, (byte) 0);
         }
+    }
+
+    static ResponseStatusException paymentUnavailable() {
+        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "微信支付暂不可用，请稍后重试");
     }
 
     private String appId(Map<String, Object> row) {

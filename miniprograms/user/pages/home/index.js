@@ -1,25 +1,67 @@
 const api = require('../../utils/api');
-const cart = require('../../utils/cart');
+const display = require('../../utils/display');
+
 Page({
-  data: { merchants: [], config: {}, keyword: '', category: '全部', categories: ['全部', '米饭', '面食', '轻食'], loading: true, cartCount: 0 },
+  data: {
+    merchants: [], config: {}, keyword: '', category: '全部',
+    categories: ['全部', '米饭', '面食', '轻食'], loading: true, loadError: '',
+    addressLabel: '添加收餐地址'
+  },
+
   onShow() {
+    this.getTabBar?.()?.refresh('pages/home/index');
     const address = wx.getStorageSync('selectedAddress');
-    this.setData({ cartCount: cart.read().reduce((n, item) => n + item.quantity, 0), addressLabel: address ? `${address.building} · ${address.room}` : '添加收餐地址' });
+    this.setData({ addressLabel: address ? `${address.building} · ${address.room}` : '添加收餐地址' });
     this.load();
   },
+
   async load() {
+    const request = (this.request || 0) + 1;
+    this.request = request;
+    this.setData({ loading: true, loadError: '' });
     try {
-      const [catalog, config] = await Promise.all([api.get(`/catalog?keyword=${encodeURIComponent(this.data.keyword)}&category=${encodeURIComponent(this.data.category)}`), api.get('/config')]);
-      getApp().globalData.config = config.data;
-      const merchants = (catalog.data.merchants || []).map(item => ({ ...item, deliveryFeeText: `¥${(item.deliveryFeeCents / 100).toFixed(2)}` }));
-      this.setData({ merchants, config: config.data, loading: false });
-    } catch (error) { this.setData({ loading: false }); wx.showToast({ title: error.message || '暂时无法加载商户', icon: 'none' }); }
+      const { keyword, category } = this.data;
+      const query = `keyword=${encodeURIComponent(keyword.trim())}&category=${encodeURIComponent(category)}`;
+      const [{ data }, config] = await Promise.all([
+        api.get('/catalog?' + query, { auth: false }),
+        getApp().getConfig()
+      ]);
+      // 搜索和筛选可能同时发起，旧响应不能覆盖最新结果。
+      if (request !== this.request) return;
+      const merchants = (data.merchants || []).map(item => {
+        const artwork = item.products[0]?.artwork;
+        return {
+          ...item, picture: display.photo(item.photoPath, artwork),
+          fallback: display.illustration(artwork), deliveryFeeText: display.money(item.deliveryFeeCents)
+        };
+      });
+      this.setData({ merchants, config, loading: false });
+    } catch (error) {
+      if (request === this.request) this.setData({ loading: false, loadError: error.message });
+    }
   },
+
+  imageError(event) {
+    const { index } = event.currentTarget.dataset;
+    this.setData({ [`merchants[${index}].picture`]: this.data.merchants[index].fallback });
+  },
+
   inputKeyword(event) { this.setData({ keyword: event.detail.value }); },
   search() { this.load(); },
-  chooseCategory(event) { this.setData({ category: event.currentTarget.dataset.value }, () => this.load()); },
-  openStore(event) { wx.navigateTo({ url: `/pages/store/index?id=${event.currentTarget.dataset.id}` }); },
+  chooseCategory(event) { this.setData({ category: event.currentTarget.dataset.value }); this.load(); },
+  openStore(event) {
+    wx.navigateTo({ url: `/pages/store/index?id=${encodeURIComponent(event.currentTarget.dataset.id)}` });
+  },
   chooseAddress() { wx.navigateTo({ url: '/pages/addresses/index?choose=1' }); },
-  startOrder() { wx.navigateTo({ url: '/pages/cart/index' }); },
-  showRules() { wx.showModal({ title: '配送说明', content: `配送时段 ${this.data.config.serviceStart || '以平台配置为准'}–${this.data.config.serviceEnd || ''}；高峰每 ${this.data.config.peakBatchMinutes || '—'} 分钟一批，其他时段每 ${this.data.config.regularBatchMinutes || '—'} 分钟一批。预计送达时间不作承诺。`, showCancel: false }); }
+  startOrder() { wx.pageScrollTo({ selector: '#catalog', duration: 250 }); },
+  showRules() {
+    const c = this.data.config;
+    wx.showModal({
+      title: '配送说明',
+      content: c.serviceStart
+        ? `配送时段 ${c.serviceStart}–${c.serviceEnd}。高峰每 ${c.peakBatchMinutes} 分钟一批，其他时段每 ${c.regularBatchMinutes} 分钟一批。`
+        : '暂时无法读取配送时段，请稍后重试。',
+      showCancel: false
+    });
+  }
 });

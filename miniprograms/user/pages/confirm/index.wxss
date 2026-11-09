@@ -1,3 +1,5 @@
-.address-card { display: block; text-align: left; margin-top: 0; }
-.address-title { margin: 10rpx 0; }
-.confirm-item { padding: 20rpx 0 4rpx; }
+.confirm-page button.address-card { display: block; }
+.address-title { margin: 4px 0; }
+.group-title { margin-bottom: 12px; }
+.line-amount { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.confirm-note { margin: 12px 0; }

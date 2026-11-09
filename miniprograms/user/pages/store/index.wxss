@@ -1,2 +1,3 @@
-.store-title { margin: 20rpx 0 10rpx; }
-.product-row { margin-top: 18rpx; }
+.store-title { margin: 10px 0 5px; }
+.store-service { margin: 16px 0 10px; }
+.food-price-row { flex-wrap: wrap; }

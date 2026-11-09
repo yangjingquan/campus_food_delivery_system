@@ -1,32 +1,60 @@
 const api = require('../../utils/api');
 const cart = require('../../utils/cart');
+const display = require('../../utils/display');
+
 Page({
-  data: { merchant: null, selected: [], products: [], config: {}, selectedCount: 0, selectedFoodText: '¥0.00' },
-  async onLoad(query) { this.merchantId = query.id; await this.load(); },
-  onShow() { this.refreshCart(); },
+  data: { merchant: null, products: [], selectedCount: 0, selectedFoodText: '¥0.00', loading: true, loadError: '' },
+
+  onLoad(query) { this.merchantId = query.id; },
+  onShow() { this.load(); },
+
+  async load() {
+    this.setData({ loading: true, loadError: '' });
+    try {
+      const { data } = await api.get('/catalog?merchantId=' + encodeURIComponent(this.merchantId), { auth: false });
+      const merchant = data.merchants.find(item => item.id === this.merchantId);
+      if (!merchant) throw new Error('该店铺暂不可用');
+      const artwork = merchant.products[0]?.artwork;
+      this.setData({
+        merchant: {
+          ...merchant, picture: display.photo(merchant.photoPath, artwork),
+          fallback: display.illustration(artwork), deliveryFeeText: display.money(merchant.deliveryFeeCents)
+        },
+        loading: false
+      });
+      this.refreshCart();
+    } catch (error) {
+      this.setData({ merchant: null, loading: false, loadError: error.message });
+    }
+  },
+
   refreshCart() {
     const selected = cart.read();
-    const merchant = this.data.merchant;
-    const products = merchant ? merchant.products.map(item => ({ ...item, priceText: `¥${(item.priceCents / 100).toFixed(2)}`, quantity: (selected.find(row => row.productId === item.id) || {}).quantity || 0 })) : [];
-    this.setData({ selected, products, selectedCount: selected.reduce((n, item) => n + item.quantity, 0), selectedFoodText: `¥${(selected.reduce((n, item) => n + item.priceCents * item.quantity, 0) / 100).toFixed(2)}` });
+    const products = this.data.merchant.products.map(item => ({
+      ...item, priceText: display.money(item.priceCents),
+      picture: display.photo(item.photoPath, item.artwork), fallback: display.illustration(item.artwork),
+      quantity: selected.find(row => row.productId === item.id)?.quantity || 0
+    }));
+    this.setData({
+      products, selectedCount: selected.reduce((n, item) => n + item.quantity, 0),
+      selectedFoodText: display.money(cart.totals(selected, 0).foodCents)
+    });
   },
-  async load() {
-    try {
-      const [result, config] = await Promise.all([api.get('/catalog'), api.get('/config')]);
-      const merchant = result.data.merchants.find(item => item.id === this.merchantId);
-      if (!merchant) throw new Error('商户暂不可用');
-      merchant.deliveryFeeText = `¥${(merchant.deliveryFeeCents / 100).toFixed(2)}`;
-      this.setData({ merchant, config: config.data }, () => this.refreshCart());
-    } catch (error) { wx.showToast({ title: error.message, icon: 'none' }); }
+
+  imageError(event) {
+    const { index } = event.currentTarget.dataset;
+    if (index === undefined) this.setData({ 'merchant.picture': this.data.merchant.fallback });
+    else this.setData({ [`products[${index}].picture`]: this.data.products[index].fallback });
   },
+
   change(event) {
-    const product = this.data.merchant.products.find(item => item.id === event.currentTarget.dataset.id);
-    if (!this.data.merchant.open || !product.availableStock) return wx.showToast({ title: '商户打烊或餐品已售罄', icon: 'none' });
-    cart.add(cart.read(), product, this.data.merchant, Number(event.currentTarget.dataset.delta));
+    const { id, delta } = event.currentTarget.dataset;
+    const { merchant } = this.data;
+    const product = merchant.products.find(item => item.id === id);
+    if (!product || (Number(delta) > 0 && (!merchant.open || !product.availableStock))) return;
+    cart.add(cart.read(), product, merchant, Number(delta));
     this.refreshCart();
-    const tab = this.getTabBar(); if (tab) tab.refresh();
   },
-  viewCart() { wx.navigateTo({ url: '/pages/cart/index' }); },
-  contact() { wx.showToast({ title: '商户联系方式由平台提供', icon: 'none' }); },
-  money(cents) { return `¥${(Number(cents || 0) / 100).toFixed(2)}`; }
+
+  viewCart() { wx.switchTab({ url: '/pages/cart/index' }); }
 });

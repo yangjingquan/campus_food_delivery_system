@@ -1,8 +1,28 @@
-<view class="page">
-  <view class="field"><label>联系人</label><input maxlength="20" value="{{name}}" data-field="name" bindinput="input" placeholder="填写收餐人姓名"/></view>
-  <view class="field"><label>手机号码</label><input type="number" maxlength="11" value="{{phone}}" data-field="phone" bindinput="input" placeholder="用于配送联系"/></view>
-  <view class="field"><label>宿舍楼</label><input maxlength="80" value="{{building}}" data-field="building" bindinput="input" placeholder="例如：5号宿舍楼"/></view>
-  <view class="field"><label>寝室门牌</label><input maxlength="80" value="{{room}}" data-field="room" bindinput="input" placeholder="例如：302寝室"/></view>
-  <view class="default-row"><text>设为默认地址</text><switch checked="{{isDefault}}" color="#ee692f" bindchange="toggleDefault"/></view>
-  <view class="error">{{error}}</view><button class="btn wide save-btn" loading="{{saving}}" bindtap="save">保存地址</button>
+<view class="page address-edit-page">
+  <include src="../../templates/load-state.wxml"/>
+  <block wx:if="{{!loading && !loadError}}">
+    <view class="hint">请填写校内收餐地址，手机号用于配送联系。</view>
+    <view class="field">
+      <label for="receiver-name">联系人</label>
+      <input id="receiver-name" maxlength="20" value="{{name}}" data-field="name" bindinput="input" placeholder="填写收餐人姓名"/>
+    </view>
+    <view class="field">
+      <label for="receiver-phone">手机号码</label>
+      <input id="receiver-phone" type="number" maxlength="11" value="{{phone}}" data-field="phone" bindinput="input" placeholder="填写 11 位手机号码"/>
+    </view>
+    <view class="field">
+      <label for="receiver-building">宿舍楼</label>
+      <input id="receiver-building" maxlength="80" value="{{building}}" data-field="building" bindinput="input" placeholder="例如：5号宿舍楼"/>
+    </view>
+    <view class="field">
+      <label for="receiver-room">寝室门牌</label>
+      <input id="receiver-room" maxlength="80" value="{{room}}" data-field="room" bindinput="input" placeholder="例如：302寝室"/>
+    </view>
+    <label class="row default-row">
+      <text>设为默认收餐地址</text>
+      <switch checked="{{isDefault}}" color="#ee692f" bindchange="toggleDefault"/>
+    </label>
+    <view wx:if="{{error}}" class="error address-error">{{error}}</view>
+    <button class="btn wide" loading="{{saving}}" disabled="{{saving}}" bindtap="save">保存地址</button>
+  </block>
 </view>

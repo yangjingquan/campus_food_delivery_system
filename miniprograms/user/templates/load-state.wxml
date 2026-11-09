@@ -1,0 +1,4 @@
+<view wx:if="{{loading || loadError}}" class="load-state">
+  <text class="muted">{{loading ? '正在加载…' : loadError}}</text>
+  <button wx:if="{{loadError && !loading}}" class="btn outline small-btn" bindtap="load">重新加载</button>
+</view>

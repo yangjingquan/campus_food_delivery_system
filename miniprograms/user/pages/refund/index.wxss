@@ -1,2 +1,3 @@
-.refund-intro { margin: 16rpx 0 26rpx; }
-.picker-value { min-height: 84rpx; padding: 22rpx; border: 2rpx solid #e9e7df; border-radius: 18rpx; background: #fff; }
+.refund-intro { margin: 7px 0 15px; }
+.refund-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.refund-error { margin: 0 0 10px; }

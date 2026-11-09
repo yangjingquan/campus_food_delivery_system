@@ -1,16 +1,57 @@
-<view class="page">
-  <button class="card address-card wide" bindtap="chooseAddress">
-    <view class="row"><view><view class="small">收餐地址 · 示例大学</view><view class="h3 address-title">{{address ? address.building + ' · ' + address.room : '请添加收餐地址'}}</view><view class="muted" wx:if="{{address}}">{{address.name}}　{{address.phone}}</view></view><view>›</view></view>
-  </button>
-  <view class="hint" wx:if="{{config.serviceStart}}">配送时段 {{config.serviceStart}}–{{config.serviceEnd}}；高峰每 {{config.peakBatchMinutes}} 分钟一批，其他时段每 {{config.regularBatchMinutes}} 分钟一批。时段外订单进入下一批。</view>
-  <view class="hint" wx:if="{{groups.length > 1}}">本次选择 {{groups.length}} 家商户，将合并支付，并按商户拆分为独立订单。</view>
-  <view class="hint" wx:if="{{groups.length === 1}}">本次为单店订单，单独付款并由该商户独立配送。</view>
-  <view wx:for="{{groups}}" wx:key="merchantId" class="card">
-    <view class="h3">{{item.merchantName}}</view>
-    <view wx:for="{{item.items}}" wx:for-item="food" wx:key="productId" class="row confirm-item"><text>{{food.name}} × {{food.quantity}}</text><text>{{food.amountText}}</text></view>
-    <view class="line"></view><view class="row small"><text>餐品 {{item.foodText}} + 配送费</text><text>{{item.orderText}}</text></view>
+<view class="page confirm-page">
+  <include src="../../templates/load-state.wxml"/>
+  <block wx:if="{{!loading && !loadError && groups.length}}">
+    <button class="card address-card wide" bindtap="chooseAddress">
+      <view class="row">
+        <view>
+          <view class="subheading">送至 · 校内收餐地址</view>
+          <view class="h3 address-title">{{address ? address.building + ' ' + address.room : '请选择收餐地址'}}</view>
+          <view class="small">{{address ? address.name + '　' + address.phone : '联系人、手机号、宿舍楼和寝室必填'}}</view>
+        </view>
+        <text>›</text>
+      </view>
+    </button>
+    <view class="hint orange" wx:if="{{config.serviceStart}}">
+      配送时段 {{config.serviceStart}}–{{config.serviceEnd}} · 分批配送
+    </view>
+    <view wx:for="{{groups}}" wx:for-index="groupIndex" wx:key="merchantId" class="card">
+      <view class="h3 group-title">{{item.merchantName}}</view>
+      <view wx:for="{{item.items}}" wx:for-item="food" wx:key="productId" class="foodline">
+        <view class="thumb">
+          <image src="{{food.picture}}" mode="aspectFill" data-group="{{groupIndex}}" data-index="{{index}}" binderror="imageError" aria-hidden="true"/>
+        </view>
+        <view class="info">
+          <view class="h3">{{food.name}}</view>
+          <view class="small">数量 × {{food.quantity}}</view>
+          <view class="error" wx:if="{{food.unavailable}}">餐品或数量有变，请返回购物车调整。</view>
+        </view>
+        <text class="line-amount">{{food.amountText}}</text>
+      </view>
+      <view class="row split"><text class="small">含本店配送 {{item.feeText}}</text><text>{{item.orderText}}</text></view>
+    </view>
+    <view class="card bill">
+      <view class="row"><text>餐品合计</text><text>{{foodText}}</text></view>
+      <view class="row"><text>固定配送费 × {{groups.length}}</text><text>{{feeText}}</text></view>
+      <view class="row split"><text>{{groups.length > 1 ? '合并应付' : '订单应付'}}</text><text class="price">{{totalText}}</text></view>
+    </view>
+    <view class="muted confirm-note">提交后暂占库存，请在 {{config.unpaidTimeoutMinutes}} 分钟内完成付款。</view>
+    <view wx:if="{{submitError}}" class="hint orange">
+      <view>{{submitError}}</view>
+      <button class="link" bindtap="load">更新餐品与金额 ›</button>
+    </view>
+    <view wx:if="{{!paymentEnabled}}" class="hint orange">支付暂不可用，请稍后重试。</view>
+    <view class="totalbar row">
+      <view><view class="small">共 {{groups.length}} 家商户</view><view class="price">{{totalText}}</view></view>
+      <button wx:if="{{unavailable}}" class="btn outline" bindtap="openCart">调整购物车</button>
+      <button wx:else class="btn" loading="{{submitting}}" disabled="{{submitting || !paymentEnabled}}" bindtap="submit">
+        {{address ? '提交订单' : '添加地址'}}
+      </button>
+    </view>
+  </block>
+  <view wx:if="{{!loading && !loadError && !groups.length}}" class="empty">
+    <view class="symbol"><image src="/assets/cart.svg" aria-hidden="true"/></view>
+    <view class="h3">还没有选餐</view>
+    <view class="muted">添加餐品后即可确认订单。</view>
+    <button class="btn" bindtap="openCart">返回购物车</button>
   </view>
-  <view class="card bill"><view class="row"><text>餐品合计</text><text>{{foodText}}</text></view><view class="row"><text>固定配送费 × {{feeCount}}</text><text>{{feeText}}</text></view><view class="row"><text class="h3">{{groups.length > 1 ? '合并应付' : '订单应付'}}</text><text class="price">{{totalText}}</text></view></view>
-  <view class="muted" style="margin:24rpx 0">提交后暂占库存，{{config.unpaidTimeoutMinutes || 30}} 分钟内未付款将关闭订单并释放库存。最终价格按提交时平台数据校验。</view>
-  <view class="totalbar row"><view><view class="small">共 {{groups.length}} 家商户</view><view class="price">{{totalText}}</view></view><button class="btn" bindtap="submit">{{paymentEnabled ? '提交订单' : '支付渠道未配置'}}</button></view>
 </view>

@@ -1,5 +1,8 @@
 package com.campusfood.user;
 
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
 import java.sql.Timestamp;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -9,6 +12,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import tools.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,14 +31,22 @@ public class OrderService {
 
     private final JdbcTemplate db;
     private final AddressService addresses;
-    @Value("${app.payment.mode:mock}") private String paymentMode;
+    @Autowired private WechatConfigurationService wechatConfiguration;
+    @Autowired private WechatPayClient wechatPay;
+    @Autowired private PlatformTransactionManager transactionManager;
+    @Value("${app.payment.mode:disabled}") private String paymentMode;
     @Value("${app.unpaid-timeout-minutes:30}") private int unpaidTimeoutMinutes;
 
     public OrderService(JdbcTemplate db, AddressService addresses) { this.db = db; this.addresses = addresses; }
 
     @Transactional
     public Map<String, Object> checkout(long userId, Map<String, Object> body) {
-        if (!"mock".equalsIgnoreCase(paymentMode)) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "当前服务未配置微信支付通道，未创建订单或扣减库存");
+        boolean realPayment = "wechat".equals(paymentMode);
+        Long configurationVersion = realPayment ? wechatConfiguration.currentPaymentVersion() : null;
+        if (!"mock".equals(paymentMode) && configurationVersion == null) {
+            throw WechatConfigurationService.paymentUnavailable();
+        }
+        if (configurationVersion != null) wechatConfiguration.payment(configurationVersion);
         String addressId = text(body, "addressId");
         if (addressId.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择有效的收餐地址");
         Map<String, Object> address = addresses.require(userId, addressId);
@@ -41,6 +54,8 @@ public class OrderService {
         String requestKey = text(body, "requestKey");
         if (!requestKey.matches("[A-Za-z0-9_-]{8,80}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "下单请求标识无效");
         String fingerprint = fingerprint(addressId, requested);
+        // 并发重试先锁同一用户，再判断请求编号是否已创建支付单。
+        db.queryForObject("SELECT id FROM user_profile WHERE id=? FOR UPDATE", Long.class, userId);
         List<Map<String, Object>> previous = db.queryForList("SELECT id,request_fingerprint FROM payment_order WHERE user_id=? AND request_key=? FOR UPDATE", userId, requestKey);
         if (!previous.isEmpty()) {
             if (!fingerprint.equals(previous.get(0).get("request_fingerprint"))) throw new ResponseStatusException(HttpStatus.CONFLICT, "该下单请求标识已用于其他购物车，请刷新后重试");
@@ -58,13 +73,23 @@ public class OrderService {
         for (OrderLine line : lines) foodTotal = Math.addExact(foodTotal, Math.multiplyExact(line.product().priceCents(), line.quantity()));
         long deliveryTotal = Math.multiplyExact(feePerMerchant, grouped.size());
         long total = Math.addExact(foodTotal, deliveryTotal);
+        Object quoted = body.get("expectedTotalCents");
+        if (quoted != null && (!(quoted instanceof Number cents) || cents.longValue() != total
+                || cents.doubleValue() != total)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商品价格或配送费有变化，请重新确认");
+        }
         if (total <= 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单金额无效");
 
-        String paymentId = "P-" + UUID.randomUUID();
+        // 微信商户订单号最多 32 个字符，同一支付单在重试时始终使用同一个号码。
+        String paymentId = realPayment ? UUID.randomUUID().toString().replace("-", "") : "P-" + UUID.randomUUID();
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(Math.max(1, unpaidTimeoutMinutes) * 60L);
         db.update("INSERT INTO payment_order(id,user_id,request_key,request_fingerprint,amount_cents,status,payment_mode,expires_at) VALUES(?,?,?,?,?,?,?,?)",
             paymentId, userId, requestKey, fingerprint, total, "未支付", paymentMode, Timestamp.from(expiresAt));
+
+        if (realPayment) {
+            db.update("UPDATE payment_order SET wechat_config_version=? WHERE id=?", configurationVersion, paymentId);
+        }
 
         List<Map<String, Object>> merchantOrders = new ArrayList<>();
         for (Map.Entry<String, List<OrderLine>> entry : grouped.entrySet()) {
@@ -123,6 +148,7 @@ public class OrderService {
     public Map<String, Object> mockPayment(long userId, String paymentId) {
         if (!"mock".equalsIgnoreCase(paymentMode)) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "当前支付渠道未配置，不能模拟或确认支付");
         Map<String, Object> payment = paymentRow(userId, paymentId, true);
+        if (!"mock".equals(payment.get("payment_mode"))) throw WechatConfigurationService.paymentUnavailable();
         if ("支付成功".equals(payment.get("status"))) return payment(userId, paymentId);
         if (!"未支付".equals(payment.get("status"))) throw new ResponseStatusException(HttpStatus.CONFLICT, "支付单已处理");
         long now = System.currentTimeMillis();
@@ -131,12 +157,102 @@ public class OrderService {
             expireUnpaid(paymentId, now);
             return Map.of("id", paymentId, "status", "已关闭", "amountCents", payment.get("amount_cents"), "merchantOrders", List.of());
         }
-        int changed = db.update("UPDATE payment_order SET status='支付成功',paid_at=?,transaction_id=? WHERE id=? AND user_id=? AND status='未支付'",
-            now, "LOCAL-" + paymentId, paymentId, userId);
+        markPaid(payment, "LOCAL-" + paymentId, now, true);
+        return payment(userId, paymentId);
+    }
+
+    @Transactional
+    public void beginWechatPayment(long userId, String id) {
+        if (!"wechat".equals(paymentMode)) throw WechatConfigurationService.paymentUnavailable();
+        Map<String, Object> row = paymentRow(userId, id, true);
+        checkCanPrepare(row);
+        // 下单请求可能在网络超时后仍被微信受理，必须先持久化尝试标记。
+        db.update("UPDATE payment_order SET wechat_started=TRUE WHERE id=?", id);
+    }
+
+    @Transactional
+    public Map<String, String> prepareWechatPayment(long userId, String id) {
+        if (!"wechat".equals(paymentMode)) throw WechatConfigurationService.paymentUnavailable();
+        Map<String, Object> row = paymentRow(userId, id, true);
+        checkCanPrepare(row);
+        Instant expiry = ((Timestamp) row.get("expires_at")).toInstant();
+        var config = paymentConfig(row);
+        String prepayId = (String) row.get("prepay_id");
+        if (prepayId == null) {
+            String openid = db.queryForObject("SELECT openid FROM user_profile WHERE id=?", String.class, userId);
+            prepayId = wechatPay.prepay(config, id, openid, ((Number) row.get("amount_cents")).longValue(), expiry);
+            db.update("UPDATE payment_order SET prepay_id=? WHERE id=?", prepayId, id);
+        }
+        return wechatPay.parameters(config, prepayId);
+    }
+
+    private void checkCanPrepare(Map<String, Object> row) {
+        if (!"wechat".equals(row.get("payment_mode")) || !"未支付".equals(row.get("status"))
+                || !Instant.now().isBefore(((Timestamp) row.get("expires_at")).toInstant())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "支付单已处理或超时，请刷新支付状态");
+        }
+    }
+
+    @Transactional
+    public Map<String, Object> syncPayment(long userId, String id) {
+        Map<String, Object> row = paymentRow(userId, id, true);
+        if (Boolean.TRUE.equals(row.get("wechat_started")) && "未支付".equals(row.get("status"))) {
+            var config = paymentConfig(row);
+            reconcile(row, config, wechatPay.query(config, id));
+        }
+        return payment(userId, id);
+    }
+
+    @Transactional
+    public void wechatNotification(String timestamp, String nonce, String serial, String signature, String body) {
+        Long version = wechatConfiguration.currentPaymentVersion();
+        if (version == null) throw WechatConfigurationService.paymentUnavailable();
+        JsonNode result = wechatPay.notification(wechatConfiguration.payment(version), timestamp, nonce, serial, signature, body);
+        String id = result.path("out_trade_no").asText();
+        Map<String, Object> row = db.queryForMap("SELECT * FROM payment_order WHERE id=? FOR UPDATE", id);
+        if (!reconcile(row, paymentConfig(row), result)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "微信支付通知状态无效");
+        }
+    }
+
+    private WechatConfigurationService.PaymentCredentials paymentConfig(Map<String, Object> row) {
+        if (!"wechat".equals(row.get("payment_mode")) || !(row.get("wechat_config_version") instanceof Number version)) {
+            throw WechatConfigurationService.paymentUnavailable();
+        }
+        return wechatConfiguration.payment(version.longValue());
+    }
+
+    private boolean reconcile(Map<String, Object> row, WechatConfigurationService.PaymentCredentials config, JsonNode result) {
+        if (!"SUCCESS".equals(result.path("trade_state").asText())) return false;
+        var amount = result.path("amount");
+        String transactionId = result.path("transaction_id").asText();
+        if (!row.get("id").equals(result.path("out_trade_no").asText())
+                || !config.appId().equals(result.path("appid").asText())
+                || !config.merchant().equals(result.path("mchid").asText())
+                || !"CNY".equals(amount.path("currency").asText())
+                || amount.path("total").asLong(-1) != ((Number) row.get("amount_cents")).longValue()
+                || !transactionId.matches("[0-9]{1,64}")) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "微信支付凭据与订单不匹配");
+        }
+        long paidAt = java.time.OffsetDateTime.parse(result.path("success_time").asText()).toInstant().toEpochMilli();
+        markPaid(row, transactionId, paidAt, false);
+        return true;
+    }
+
+    private void markPaid(Map<String, Object> row, String transactionId, long now, boolean mock) {
+        String paymentId = (String) row.get("id");
+        if ("支付成功".equals(row.get("status")) && transactionId.equals(row.get("transaction_id"))) return;
+        int changed = db.update("""
+                UPDATE payment_order SET status='支付成功',paid_at=?,transaction_id=?
+                WHERE id=? AND status='未支付'
+                """, now, transactionId, paymentId);
         if (changed != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "支付状态已变化，请刷新订单");
         List<String> orderIds = db.queryForList("SELECT id FROM business_order WHERE payment_id=? ORDER BY merchant_id", String.class, paymentId);
         for (String orderId : orderIds) {
-            db.update("UPDATE business_order SET payment_status='本地模拟支付成功',fulfill_status='待商户接单',settlement_status='待结算',paid_at=? WHERE id=? AND payment_status='未支付'", now, orderId);
+            db.update("""
+                UPDATE business_order SET payment_status=?,fulfill_status='待商户接单',settlement_status='待结算',paid_at=?
+                WHERE id=? AND payment_status='未支付'
+                """, mock ? "本地模拟支付成功" : "支付成功", now, orderId);
             for (Map<String, Object> item : db.queryForList("SELECT product_id,quantity FROM user_order_item WHERE order_id=?", orderId)) {
                 int quantity = ((Number) item.get("quantity")).intValue();
                 int inventoryChanged = db.update("UPDATE merchant_product SET stock=stock-?,reserved=reserved-?,sold_count=sold_count+? WHERE id=? AND stock>=? AND reserved>=?",
@@ -144,7 +260,6 @@ public class OrderService {
                 if (inventoryChanged != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "库存状态变化，支付订单已锁定，请联系平台核实");
             }
         }
-        return payment(userId, paymentId);
     }
 
     public Map<String, Object> payment(long userId, String paymentId) {
@@ -174,8 +289,18 @@ public class OrderService {
 
     @Transactional
     public boolean expireUnpaid(String paymentId, long now) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT id,status,expires_at FROM payment_order WHERE id=? FOR UPDATE", paymentId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT * FROM payment_order WHERE id=? FOR UPDATE", paymentId);
         if (rows.isEmpty() || !"未支付".equals(rows.get(0).get("status")) || ((Timestamp) rows.get(0).get("expires_at")).getTime() > now) return false;
+        Map<String, Object> row = rows.get(0);
+        if (Boolean.TRUE.equals(row.get("wechat_started"))) {
+            var config = paymentConfig(row);
+            JsonNode remote = wechatPay.query(config, paymentId);
+            if (reconcile(row, config, remote)) return false;
+            String state = remote.path("trade_state").asText();
+            // 微信未确认关单时不能释放库存，避免用户已经扣款但订单被关闭。
+            if ("NOTPAY".equals(state)) wechatPay.close(config, paymentId);
+            else if (!"CLOSED".equals(state) && !"ORDER_NOT_EXIST".equals(remote.path("code").asText())) return false;
+        }
         db.update("UPDATE payment_order SET status='已关闭' WHERE id=? AND status='未支付'", paymentId);
         List<String> orderIds = db.queryForList("SELECT id FROM business_order WHERE payment_id=?", String.class, paymentId);
         for (String orderId : orderIds) {
@@ -186,11 +311,17 @@ public class OrderService {
     }
 
     @Scheduled(fixedDelayString = "${app.unpaid-scan-ms:30000}", initialDelayString = "${app.unpaid-initial-delay-ms:5000}")
-    @Transactional
     public void expireUnpaidOrders() {
         List<String> expired = db.queryForList("SELECT id FROM payment_order WHERE status='未支付' AND expires_at<=CURRENT_TIMESTAMP ORDER BY expires_at LIMIT 100", String.class);
         long now = System.currentTimeMillis();
-        for (String paymentId : expired) expireUnpaid(paymentId, now);
+        var transactions = new TransactionTemplate(transactionManager);
+        for (String paymentId : expired) {
+            try {
+                transactions.executeWithoutResult(status -> expireUnpaid(paymentId, now));
+            } catch (RuntimeException error) {
+                LoggerFactory.getLogger(OrderService.class).warn("支付单关单未确认，保留库存，稍后重试：{}", paymentId);
+            }
+        }
     }
 
     private List<OrderLine> lockAndValidate(List<RequestedLine> requested) {
@@ -233,7 +364,7 @@ public class OrderService {
     }
 
     private Map<String, Object> paymentRow(long userId, String paymentId, boolean lock) {
-        String sql = "SELECT id,user_id,amount_cents,status,payment_mode,expires_at,paid_at FROM payment_order WHERE id=? AND user_id=?" + (lock ? " FOR UPDATE" : "");
+        String sql = "SELECT * FROM payment_order WHERE id=? AND user_id=?" + (lock ? " FOR UPDATE" : "");
         List<Map<String, Object>> rows = db.queryForList(sql, paymentId, userId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "支付单不存在");
         return rows.get(0);

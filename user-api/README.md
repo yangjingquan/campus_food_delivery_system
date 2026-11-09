@@ -22,7 +22,9 @@ The mini program API root is `/api/user/v1`. Authenticated calls send `Authoriza
 
 The checkout fee is read from `operations_config` and applied once per merchant. Single-store payment creates one merchant order; a multi-store payment creates one merchant order per store. Unpaid reservations expire using the configured timeout. Refunds close only the merchant order they apply to, and `first_closed_at` preserves the original 24-hour after-sale deadline.
 
-Production payment and refund channels are disabled until the WeChat merchant account, certificates/keys, API v3 key, callback URL, and HTTPS request domain are configured and verified. The mock payment route refuses to run outside the `local` profile.
+Production reads the merchant ID, merchant certificate serial and private key, WeChat Pay public key and ID, API v3 key, and HTTPS callback URL from the admin-managed configuration. Set `USER_PAYMENT_MODE=wechat` after deploying this version and verifying the channel. The payment callback path is `/api/user/v1/payments/wechat/notify`. Checkout captures the configuration version used for payment and refund reconciliation. If callbacks from an earlier key version cannot be authenticated against the current key, order reconciliation can still use the stored version.
+
+The mini program uses `POST /payments/{id}/prepare` to open WeChat checkout and `POST /payments/{id}/sync` to verify the result. Refunds are submitted asynchronously and reconciled by querying the same refund number. The local profile uses simulated payments and refunds.
 
 ## Checks
 

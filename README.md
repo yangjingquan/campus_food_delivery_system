@@ -45,7 +45,7 @@ cd codes
 ./scripts/start-local.sh
 ```
 
-用微信开发者工具打开 `codes/miniprograms/user`。项目 URL 校验为本地开发设置，默认 API 地址是 `http://127.0.0.1:8082/api/user/v1`；真机联调时需改为可访问的 HTTPS 域名并在小程序后台配置 request 合法域名。服务端真实微信登录还需设置 `WECHAT_USER_APP_SECRET`。当前没有可用的微信支付商户号、API v3 密钥、商户私钥及回调地址，因此生产支付/退款保持关闭；仅提供真实支付参数到位后的客户端调用分支，不把模拟支付作为生产能力。
+用微信开发者工具打开 `codes/miniprograms/user`。默认请求生产 HTTPS 网关；隔离联调时，在开发工具本地存储设置 `userApiBaseUrl` 为 `http://127.0.0.1:8082/api/user/v1` 后重新编译。真实登录与支付的配置方式见 [生产部署说明](deploy/production/README.md)。
 
 本地检查：
 
@@ -90,7 +90,7 @@ npm run dev
 
 ## 尚未完成
 
-用户端真实微信支付与退款客户端、回调验签与解密、微信账单对账、地图服务商/坐标配置、生产 request 域名、商户和骑手端真实内部调用、订单结算及自动扣费、消息与持久任务、生产级密钥轮换及安全加固仍需开发和联调。当前系统仅用于本地开发，不具备真实资金交易条件。
+生产微信支付与退款需完成真机渠道联调。账单对账、生产级密钥轮换和位置数据源另行验收。
 
 隔离联调可执行 `python3 scripts/check-integration.py`；脚本在现有 MySQL 容器内创建随机临时数据库、随机账号和临时后端容器，结束后删除这些临时资源。执行需要本机安装 OpenSSL、Docker 正常运行并允许访问 Docker 守护进程。
 

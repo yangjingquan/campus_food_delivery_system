@@ -1,11 +1,30 @@
-<view class="page tab-page">
+<view class="page tab-page orders-page">
   <view class="h2">每一份，都有进度</view>
-  <scroll-view class="filters order-filters" scroll-x="true" show-scrollbar="false"><button wx:for="{{filters}}" wx:key="*this" class="chip {{filter === item ? 'on' : ''}}" data-value="{{item}}" bindtap="chooseFilter">{{item}}</button></scroll-view>
-  <view wx:for="{{visible}}" wx:key="id" class="card ordercard">
-    <view class="row"><view class="h3">{{item.merchantName}}</view><view class="orderstate">{{item.displayStatus}}</view></view>
-    <view class="muted order-summary">{{item.displayItems}}</view>
-    <view class="row order-bottom"><view class="small">{{item.refundStatus !== '无售后' ? '售后：' + item.refundStatus : item.createdAt}}</view><view class="h3">{{item.amountText}}</view></view>
-    <view class="actions"><button wx:if="{{item.isPayment}}" class="btn small-btn" data-id="{{item.paymentId}}" bindtap="openPayment">去付款</button><button wx:if="{{!item.isPayment}}" class="btn outline small-btn" data-id="{{item.id}}" bindtap="openOrder">查看详情</button></view>
-  </view>
-  <view wx:if="{{!visible.length && !loading}}" class="empty"><view class="h3">还没有相关订单</view><view class="muted" style="margin:16rpx 0 30rpx">先选一份喜欢的餐品，享受寝室里的好好一餐。</view><button class="btn" bindtap="goHome">去点餐</button></view>
+  <scroll-view class="filters" scroll-x="{{true}}" show-scrollbar="{{false}}">
+    <view class="filter-rail">
+      <button wx:for="{{filters}}" wx:key="*this" class="chip {{filter === item ? 'on' : ''}}"
+        data-value="{{item}}" bindtap="chooseFilter">{{item}}</button>
+    </view>
+  </scroll-view>
+  <include src="../../templates/load-state.wxml"/>
+  <block wx:if="{{!loading && !loadError}}">
+    <view wx:for="{{visible}}" wx:key="id" class="card ordercard">
+      <view class="row"><view class="h3">{{item.merchantName}}</view><text class="orderstate">{{item.displayStatus}}</text></view>
+      <view class="muted order-summary">{{item.displayItems}}</view>
+      <view wx:if="{{item.isPayment}}" class="row split">
+        <text class="order-amount">{{item.amountText}}</text>
+        <button class="btn outline small-btn" data-id="{{item.id}}" bindtap="openPayment">查看支付单</button>
+      </view>
+      <block wx:else>
+        <view class="row order-bottom"><text class="small">{{item.note}}</text><text class="order-amount">{{item.amountText}}</text></view>
+        <view class="actions"><button class="btn outline small-btn" data-id="{{item.id}}" bindtap="openOrder">查看详情</button></view>
+      </block>
+    </view>
+    <view wx:if="{{!visible.length}}" class="empty">
+      <view class="symbol"><image src="/assets/orders.svg" aria-hidden="true"/></view>
+      <view class="h3">还没有相关订单</view>
+      <view class="muted">点餐后可以在这里查看进度。</view>
+      <button class="btn" bindtap="goHome">去点餐</button>
+    </view>
+  </block>
 </view>

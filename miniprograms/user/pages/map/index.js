@@ -1,16 +1,49 @@
 const api = require('../../utils/api');
+const { time } = require('../../utils/display');
+
 Page({
-  data: { location: null, markers: [], latitude: 31.2304, longitude: 121.4737, scale: 16, stale: false, stateText: '正在查询位置', hint: '位置仅用于本订单配送展示。' },
-  async onLoad(query) { this.orderId = query.id; await this.load(); },
-  async onShow() { if (this.orderId) await this.load(); },
+  data: { markers: [], scale: 16, stateText: '正在查询位置', hint: '', loading: true, loadError: '' },
+
+  onLoad(query) { this.orderId = query.id; },
+  onShow() { this.visible = true; this.load(); },
+  onHide() { this.visible = false; clearTimeout(this.poll); },
+  onUnload() { this.onHide(); },
+
   async load() {
+    if (this.refreshing) return;
+    clearTimeout(this.poll);
+    this.refreshing = true;
+    this.setData({ loadError: '' });
     try {
+      await getApp().ensureLogin();
       const { data } = await api.get(`/orders/${this.orderId}/location`);
-      const hasCoordinates = Number.isFinite(Number(data.latitude)) && Number.isFinite(Number(data.longitude));
-      const available = hasCoordinates && ['live', 'stale'].includes(data.state);
+      if (!this.visible) return;
+      const latitude = Number(data.latitude);
+      const longitude = Number(data.longitude);
+      const hasCoordinates = data.latitude != null && data.longitude != null
+        && Number.isFinite(latitude) && Number.isFinite(longitude);
+      const showMarker = hasCoordinates && ['live', 'stale'].includes(data.state);
       const stale = data.state === 'stale';
-      this.setData({ location: data, stale, stateText: data.message || (available ? '骑手正在配送' : '当前无可查看的骑手位置'), hint: available ? `位置更新时间 ${new Date(data.capturedAt).toLocaleTimeString()}${stale ? ' · 非实时' : ''}` : (data.message || '骑手领取后将开始位置共享'), latitude: available ? Number(data.latitude) : this.data.latitude, longitude: available ? Number(data.longitude) : this.data.longitude, markers: available ? [{ id: 1, latitude: Number(data.latitude), longitude: Number(data.longitude), width: 36, height: 44, callout: { content: data.riderName ? `${data.riderName} · ${stale ? '最后已知位置' : '配送中'}` : (stale ? '最后已知位置 · 非实时' : '骑手位置'), display: 'ALWAYS', padding: 8, borderRadius: 8 } }] : [] });
-    } catch (error) { wx.showToast({ title: error.message || '位置暂不可用', icon: 'none' }); }
-  },
-  refresh() { this.load(); }
+      const markerTitle = stale ? '最后已知位置' : '骑手位置';
+      this.setData({
+        loading: false, stale,
+        stateText: data.message || (showMarker ? markerTitle : '当前位置暂不可用'),
+        hint: showMarker ? `更新于 ${time(data.capturedAt)}${stale ? ' · 非实时' : ''}` : '',
+        latitude: showMarker ? latitude : 0,
+        longitude: showMarker ? longitude : 0,
+        markers: showMarker ? [{
+          id: 1, latitude, longitude, iconPath: '/assets/rider-pin.png', width: 30, height: 34,
+          callout: { content: markerTitle, display: 'ALWAYS', padding: 8, borderRadius: 8 }
+        }] : []
+      });
+      if (data.state !== 'ended') {
+        const delay = Math.min(15000, Math.max(3000, (data.expirySeconds || 60) * 500));
+        this.poll = setTimeout(() => this.load(), delay);
+      }
+    } catch (error) {
+      if (this.visible) this.setData({ loading: false, loadError: error.message, markers: [] });
+    } finally {
+      this.refreshing = false;
+    }
+  }
 });

@@ -1,9 +1,23 @@
-<view class="page">
-  <view class="row address-heading"><view class="h2">{{choose ? '选择收餐地址' : '我的收餐地址'}}</view><view class="pill">示例大学</view></view>
-  <view wx:for="{{rows}}" wx:key="id" class="card address {{item.isDefault ? 'selected' : ''}}">
-    <view class="h3">{{item.building}} {{item.room}}</view><view class="muted address-owner">{{item.name}}　{{item.phone}}</view><view wx:if="{{item.isDefault}}" class="tag">默认地址</view>
-    <view class="actions"><button class="btn small-btn {{choose ? '' : 'outline'}}" data-id="{{item.id}}" bindtap="select">{{choose ? '选择此地址' : '使用此地址'}}</button><button class="btn outline small-btn" data-id="{{item.id}}" bindtap="edit">编辑</button><button class="btn outline small-btn" data-id="{{item.id}}" bindtap="remove">删除</button></view>
+<view class="page addresses-page">
+  <view class="row address-heading">
+    <view class="h2">{{choose ? '选择收餐地址' : '我的收餐地址'}}</view>
+    <text class="pill">校内配送</text>
   </view>
-  <view wx:if="{{!rows.length}}" class="hint">还没有收餐地址。下单前请先添加宿舍楼和寝室。</view>
-  <button class="btn wide add-address" bindtap="add">＋ 新增收餐地址</button>
+  <include src="../../templates/load-state.wxml"/>
+  <block wx:if="{{!loading && !loadError}}">
+    <view wx:for="{{rows}}" wx:key="id" class="card address {{item.id === selectedId ? 'selected' : ''}}">
+      <view class="h3">{{item.building}} {{item.room}}</view>
+      <view class="address-owner">{{item.name}}　{{item.phone}}</view>
+      <view><text wx:if="{{item.isDefault}}" class="tag">默认地址</text><text wx:if="{{item.id === selectedId}}" class="tag">当前使用</text></view>
+      <view class="actions">
+        <button class="btn small-btn {{item.id === selectedId ? 'secondary' : 'outline'}}" data-id="{{item.id}}" bindtap="select">
+          {{choose ? '选择此地址' : '使用此地址'}}
+        </button>
+        <button class="btn outline small-btn" data-id="{{item.id}}" bindtap="edit">编辑</button>
+        <button class="btn outline small-btn" data-id="{{item.id}}" bindtap="remove">删除</button>
+      </view>
+    </view>
+    <view wx:if="{{!rows.length}}" class="hint">还没有收餐地址。下单前请填写宿舍楼和寝室号。</view>
+    <button class="btn wide" bindtap="add">＋ 新增收餐地址</button>
+  </block>
 </view>

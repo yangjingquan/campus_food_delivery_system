@@ -1,11 +1,50 @@
-<view class="page tab-page" wx:if="{{merchant}}">
-  <view class="row"><view><view class="pill">校外入驻商户</view><view class="h2 store-title">{{merchant.name}}</view><view class="small">{{merchant.address}}</view></view><view class="thumb">🍚</view></view>
-  <view class="row section"><view class="small">每商户订单固定配送 {{merchant.deliveryFeeText}}</view><button class="small" bindtap="contact">联系商户 ›</button></view>
-  <view class="hint green" wx:if="{{merchant.open}}">商户做好后送至校园暂存点，再由学生骑手送到寝室。</view>
-  <view class="hint orange" wx:else>商户已打烊，暂不接受新订单。餐品仅供浏览。</view>
-  <view class="h3 section">店内推荐</view>
-  <view wx:for="{{products}}" wx:key="id" class="card">
-    <view class="foodline"><view class="thumb" style="background:{{item.color}}">{{item.artwork === 'noodle' ? '🍜' : '🍱'}}</view><view class="info"><view class="h3">{{item.name}}</view><view class="small">{{item.description}}</view><view class="row product-row"><view class="price">{{item.priceText}}</view><view wx:if="{{item.availableStock === 0 || !merchant.open}}" class="chip">{{item.availableStock === 0 ? '已售罄' : '已打烊'}}</view><view wx:else class="stepper"><button data-id="{{item.id}}" data-delta="-1" bindtap="change">−</button><text>{{item.quantity}}</text><button data-id="{{item.id}}" data-delta="1" bindtap="change">＋</button></view></view><view class="small">剩余 {{item.availableStock}} 份</view></view></view>
-  </view>
-  <view class="totalbar row"><view><view class="small">已选 {{selectedCount}} 份 · 餐品</view><view class="price">{{selectedFoodText}}</view></view><button class="btn" bindtap="viewCart">查看购物车</button></view>
+<view class="page store-page">
+  <include src="../../templates/load-state.wxml"/>
+  <block wx:if="{{merchant && !loading}}">
+    <view class="row">
+      <view class="info">
+        <text class="pill">校外入驻商户</text>
+        <view class="h2 store-title">{{merchant.name}}</view>
+        <view class="small">{{merchant.address}}</view>
+      </view>
+      <view class="thumb">
+        <image src="{{merchant.picture}}" mode="aspectFill" binderror="imageError" aria-hidden="true"/>
+      </view>
+    </view>
+    <view class="row section store-service">
+      <text class="small">每商户订单固定配送 {{merchant.deliveryFeeText}}</text>
+      <text class="pill" wx:if="{{!merchant.open}}">打烊</text>
+    </view>
+    <view class="hint {{merchant.open ? 'green' : 'orange'}}">
+      {{merchant.open ? '商户做好后送至校园暂存点，再分批配送到寝室。' : '商户已打烊，餐品可浏览。'}}
+    </view>
+    <view class="h3 section">店内推荐</view>
+    <view wx:for="{{products}}" wx:key="id" class="card">
+      <view class="foodline">
+        <view class="thumb">
+          <image src="{{item.picture}}" mode="aspectFill" lazy-load data-index="{{index}}" binderror="imageError" aria-hidden="true"/>
+        </view>
+        <view class="info">
+          <view class="h3">{{item.name}}</view>
+          <view class="small" wx:if="{{item.description}}">{{item.description}}</view>
+          <view class="row food-price-row">
+            <view class="price">{{item.priceText}}</view>
+            <view wx:if="{{item.quantity || (merchant.open && item.availableStock)}}" class="stepper">
+              <button wx:if="{{item.quantity}}" data-id="{{item.id}}" data-delta="-1" aria-label="减少一份" bindtap="change">−</button>
+              <text wx:if="{{item.quantity}}">{{item.quantity}}</text>
+              <button data-id="{{item.id}}" data-delta="1" disabled="{{!merchant.open || item.quantity >= item.availableStock || item.quantity >= 99}}"
+                aria-label="增加一份" bindtap="change">＋</button>
+            </view>
+            <text wx:else class="tag">{{merchant.open ? '已售罄' : '暂不接单'}}</text>
+          </view>
+          <view wx:if="{{item.availableStock}}" class="small">剩余 {{item.availableStock}} 份</view>
+        </view>
+      </view>
+    </view>
+    <view wx:if="{{!products.length}}" class="empty muted">店铺还没有上架餐品。</view>
+    <view class="totalbar row">
+      <view><view class="small">已选 {{selectedCount}} 份 · 餐品</view><view class="price">{{selectedFoodText}}</view></view>
+      <button class="btn" bindtap="viewCart">查看购物车</button>
+    </view>
+  </block>
 </view>

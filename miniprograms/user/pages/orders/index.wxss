@@ -1,4 +1,3 @@
-.order-filters { margin-left: -34rpx; margin-right: -34rpx; padding: 0 34rpx; }
-.order-summary { margin-top: 14rpx; }
-.order-bottom { margin-top: 20rpx; }
-.actions { justify-content: flex-end; }
+.order-summary { margin-top: 7px; overflow-wrap: anywhere; }
+.order-bottom { margin-top: 9px; }
+.order-amount { flex: 0 0 auto; font-weight: 680; font-variant-numeric: tabular-nums; }

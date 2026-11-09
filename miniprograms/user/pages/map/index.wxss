@@ -1,8 +1,3 @@
-.map-heading { margin-bottom: 12rpx; }
-.native-map { width: 100%; height: 100%; }
-.map-placeholder { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #59614f; background: #e7ebdb; }
-.placeholder-grid { position: absolute; inset: 0; opacity: .45; background-image: linear-gradient(0deg, transparent 47%, #fafbf3 48%, #fafbf3 54%, transparent 55%), linear-gradient(90deg, transparent 42%, #fafbf3 43%, #fafbf3 49%, transparent 50%); background-size: 170rpx 180rpx; transform: rotate(-12deg) scale(1.4); }
-.placeholder-badge, .placeholder-h3, .map-placeholder .small { position: relative; z-index: 1; }
-.placeholder-badge { padding: 10rpx 16rpx; border-radius: 14rpx; background: #fff; font-size: 22rpx; }
-.placeholder-h3 { margin-top: 24rpx; font-size: 30rpx; }
-.refresh-btn { margin-top: 20rpx; }
+.map-heading { margin-bottom: 15px; }
+.map-wrap { height: 76vw; min-height: 245px; max-height: 360px; overflow: hidden; margin-bottom: 12px; border-radius: 15px; background: #e9eddf; }
+.native-map { display: block; width: 100%; height: 100%; }

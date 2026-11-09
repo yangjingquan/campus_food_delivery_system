@@ -1,3 +1,2 @@
-.address-heading { margin-bottom: 20rpx; }
-.address-owner { margin-top: 12rpx; }
-.add-address { margin-top: 24rpx; }
+.address-heading { margin-bottom: 15px; }
+.address-owner { margin-top: 5px; overflow-wrap: anywhere; }

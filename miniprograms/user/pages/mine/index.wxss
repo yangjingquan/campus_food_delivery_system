@@ -1,2 +1,4 @@
-.profile { padding: 24rpx 0 28rpx; }
-.menu-card { margin-top: 28rpx; }
+.profile-copy { min-width: 0; }
+.profile-copy .h2 { margin-bottom: 4px; }
+.menu-card { margin-top: 16px; padding: 5px 15px; }
+.profile-message { margin-top: 10px; }

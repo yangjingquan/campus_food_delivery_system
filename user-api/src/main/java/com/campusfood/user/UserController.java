@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -36,8 +38,18 @@ public class UserController {
     @GetMapping("/config")
     public Map<String, Object> config() { return catalog.config(); }
     @GetMapping("/catalog")
-    public Map<String, Object> catalog(@RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "全部") String category) {
-        return Map.of("merchants", catalog.catalog(keyword, category));
+    public Map<String, Object> catalog(@RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "全部") String category,
+            @RequestParam(defaultValue = "") String merchantId) {
+        return Map.of("merchants", catalog.catalog(keyword, category, merchantId));
+    }
+
+    @GetMapping("/catalog/{kind:merchants|products}/{id}/photo")
+    public ResponseEntity<byte[]> catalogPhoto(@PathVariable String kind, @PathVariable String id) {
+        var photo = catalog.photo("products".equals(kind), id);
+        return ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.parseMediaType(photo.mediaType()))
+            .cacheControl(org.springframework.http.CacheControl.maxAge(java.time.Duration.ofMinutes(5)).cachePublic())
+            .body(photo.bytes());
     }
 
     @GetMapping("/addresses")
@@ -53,6 +65,27 @@ public class UserController {
     public Map<String, Object> checkout(@RequestBody Map<String, Object> body, HttpServletRequest request) { return orders.checkout(auth.require(request).userId(), body); }
     @PostMapping("/payments/{paymentId}/mock-success")
     public Map<String, Object> mockPayment(@PathVariable String paymentId, HttpServletRequest request) { return orders.mockPayment(auth.require(request).userId(), paymentId); }
+    @PostMapping("/payments/{paymentId}/prepare")
+    public Map<String, String> preparePayment(@PathVariable String paymentId, HttpServletRequest request) {
+        long userId = auth.require(request).userId();
+        orders.beginWechatPayment(userId, paymentId);
+        return orders.prepareWechatPayment(userId, paymentId);
+    }
+
+    @PostMapping("/payments/{paymentId}/sync")
+    public Map<String, Object> syncPayment(@PathVariable String paymentId, HttpServletRequest request) {
+        return orders.syncPayment(auth.require(request).userId(), paymentId);
+    }
+
+    @PostMapping("/payments/wechat/notify")
+    public ResponseEntity<Void> wechatPaymentNotification(
+            @RequestHeader("Wechatpay-Timestamp") String timestamp, @RequestHeader("Wechatpay-Nonce") String nonce,
+            @RequestHeader("Wechatpay-Serial") String serial, @RequestHeader("Wechatpay-Signature") String signature,
+            @RequestBody String body) {
+        orders.wechatNotification(timestamp, nonce, serial, signature, body);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/payments/{paymentId}")
     public Map<String, Object> payment(@PathVariable String paymentId, HttpServletRequest request) { return orders.payment(auth.require(request).userId(), paymentId); }
     @GetMapping("/orders")

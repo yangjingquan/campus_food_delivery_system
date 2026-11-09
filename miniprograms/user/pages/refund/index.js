@@ -1,31 +1,62 @@
 const api = require('../../utils/api');
+const { money } = require('../../utils/display');
+const { availability } = require('../../utils/aftersale');
+
 Page({
-  data: { order: null, type: 'partial', amount: '5.00', amountDisabled: false, paidText: '¥0.00', foodText: '¥0.00', refundedText: '¥0.00', remainingFoodText: '¥0.00', remainingPaidText: '¥0.00', canPartial: true, reasons: ['餐品有问题', '配送等待过久', '不想要了', '其他原因'], reasonIndex: 0, error: '' },
-  async onLoad(query) { this.orderId = query.id; await this.load(); },
+  data: {
+    order: null, type: 'partial', amount: '', reasons: ['餐品有问题', '配送等待过久', '不想要了', '其他原因'],
+    reasonIndex: 0, error: '', loading: true, loadError: '', submitting: false
+  },
+
+  onLoad(query) { this.orderId = query.id; this.load(); },
+
   async load() {
+    this.setData({ loading: true, loadError: '' });
     try {
       await getApp().ensureLogin();
       const { data } = await api.get(`/orders/${this.orderId}`);
-      const beforeAcceptance = data.accepted !== true && data.fulfillStatus === '待商户接单';
-      const remainingPaid = data.paidCents - data.refundedCents;
-      const remainingFood = data.foodCents - data.foodRefundedCents;
-      this.setData({ order: data, type: beforeAcceptance ? 'full' : 'partial', amount: beforeAcceptance ? (remainingPaid / 100).toFixed(2) : '5.00', amountDisabled: beforeAcceptance, canPartial: !beforeAcceptance, paidText: `¥${(data.paidCents / 100).toFixed(2)}`, foodText: `¥${(data.foodCents / 100).toFixed(2)}`, refundedText: `¥${(data.refundedCents / 100).toFixed(2)}`, remainingFoodText: `¥${(remainingFood / 100).toFixed(2)}`, remainingPaidText: `¥${(remainingPaid / 100).toFixed(2)}` });
-    } catch (error) { wx.showToast({ title: error.message || '订单暂不可申请售后', icon: 'none' }); }
+      const refund = availability(data);
+      this.setData({
+        order: data, refund, type: refund.canPartial ? 'partial' : 'full',
+        amount: refund.canPartial ? '' : (refund.remaining / 100).toFixed(2),
+        paidText: money(data.paidCents), foodText: money(data.foodCents), refundedText: money(data.refundedCents), feeText: money(data.deliveryFeeCents),
+        remainingFoodText: money(refund.food), remainingPaidText: money(refund.remaining), loading: false
+      });
+    } catch (error) {
+      this.setData({ loading: false, loadError: error.message });
+    }
   },
+
   chooseType(event) {
     const type = event.currentTarget.dataset.value;
-    const remaining = this.data.order.paidCents - this.data.order.refundedCents;
-    this.setData({ type, amountDisabled: type === 'full', amount: type === 'full' ? (remaining / 100).toFixed(2) : '5.00', error: '' });
+    const amount = type === 'full' ? (this.data.refund.remaining / 100).toFixed(2) : '';
+    this.setData({ type, amount, error: '' });
   },
+
   inputAmount(event) { this.setData({ amount: event.detail.value, error: '' }); },
   chooseReason(event) { this.setData({ reasonIndex: Number(event.detail.value) }); },
   inputDescription(event) { this.description = event.detail.value; },
+
   async submit() {
-    const amount = String(this.data.amount).trim();
-    if (!/^\d{1,8}(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) return this.setData({ error: '请输入有效的退款金额，最多两位小数。' });
+    const { refund, type, reasons, reasonIndex } = this.data;
+    if (this.data.submitting || !refund?.allowed) return;
+    const input = this.data.amount.trim();
+    if (!/^\d{1,8}(\.\d{1,2})?$/.test(input)) return this.setData({ error: '请输入金额，最多两位小数。' });
+    const [yuan, fraction = ''] = input.split('.');
+    const cents = Number(yuan) * 100 + Number(fraction.padEnd(2, '0'));
+    const limit = type === 'full' ? refund.remaining : Math.min(refund.food, refund.remaining);
+    if (cents <= 0 || cents > limit) return this.setData({ error: `请输入大于零且不超过 ${money(limit)} 的金额。` });
+
+    this.setData({ submitting: true, error: '' });
     try {
-      const response = await api.post(`/orders/${this.orderId}/aftersales`, { type: this.data.type, amountCents: Math.round(Number(amount) * 100), reason: this.data.reasons[this.data.reasonIndex], description: this.description || '' });
-      wx.redirectTo({ url: `/pages/aftersale/index?id=${response.data.id}` });
-    } catch (error) { this.setData({ error: error.message || '申请失败，请核对金额和申请时限。' }); }
+      const { data } = await api.post(`/orders/${this.orderId}/aftersales`, {
+        type, amountCents: cents, reason: reasons[reasonIndex], description: this.description || ''
+      });
+      wx.redirectTo({ url: `/pages/aftersale/index?id=${data.id}` });
+    } catch (error) {
+      this.setData({ error: error.message });
+    } finally {
+      this.setData({ submitting: false });
+    }
   }
 });

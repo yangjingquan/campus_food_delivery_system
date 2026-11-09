@@ -6,13 +6,14 @@ function request(method, path, data, options = {}) {
     wx.request({
       url: BASE_URL + path,
       method,
+      timeout: 12000,
       data,
       header: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       success(response) {
         if (response.statusCode >= 200 && response.statusCode < 300) resolve(response);
         else reject(Object.assign(new Error(response.data?.message || '请求暂时无法完成'), { statusCode: response.statusCode, response }));
       },
-      fail(error) { reject(error); }
+      fail() { reject(new Error('网络连接暂不可用，请稍后重试')); }
     });
   });
 }

@@ -1,2 +1,2 @@
-.default-row { display: flex; align-items: center; justify-content: space-between; padding: 22rpx 2rpx; }
-.save-btn { margin-top: 28rpx; }
+.default-row { min-height: 44px; margin: 12px 0; }
+.address-error { margin-bottom: 10px; }

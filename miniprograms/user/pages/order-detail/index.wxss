@@ -1,7 +1,12 @@
-.detail-status { margin: 16rpx 0; }
-.step-row { display: flex; align-items: center; gap: 16rpx; padding: 15rpx 0; color: #a1a299; font-size: 24rpx; }
-.step-dot { width: 18rpx; height: 18rpx; border-radius: 50%; background: #dedfd6; }
-.step-active { color: #4a4d45; }
-.step-active .step-dot { background: #ee692f; }
-.map-link { display: block; text-align: left; }
-.confirm-item { padding: 16rpx 0; }
+.progress { position: relative; display: flex; margin-top: 16px; }
+.progress::before { content: ''; position: absolute; top: 4px; left: 10%; right: 10%; height: 1px; background: #e1e4da; }
+.step { position: relative; flex: 1 1 0; min-width: 0; text-align: center; color: #676c61; font-size: 11px; }
+.step-dot { width: 9px; height: 9px; margin: 0 auto 7px; border-radius: 50%; background: #dbded4; }
+.step.done { color: var(--green); }
+.step.done .step-dot { background: var(--green); }
+.step.current { font-weight: 700; }
+.step.current .step-dot { box-shadow: 0 0 0 3px #e3f0e5; }
+.order-detail-page button.map-link { margin-top: 8px; }
+.order-detail-page button.aftersale-link { display: block; }
+.order-item { margin-top: 9px; }
+.item-amount { flex: 0 0 auto; font-variant-numeric: tabular-nums; }

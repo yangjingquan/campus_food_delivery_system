@@ -9,12 +9,17 @@ function totals(items, feePerMerchant) {
 function add(items, product, merchant, delta = 1) {
   const cart = [...items];
   const current = cart.find(item => item.productId === product.id);
-  if (current) current.quantity = Math.max(0, Math.min(product.availableStock, current.quantity + delta));
+  if (current) {
+    current.quantity = delta < 0
+      ? Math.max(0, current.quantity + delta)
+      : Math.max(current.quantity, Math.min(99, product.availableStock, current.quantity + delta));
+  }
   else if (delta > 0 && product.availableStock > 0) cart.push({
     productId: product.id, merchantId: merchant.id, merchantName: merchant.name,
     name: product.name, description: product.description, priceCents: product.priceCents,
-    quantity: Math.min(delta, product.availableStock), availableStock: product.availableStock,
-    artwork: product.artwork, color: product.color
+    quantity: Math.min(99, delta, product.availableStock), availableStock: product.availableStock,
+    lineKey: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    artwork: product.artwork, color: product.color, photoPath: product.photoPath
   });
   return save(cart.filter(item => item.quantity > 0));
 }
