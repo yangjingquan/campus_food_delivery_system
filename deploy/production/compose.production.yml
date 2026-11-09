@@ -67,6 +67,7 @@ services:
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:?set ADMIN_BOOTSTRAP_PASSWORD}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
+      MERCHANT_API_URL: http://merchant-api:8083
       WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
     volumes:
