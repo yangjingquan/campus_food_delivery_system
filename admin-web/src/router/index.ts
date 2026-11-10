@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 
 const LoginView = () => import('../views/LoginView.vue')
@@ -31,9 +32,14 @@ export const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
-  if (!to.meta.public && !auth.token) return { name: 'login' }
-  if (to.name === 'login' && auth.token) return { name: 'overview' }
+  try {
+    await auth.restore()
+  } catch {
+    ElMessage.warning('暂时无法验证登录状态，请稍后刷新重试。')
+  }
+  if (!to.meta.public && !auth.authenticated) return { name: 'login', query: { redirect: to.fullPath } }
+  if (to.name === 'login' && auth.authenticated) return { name: 'overview' }
   if (to.meta.permission && !auth.can(String(to.meta.permission))) return { name: 'overview' }
 })

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const formRef = ref()
 const loading = ref(false)
@@ -22,7 +23,9 @@ async function submit() {
     try {
       await auth.login(form.username, form.password)
       ElMessage.success('登录成功。')
-      await router.push('/overview')
+      const redirect = route.query.redirect
+      const target = typeof redirect === 'string' && /^\/(?![\/\\])/.test(redirect) ? redirect : '/overview'
+      await router.replace(target)
     } catch (error) {
       ElMessage.error(error instanceof Error ? error.message : '登录失败。')
     } finally { loading.value = false }

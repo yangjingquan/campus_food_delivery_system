@@ -7,10 +7,22 @@ export interface FoodCategory {
   productCount: number
 }
 
+export interface AdminSessionUser {
+  name: string
+  role: string
+  permissions: string[]
+}
+
+export class AdminApiError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message)
+  }
+}
+
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/admin/v1',
   timeout: 12_000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 'Content-Type': 'application/json', 'X-Admin-Session': '1' },
 })
 
 async function unwrap<T>(promise: Promise<{ data: T }>): Promise<T> {
@@ -19,14 +31,15 @@ async function unwrap<T>(promise: Promise<{ data: T }>): Promise<T> {
     return response.data
   } catch (error) {
     const message = axios.isAxiosError(error) ? (error.response?.data?.message || error.message) : error instanceof Error ? error.message : '请求失败，请稍后重试。'
-    throw new Error(message)
+    throw new AdminApiError(message, axios.isAxiosError(error) ? error.response?.status : undefined)
   }
 }
 
 export const adminApi = {
   login(username: string, password: string) {
-    return unwrap<{ token: string; user: { name: string; role: string; permissions: string[] } }>(http.post('/auth/login', { username, password }))
+    return unwrap<{ user: AdminSessionUser }>(http.post('/auth/login', { username, password }))
   },
+  session() { return unwrap<AdminSessionUser>(http.get('/auth/session')) },
   logout() { return unwrap<{ ok: boolean }>(http.post('/auth/logout')) },
   changePassword(oldPassword: string, newPassword: string) { return unwrap<{ok: boolean}>(http.post('/auth/password', { oldPassword, newPassword })) },
   administrators() { return unwrap<{ users: Array<{id: number; username: string; enabled: boolean; roles: string}>; roles: Array<{code: string; name: string}> }>(http.get('/administrators')) },

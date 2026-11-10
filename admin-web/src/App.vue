@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from './api/admin'
@@ -38,14 +38,18 @@ const group = computed(() => route.meta.group ? String(route.meta.group) : '运�
 async function logout() {
   try {
     await ElMessageBox.confirm('退出当前管理员账号？', '确认退出', { confirmButtonText: '退出', cancelButtonText: '取消' })
-    auth.logout()
-    await router.push('/login')
-  } catch { /* 用户取消 */ }
+    await auth.logout()
+  } catch (error) {
+    if (error instanceof Error) ElMessage.error(error.message)
+  }
 }
+watch(() => auth.authenticated, (authenticated) => {
+  if (!authenticated && !route.meta.public) void router.replace({ name: 'login' })
+})
 function handleCommand(command: string) { if(command==='password') passwordOpen.value=true; else if(command==='logout') void logout() }
 async function changePassword() {
   if(passwordDraft.newPassword!==passwordDraft.confirm){ElMessage.error('两次输入的新密码不一致。');return}
-  try { await adminApi.changePassword(passwordDraft.oldPassword,passwordDraft.newPassword); passwordOpen.value=false; passwordDraft.oldPassword='';passwordDraft.newPassword='';passwordDraft.confirm='';auth.logout();ElMessage.success('密码已更新，请重新登录。');await router.push('/login') }
+  try { await adminApi.changePassword(passwordDraft.oldPassword,passwordDraft.newPassword); passwordOpen.value=false; passwordDraft.oldPassword='';passwordDraft.newPassword='';passwordDraft.confirm='';auth.clear();ElMessage.success('密码已更新，请重新登录。') }
   catch(error){ElMessage.error(error instanceof Error?error.message:'修改失败')}
 }
 

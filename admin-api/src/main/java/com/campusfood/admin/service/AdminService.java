@@ -25,6 +25,8 @@ import org.springframework.web.server.ResponseStatusException;
 /** 管理员身份、权限和业务操作的服务入口。 */
 @Service
 public class AdminService {
+    public static final Duration SESSION_LIFETIME = Duration.ofHours(48);
+
     private final AdminDao db;
     private final ConfigurationLockMapper configurationLocks;
     private final AdminUserRoleMapper roles;
@@ -99,10 +101,17 @@ public class AdminService {
         random.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         redis.opsForValue().set(redisKeyPrefix + "admin:session:" + token, username + "\n" + users.get(0).get("session_version"),
-                Duration.ofHours(8));
-        return Map.of("token", token, "user",
-                Map.of("name", username, "role", String.join("、", authorization.roles(username)), "permissions",
-                        authorization.permissions(username)));
+                SESSION_LIFETIME);
+        return Map.of("token", token, "user", sessionUser(username));
+    }
+
+    public Map<String, Object> session(String authHeader) {
+        return sessionUser(actor(authHeader));
+    }
+
+    private Map<String, Object> sessionUser(String username) {
+        return Map.of("name", username, "role", String.join("、", authorization.roles(username)),
+                "permissions", authorization.permissions(username));
     }
 
     public Map<String, Object> logout(String authHeader) {

@@ -2,6 +2,7 @@
 """Run isolated integration checks against a temporary MySQL schema and backend container."""
 import concurrent.futures
 import datetime
+import http.cookiejar
 import json
 import secrets
 import subprocess
@@ -71,6 +72,34 @@ try:
     else: raise RuntimeError('isolated backend did not start')
     token=data['token']
     assert 'admin.manage' in data['user']['permissions']
+    browser_cookies = http.cookiejar.CookieJar()
+    browser = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(browser_cookies))
+
+    def browser_call(method, path, body=None, headers=None):
+        return browser.open(urllib.request.Request(base + '/api/admin/v1' + path,
+            data=None if body is None else json.dumps(body).encode('utf-8'),
+            headers={'Content-Type': 'application/json', **(headers or {})}, method=method), timeout=5)
+
+    browser_headers = {'X-Admin-Session': '1'}
+    with browser_call('POST', '/auth/login', {'username': 'testadmin', 'password': admin_password}, browser_headers) as response:
+        cookie = response.headers['Set-Cookie']
+        assert all(flag in cookie for flag in ('Max-Age=172800', 'HttpOnly', 'SameSite=Strict', 'Path=/api/admin/v1'))
+        assert 'token' not in json.load(response)
+    browser_token = next(item.value for item in browser_cookies if item.name == 'campus_admin_session')
+    with browser_call('GET', '/auth/session', headers=browser_headers) as response:
+        assert json.load(response)['permissions'] == data['user']['permissions']
+    with browser_call('GET', '/overview', headers=browser_headers) as response:
+        assert response.status == 200
+    try:
+        browser_call('POST', '/auth/logout', {})
+    except urllib.error.HTTPError as error:
+        assert error.code == 401
+    else:
+        raise AssertionError('Cookie request without the browser header should be rejected')
+    with browser_call('POST', '/auth/logout', {}, browser_headers) as response:
+        assert 'Max-Age=0' in response.headers['Set-Cookie']
+    assert not list(browser_cookies)
+    check(401, call('GET', '/api/admin/v1/auth/session', token=browser_token), 'revoked browser session')
     check(401,call('POST','/internal/v1/withdrawals',{'accountId':'x','requestKey':'test-key1','amountCents':1}),'internal authentication')
     check(200,call('POST','/api/admin/v1/administrators',{'username':'test_ops','password':'test-password-123','role':'operations'},token),'create operations')
     check(409,call('POST','/api/admin/v1/administrators',{'username':'test_ops','password':'test-password-123','role':'operations'},token),'duplicate administrator')
