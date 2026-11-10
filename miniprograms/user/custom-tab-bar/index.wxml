@@ -1,7 +1,14 @@
-<view class="tabbar">
-  <button wx:for="{{tabs}}" wx:key="path" class="tab {{selected === index ? 'on' : ''}}" data-path="{{item.path}}" bindtap="switchTab">
-    <image class="tab-icon" src="/assets/{{item.icon}}{{selected === index ? '-active' : ''}}.svg" aria-hidden="true"/>
-    <text>{{item.text}}</text>
-    <text wx:if="{{index === 1 && count}}" class="badge">{{count > 99 ? '99+' : count}}</text>
+<view class="tab-shell">
+  <button class="cart-fab {{tabs[selected].icon === 'meal' ? 'cart-fab-meal' : ''}}" bindtap="openCart"
+    aria-label="购物车，{{count}}份餐品">
+    <image class="cart-fab-icon" src="/assets/v2-floating-cart.svg" aria-hidden="true"/>
+    <text wx:if="{{count}}" class="badge">{{count > 99 ? '99+' : count}}</text>
   </button>
+  <view class="tabbar">
+    <button wx:for="{{tabs}}" wx:key="path" class="tab {{selected === index ? 'on' : ''}}"
+      data-path="{{item.path}}" bindtap="switchTab" aria-selected="{{selected === index}}">
+      <image class="tab-icon" src="/assets/v2-{{item.icon}}{{selected === index ? '-active' : ''}}.svg" aria-hidden="true"/>
+      <text>{{item.text}}</text>
+    </button>
+  </view>
 </view>

@@ -1,0 +1,14 @@
+<view wx:if="{{dialog}}" class="dialog-scrim" catchtouchmove="blockDialogScroll">
+  <view class="dialog-panel" role="dialog" aria-label="{{dialog.title}}">
+    <view class="dialog-title">{{dialog.title}}</view>
+    <view wx:if="{{dialog.content}}" class="dialog-content">{{dialog.content}}</view>
+    <view wx:if="{{dialog.options}}" class="dialog-options">
+      <button wx:for="{{dialog.options}}" wx:key="*this" class="dialog-option {{dialog.selected === index ? 'on' : ''}}"
+        data-index="{{index}}" bindtap="selectDialogOption" aria-selected="{{dialog.selected === index}}">{{item}}</button>
+    </view>
+    <view class="dialog-actions">
+      <button wx:if="{{dialog.cancel}}" class="dialog-cancel" bindtap="cancelDialog">取消</button>
+      <button class="dialog-confirm" bindtap="confirmDialog">确定</button>
+    </view>
+  </view>
+</view>

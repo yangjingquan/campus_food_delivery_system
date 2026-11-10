@@ -9,7 +9,7 @@
       </view>
     </view>
     <view class="card">
-      <view class="row"><text>{{orders.length > 1 ? '合并应付金额' : '订单应付金额'}}</text><text class="price">{{amountText}}</text></view>
+      <view class="row payment-total"><text class="small">{{orders.length > 1 ? '合并应付金额' : '订单应付金额'}}</text><text class="price">{{amountText}}</text></view>
       <view wx:for="{{orders}}" wx:key="id" class="split">
         <view class="row"><view class="h3">{{item.merchantName || item.merchant}}</view><text>{{item.amountText}}</text></view>
         <view class="small">餐品 {{item.foodText}} · 配送 {{item.feeText}}</view>

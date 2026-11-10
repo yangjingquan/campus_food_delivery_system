@@ -1,7 +1,10 @@
 const api = require('../../utils/api');
 const display = require('../../utils/display');
 
+const { showDialog, dialogEvents } = require('../../utils/dialog');
+
 Page({
+  ...dialogEvents,
   data: {
     merchants: [], config: {}, keyword: '', category: '全部',
     categories: ['全部'], loading: true, loadError: '',
@@ -61,12 +64,11 @@ Page({
   startOrder() { wx.pageScrollTo({ selector: '#catalog', duration: 250 }); },
   showRules() {
     const c = this.data.config;
-    wx.showModal({
+    showDialog(this, {
       title: '配送说明',
       content: c.serviceStart
         ? `配送时段 ${c.serviceStart}–${c.serviceEnd}。高峰每 ${c.peakBatchMinutes} 分钟一批，其他时段每 ${c.regularBatchMinutes} 分钟一批。`
-        : '暂时无法读取配送时段，请稍后重试。',
-      showCancel: false
+        : '暂时无法读取配送时段，请稍后重试。'
     });
   }
 });

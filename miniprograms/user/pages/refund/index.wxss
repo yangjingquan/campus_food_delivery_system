@@ -1,3 +1,7 @@
 .refund-intro { margin: 7px 0 15px; }
 .refund-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .refund-error { margin: 0 0 10px; }
+.refund-page button.picker-value { display: flex; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); text-align: left; }
+.refund-page .h2 { font-size: 26px; }
+.refund-page .kv { margin-block: 9px; }
+.refund-page .refund-options { margin: 15px 0; }

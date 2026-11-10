@@ -1,10 +1,13 @@
 const api = require('../../utils/api');
 const { money } = require('../../utils/display');
 
+const { showDialog, dialogEvents } = require('../../utils/dialog');
+
 Page({
+  ...dialogEvents,
   data: {
     user: null, config: {}, working: false, message: '',
-    editingNickname: false, avatarPath: '', draftName: ''
+    editingNickname: false, avatarPath: '', draftName: '', profileAction: ''
   },
 
   onShow() {
@@ -102,7 +105,7 @@ Page({
   async saveProfileChange(save, title, selectedAvatar) {
     const token = wx.getStorageSync('userToken');
     this.profileRefresh = null;
-    this.setData({ working: true, message: '' });
+    this.setData({ working: true, profileAction: selectedAvatar ? 'avatar' : 'nickname', message: '' });
     try {
       const { data } = await save();
       if (wx.getStorageSync('userToken') !== token) return;
@@ -118,7 +121,7 @@ Page({
         this.setData({ message: error.message });
       }
     } finally {
-      this.setData({ working: false });
+      this.setData({ working: false, profileAction: '' });
     }
   },
 
@@ -145,12 +148,11 @@ Page({
     if (action === 'addresses') wx.navigateTo({ url: '/pages/addresses/index' });
     if (action === 'rules') {
       const config = this.data.config;
-      wx.showModal({
+      showDialog(this, {
         title: '配送规则与费用',
         content: config.serviceStart
           ? `每店配送费 ${money(config.deliveryFeeCents)}。配送时段 ${config.serviceStart}–${config.serviceEnd}，高峰每 ${config.peakBatchMinutes} 分钟一批。`
-          : '暂时无法获取配送配置，请稍后重试。',
-        showCancel: false
+          : '暂时无法获取配送配置，请稍后重试。'
       });
     }
     if (action === 'privacy') {
@@ -159,7 +161,7 @@ Page({
       });
     }
     if (action === 'about') {
-      wx.showModal({ title: '关于寝食记', content: '寝食记为同学提供校园餐品与寝室配送服务。', showCancel: false });
+      showDialog(this, { title: '关于寝食记', content: '寝食记为同学提供校园餐品与寝室配送服务。' });
     }
   }
 });

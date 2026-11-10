@@ -10,3 +10,11 @@
 .order-detail-page button.aftersale-link { display: block; }
 .order-item { margin-top: 9px; }
 .item-amount { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.step.done { color: var(--muted); }
+.step.done .step-dot { background: var(--accent); }
+.step.done + .step.done::before { content: ''; position: absolute; right: 50%; top: 4px; width: 100%; height: 2px; background: var(--accent); }
+.step-dot { position: relative; z-index: 1; }
+.step.current { color: #a84b21; }
+.step.current .step-dot { box-shadow: none; }
+.order-detail-page button.map-link, .order-detail-page button.copy-link { margin: 0 0 12px; }
+.aftersale-amount { margin-top: 6px; color: #a84b21; }

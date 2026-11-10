@@ -19,7 +19,7 @@
       {{merchant.open ? '商户做好后送至校园暂存点，再分批配送到寝室。' : '商户已打烊，餐品可浏览。'}}
     </view>
     <view class="h3 section">店内推荐</view>
-    <view wx:for="{{products}}" wx:key="id" class="card">
+    <view wx:for="{{products}}" wx:key="id" class="card product-card">
       <view class="foodline">
         <view class="thumb">
           <image src="{{item.picture}}" mode="aspectFill" lazy-load data-index="{{index}}" binderror="imageError" aria-hidden="true"/>
@@ -41,9 +41,12 @@
         </view>
       </view>
     </view>
-    <view wx:if="{{!products.length}}" class="empty muted">店铺还没有上架餐品。</view>
-    <view class="totalbar row">
-      <view><view class="small">已选 {{selectedCount}} 份 · 餐品</view><view class="price">{{selectedFoodText}}</view></view>
+    <view wx:if="{{!products.length}}" class="empty">
+      <view class="symbol"><image src="/assets/v2-empty-store.svg" aria-hidden="true"/></view>
+      <view class="h3">店铺还没有上架餐品。</view>
+    </view>
+    <view class="totalbar">
+      <view class="card row totalbar-summary"><view class="small">已选 {{selectedCount}} 份 · 餐品</view><view class="price">{{selectedFoodText}}</view></view>
       <button class="btn" bindtap="viewCart">查看购物车</button>
     </view>
   </block>

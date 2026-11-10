@@ -1,9 +1,9 @@
-<view class="page tab-page cart-page">
+<view class="page cart-page">
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{!loading && !loadError && cartCount}}">
     <view class="row">
       <view><view class="h2">想吃的，都在这里</view><view class="small">共 {{groups.length}} 家商户 · {{cartCount}} 份餐品</view></view>
-      <button class="link" bindtap="clear">清空</button>
+      <button class="btn outline small-btn clear-cart" bindtap="clear">清空</button>
     </view>
     <view class="section">
       <view wx:for="{{groups}}" wx:for-index="groupIndex" wx:key="merchantId" class="card">
@@ -33,15 +33,16 @@
       <view class="row"><text>餐品金额</text><text>{{foodText}}</text></view>
       <view class="row"><text>配送费（{{groups.length}} 笔）</text><text>{{feeText}}</text></view>
     </view>
-    <view class="totalbar row">
-      <view><view class="small">合计（含配送费）</view><view class="price">{{totalText}}</view></view>
+    <view class="totalbar">
+      <view class="card row totalbar-summary"><view class="small">合计（含配送费）</view><view class="price">{{totalText}}</view></view>
       <button class="btn" bindtap="checkout">去结算</button>
     </view>
   </block>
   <view wx:if="{{!loading && !loadError && !cartCount}}" class="empty">
-    <view class="symbol"><image src="/assets/cart.svg" aria-hidden="true"/></view>
+    <view class="symbol"><image src="/assets/v2-empty-cart.svg" aria-hidden="true"/></view>
     <view class="h3">购物车还空着</view>
     <view class="muted">挑选喜欢的餐品，可单店下单，也可多店合并支付。</view>
     <button class="btn" bindtap="openHome">去选餐</button>
   </view>
+  <include src="../../templates/dialog.wxml"/>
 </view>

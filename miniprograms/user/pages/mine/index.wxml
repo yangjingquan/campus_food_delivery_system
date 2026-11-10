@@ -1,32 +1,57 @@
 <view class="page tab-page mine-page">
-  <view class="profile">
-    <button wx:if="{{user}}" class="profile-avatar" open-type="chooseAvatar" bindchooseavatar="chooseAvatar"
-      disabled="{{working}}" aria-label="更换头像">
-      <image wx:if="{{avatarPath}}" class="avatar" src="{{avatarPath}}" mode="aspectFill" aria-hidden="true" />
-      <view wx:else class="avatar" aria-hidden="true">{{user.initial}}</view>
-    </button>
-    <view wx:else class="avatar" aria-hidden="true">食</view>
-    <view class="profile-copy">
-      <input wx:if="{{editingNickname}}" class="nickname-input" type="nickname"
-        value="{{draftName}}" focus="{{editingNickname}}" placeholder="请输入昵称"
-        bindchange="saveNickname" bindblur="saveNickname" disabled="{{working}}" aria-label="昵称" />
-      <button wx:elif="{{user}}" class="profile-name" bindtap="editNickname" disabled="{{working}}"
-        aria-label="修改昵称 {{user.displayName}}">
-        <text class="h2">{{user.displayName}}</text><text class="muted" aria-hidden="true">›</text>
+  <view class="profile-panel">
+    <image class="profile-art" src="/assets/v3-profile.svg" mode="scaleToFill" aria-hidden="true"/>
+    <view class="profile-label">个人资料</view>
+    <view class="profile">
+      <button wx:if="{{user}}" class="profile-avatar" open-type="chooseAvatar" bindchooseavatar="chooseAvatar"
+        disabled="{{working}}" aria-label="更换头像">
+        <view class="avatar-frame">
+          <image wx:if="{{avatarPath}}" class="avatar" src="{{avatarPath}}" mode="aspectFill" aria-hidden="true"/>
+          <view wx:else class="avatar" aria-hidden="true">{{user.initial}}</view>
+          <view class="camera"><image src="/assets/v3-camera.svg" aria-hidden="true"/></view>
+        </view>
+        <text class="avatar-caption">{{profileAction === 'avatar' ? '头像保存中…' : '更换头像'}}</text>
       </button>
-      <view wx:else class="h2">欢迎来到寝食记</view>
-      <view wx:if="{{!editingNickname}}" class="small">{{user ? '已登录 · 校园用户' : '登录后可下单及查看本人订单'}}</view>
+      <view wx:else class="avatar-frame"><view class="avatar" aria-hidden="true">食</view></view>
+      <view class="profile-copy">
+        <input wx:if="{{editingNickname}}" class="nickname-input" type="nickname"
+          value="{{draftName}}" focus="{{editingNickname}}" placeholder="请输入昵称"
+          bindchange="saveNickname" bindblur="saveNickname" disabled="{{working}}" aria-label="昵称"/>
+        <button wx:elif="{{user}}" class="profile-name" bindtap="editNickname" disabled="{{working}}"
+          aria-label="修改昵称 {{user.displayName}}">{{user.displayName}}</button>
+        <view wx:else class="guest-title">欢迎来到寝食记</view>
+        <view class="profile-status">{{user ? '已登录 · 校园用户' : '登录后可下单及查看本人订单'}}</view>
+        <button wx:if="{{user && !editingNickname}}" class="nickname-link" bindtap="editNickname" disabled="{{working}}">
+          <image src="/assets/v3-pencil.svg" aria-hidden="true"/>修改昵称
+        </button>
+        <view wx:if="{{profileAction === 'nickname'}}" class="profile-status">昵称保存中…</view>
+        <button wx:if="{{!user}}" class="btn small-btn profile-login" bindtap="login" loading="{{working}}" disabled="{{working}}">微信登录</button>
+      </view>
     </view>
   </view>
-  <button wx:if="{{!user}}" class="btn wide" bindtap="login" loading="{{working}}" disabled="{{working}}">微信登录</button>
   <view wx:if="{{message}}" class="hint orange profile-message">{{message}}</view>
-  <view class="card menu-card">
-    <button class="menurow" data-action="orders" bindtap="open"><text>我的订单</text><text class="muted">›</text></button>
-    <button class="menurow" data-action="addresses" bindtap="open"><text>收餐地址</text><text class="muted">›</text></button>
-    <button class="menurow" data-action="rules" bindtap="open"><text>配送规则与费用</text><text class="muted">›</text></button>
-    <button class="menurow" open-type="contact"><text>联系平台客服</text><text class="muted">›</text></button>
-    <button class="menurow" data-action="privacy" bindtap="open"><text>隐私与服务说明</text><text class="muted">›</text></button>
-    <button class="menurow" data-action="about" bindtap="open"><text>关于寝食记</text><text class="muted">›</text></button>
+
+  <view class="profile-shortcuts">
+    <button class="card shortcut" data-action="orders" bindtap="open">
+      <view class="shortcut-icon"><image src="/assets/v3-orders.svg" aria-hidden="true"/></view>
+      <text>我的订单</text><view class="chevron" aria-hidden="true"/>
+    </button>
+    <button class="card shortcut" data-action="addresses" bindtap="open">
+      <view class="shortcut-icon address-icon"><image src="/assets/v3-address.svg" aria-hidden="true"/></view>
+      <text>收餐地址</text><view class="chevron" aria-hidden="true"/>
+    </button>
   </view>
-  <button wx:if="{{user}}" class="btn secondary wide" bindtap="logout" loading="{{working}}" disabled="{{working}}">退出登录</button>
+  <button class="card rules-card" data-action="rules" bindtap="open">
+    <view><view class="h3">配送规则与费用</view><view class="rules-link">查看规则<view class="chevron" aria-hidden="true"/></view></view>
+    <image src="/assets/v3-rules.svg" mode="aspectFit" aria-hidden="true"/>
+  </button>
+
+  <view class="service-title">服务与说明</view>
+  <view class="card service-card">
+    <button class="menurow" open-type="contact"><view class="service-icon"><image src="/assets/v3-support.svg" aria-hidden="true"/></view><text>联系平台客服</text><view class="chevron" aria-hidden="true"/></button>
+    <button class="menurow" data-action="privacy" bindtap="open"><view class="service-icon"><image src="/assets/v3-privacy.svg" aria-hidden="true"/></view><text>隐私与服务说明</text><view class="chevron" aria-hidden="true"/></button>
+    <button class="menurow" data-action="about" bindtap="open"><view class="service-icon"><image src="/assets/v3-about.svg" aria-hidden="true"/></view><text>关于寝食记</text><view class="chevron" aria-hidden="true"/></button>
+  </view>
+  <button wx:if="{{user}}" class="btn outline logout-btn" bindtap="logout" loading="{{working && !profileAction}}" disabled="{{working}}">退出登录</button>
+  <include src="../../templates/dialog.wxml"/>
 </view>

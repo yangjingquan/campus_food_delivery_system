@@ -2,7 +2,10 @@ const api = require('../../utils/api');
 const { money } = require('../../utils/display');
 const { availability } = require('../../utils/aftersale');
 
+const { showDialog, dialogEvents } = require('../../utils/dialog');
+
 Page({
+  ...dialogEvents,
   data: {
     order: null, type: 'partial', amount: '', reasons: ['餐品有问题', '配送等待过久', '不想要了', '其他原因'],
     reasonIndex: 0, error: '', loading: true, loadError: '', submitting: false
@@ -34,7 +37,11 @@ Page({
   },
 
   inputAmount(event) { this.setData({ amount: event.detail.value, error: '' }); },
-  chooseReason(event) { this.setData({ reasonIndex: Number(event.detail.value) }); },
+  chooseReason() {
+    showDialog(this, {
+      title: '申请原因', options: this.data.reasons, selected: this.data.reasonIndex, cancel: true
+    }, reasonIndex => this.setData({ reasonIndex }));
+  },
   inputDescription(event) { this.description = event.detail.value; },
 
   async submit() {

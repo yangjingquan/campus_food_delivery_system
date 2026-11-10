@@ -1,3 +1,4 @@
+const { openCart } = require('../../utils/navigation');
 const api = require('../../utils/api');
 const cart = require('../../utils/cart');
 const display = require('../../utils/display');
@@ -56,5 +57,5 @@ Page({
     this.refreshCart();
   },
 
-  viewCart() { wx.switchTab({ url: '/pages/cart/index' }); }
+  viewCart() { return openCart(); }
 });

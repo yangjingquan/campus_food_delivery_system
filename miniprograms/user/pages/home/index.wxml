@@ -17,11 +17,10 @@
       <view class="hero-sub">校外好味道 · 骑手分批送至寝室</view>
       <button class="btn small-btn" bindtap="startOrder">开始点餐 →</button>
     </view>
-    <image class="art" src="/assets/rice.svg" mode="aspectFit" aria-hidden="true"/>
+    <image class="art" src="/assets/v2-hero.svg" mode="aspectFit" aria-hidden="true"/>
   </view>
   <view class="row delivery-row">
     <view class="small delivery-window" wx:if="{{config.serviceStart}}">
-      <view class="delivery-dot"></view>
       <text>{{config.serviceStart}}–{{config.serviceEnd}} · 分批配送</text>
     </view>
     <button class="link" bindtap="showRules">配送说明 ›</button>
@@ -40,9 +39,9 @@
     </view>
   </scroll-view>
 
-  <view class="row section">
+  <view class="section">
     <view class="h3">校园附近的好味道</view>
-    <text class="small" wx:if="{{!loading && !loadError}}">{{merchants.length}} 家入驻商户</text>
+    <view class="small merchant-count" wx:if="{{!loading && !loadError}}">{{merchants.length}} 家入驻商户</view>
   </view>
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{!loading && !loadError}}">
@@ -52,12 +51,16 @@
           <image src="{{item.picture}}" mode="aspectFill" lazy-load data-index="{{index}}" binderror="imageError" aria-hidden="true"/>
         </view>
         <view class="info">
-          <view class="row store-name"><view class="h3">{{item.name}}</view><text wx:if="{{!item.open}}" class="pill">打烊</text></view>
+          <view class="h3">{{item.name}}</view>
           <view class="small store-address" wx:if="{{item.address}}">{{item.address}}</view>
-          <view><text class="tag">每店配送 {{item.deliveryFeeText}}</text><text class="tag">{{item.open ? '营业中' : '暂不接单'}}</text></view>
+          <view class="store-state {{item.open ? 'open' : ''}}">每店配送 {{item.deliveryFeeText}} · {{item.open ? '营业中' : '打烊 · 暂不接单'}}</view>
         </view>
       </view>
     </button>
-    <view wx:if="{{!merchants.length}}" class="empty muted">没有找到相关商户，换个关键词试试。</view>
+    <view wx:if="{{!merchants.length}}" class="empty">
+      <view class="symbol"><image src="/assets/v2-empty-home.svg" aria-hidden="true"/></view>
+      <view class="h3">没有找到相关商户，换个关键词试试。</view>
+    </view>
   </block>
+  <include src="../../templates/dialog.wxml"/>
 </view>

@@ -1,2 +1,10 @@
-.default-row { min-height: 44px; margin: 12px 0; }
+.address-edit-page .field { margin: 13px 0 15px; }
+.address-edit-page .field label { margin-bottom: 2px; }
+.default-row { box-sizing: border-box; min-height: 62px; margin-top: 16px; padding-block: 9px; }
+.default-row switch {
+  flex: 0 0 auto;
+  margin: 0;
+  transform: scale(.78);
+  transform-origin: right center;
+}
 .address-error { margin-bottom: 10px; }

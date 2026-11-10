@@ -1,2 +1,5 @@
 .timeline-space { margin-top: 13px; }
 .event .small { overflow-wrap: anywhere; }
+.event > view:first-child { font-weight: 700; }
+.aftersale-page .timeline { padding-left: 4px; }
+.aftersale-page .column { gap: 11px; }

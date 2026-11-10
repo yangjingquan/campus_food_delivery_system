@@ -10,11 +10,14 @@
     </view>
     <view wx:if="{{syncError}}" class="hint orange">{{syncError}}</view>
     <block wx:if="{{payment.status === '支付成功'}}">
-      <view wx:for="{{orders}}" wx:key="id" class="card">
-        <view class="row"><view class="h3">{{item.merchantName || item.merchant}}</view><text class="orderstate">{{item.status}}</text></view>
-        <view class="kv"><text class="label">商户订单号</text><text>{{item.id}}</text></view>
-        <view class="kv"><text class="label">订单实付</text><text>{{item.amountText}}</text></view>
-        <button class="btn outline small-btn wide" data-id="{{item.id}}" bindtap="openOrder">查看订单</button>
+      <view wx:for="{{orders}}" wx:key="id" class="result-order">
+        <view class="card">
+          <view class="h3">{{item.merchantName || item.merchant}}</view>
+          <view class="orderstate">{{item.status}}</view>
+          <view class="kv"><text class="label">商户订单号</text><text>{{item.id}}</text></view>
+          <view class="kv"><text class="label">订单实付</text><text>{{item.amountText}}</text></view>
+        </view>
+        <button class="btn outline wide" data-id="{{item.id}}" bindtap="openOrder">查看订单</button>
       </view>
     </block>
     <view class="card">

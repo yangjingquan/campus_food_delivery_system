@@ -1,1 +1,3 @@
-.payment-result-page .card .btn { margin-top: 2px; }
+.result-order { margin-bottom: 11px; }
+.result-order .orderstate { max-width: none; margin-top: 8px; text-align: left; }
+.result-order .kv { margin-top: 12px; }

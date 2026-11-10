@@ -1,38 +1,78 @@
-.tabbar {
+.tab-shell {
   position: fixed;
   z-index: 20;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  height: calc(66px + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
-  box-sizing: border-box;
-  border-top: 1px solid #e9e7df;
-  background: #fff;
+  right: 15px;
+  bottom: max(15px, env(safe-area-inset-bottom));
+  left: 15px;
+  max-width: 530px;
+  margin: auto;
 }
 
-.tabbar .tab {
-  position: relative;
-  flex: 1 1 0;
+.tabbar {
   display: flex;
-  flex-direction: column;
+  height: 64px;
+  border-radius: 32px;
+  background: #fff;
+  box-shadow: 0 7px 0 #eceee7;
+}
+
+.tabbar .tab, .tab-shell .cart-fab {
+  position: relative;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  width: 25%;
+  width: auto;
   min-width: 0;
   max-width: none;
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 0;
+}
+
+.tabbar .tab {
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: 32px;
   background: transparent;
-  color: #686b61;
-  font-size: 11px;
+  color: #7b807a;
+  font-size: 10px;
   line-height: 1.35;
 }
-.tabbar .tab::after { border: 0; }
-.tabbar .tab.on { color: #b74416; font-weight: 700; }
-.tab-icon { display: block; width: 21px; height: 21px; }
-.badge { position: absolute; top: 5px; left: calc(50% + 8px); padding: 1px 4px; border-radius: 12px; color: #fff; background: #c54a1a; font-size: 10px; }
+.tabbar .tab::after, .tab-shell .cart-fab::after { border: 0; }
+.tabbar .tab.on { color: #ee692f; font-weight: 700; }
+.tab-icon { display: block; width: 22px; height: 22px; }
+.tab-shell .cart-fab {
+  position: absolute;
+  right: 7px;
+  bottom: 83px;
+  width: 54px;
+  height: 54px;
+  border-radius: 22px;
+  background: #ee692f;
+  box-shadow: 2px 4px 0 #e7e7df;
+}
+.cart-fab-icon { display: block; width: 24px; height: 24px; }
+.tab-shell .cart-fab-meal {
+  width: 44px;
+  height: 44px;
+  border-radius: 17px;
+  background: rgba(238, 105, 47, .76);
+  box-shadow: 2px 3px 0 rgba(41, 44, 41, .08);
+}
+.cart-fab-meal .cart-fab-icon { width: 20px; height: 20px; }
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -3px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: #292c29;
+  color: #fff;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 20px;
+}

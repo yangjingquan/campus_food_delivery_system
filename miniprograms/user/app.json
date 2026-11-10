@@ -17,9 +17,9 @@
   ],
   "window": {
     "navigationBarTitleText": "寝食记",
-    "navigationBarBackgroundColor": "#faf9f4",
+    "navigationBarBackgroundColor": "#F6F5F0",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f6f5ef",
+    "backgroundColor": "#F6F5F0",
     "backgroundTextStyle": "light"
   },
   "tabBar": {
@@ -29,8 +29,7 @@
     "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [
-      { "pagePath": "pages/home/index", "text": "首页" },
-      { "pagePath": "pages/cart/index", "text": "购物车" },
+      { "pagePath": "pages/home/index", "text": "点餐" },
       { "pagePath": "pages/orders/index", "text": "订单" },
       { "pagePath": "pages/mine/index", "text": "我的" }
     ]

@@ -1,7 +1,7 @@
 <view class="page map-page">
-  <view class="row map-heading">
+  <view class="map-heading">
     <view class="h2">{{stale ? '位置更新中断' : markers.length ? '骑手正在配送' : '配送位置'}}</view>
-    <text class="pill">本订单</text>
+    <view class="small">本订单</view>
   </view>
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{!loading && !loadError}}">
@@ -20,7 +20,7 @@
       </view>
     </block>
     <view wx:else class="empty">
-      <view class="symbol"><image src="/assets/pin.svg" aria-hidden="true"/></view>
+      <view class="symbol"><image src="/assets/v2-empty-map.svg" aria-hidden="true"/></view>
       <view class="h3">当前无可查看的骑手位置</view>
       <view class="muted">{{stateText}}</view>
     </view>

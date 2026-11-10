@@ -1,6 +1,9 @@
 const api = require('../../utils/api');
 
+const { showDialog, dialogEvents } = require('../../utils/dialog');
+
 Page({
+  ...dialogEvents,
   data: { rows: [], choose: false, selectedId: '', loading: true, loadError: '' },
 
   onLoad(query) { this.setData({ choose: query.choose === '1' }); },
@@ -36,20 +39,16 @@ Page({
   remove(event) {
     if (this.removing) return;
     const id = event.currentTarget.dataset.id;
-    wx.showModal({
-      title: '删除收餐地址',
-      content: '确定删除这条地址吗？',
-      success: async ({ confirm }) => {
-        if (!confirm || this.removing) return;
-        this.removing = true;
-        try {
-          await api.delete(`/addresses/${id}`);
-          await this.load();
-        } catch (error) {
-          wx.showToast({ title: error.message, icon: 'none' });
-        } finally {
-          this.removing = false;
-        }
+    showDialog(this, { title: '删除收餐地址', content: '确定删除这条地址吗？', cancel: true }, async () => {
+      if (this.removing) return;
+      this.removing = true;
+      try {
+        await api.delete(`/addresses/${id}`);
+        await this.load();
+      } catch (error) {
+        wx.showToast({ title: error.message, icon: 'none' });
+      } finally {
+        this.removing = false;
       }
     });
   }

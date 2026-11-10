@@ -23,9 +23,9 @@
         <view class="info">
           <view class="h3">{{food.name}}</view>
           <view class="small">数量 × {{food.quantity}}</view>
+          <text class="price line-amount">{{food.amountText}}</text>
           <view class="error" wx:if="{{food.unavailable}}">餐品或数量有变，请返回购物车调整。</view>
         </view>
-        <text class="line-amount">{{food.amountText}}</text>
       </view>
       <view class="row split"><text class="small">含本店配送 {{item.feeText}}</text><text>{{item.orderText}}</text></view>
     </view>
@@ -40,8 +40,8 @@
       <button class="link" bindtap="load">更新餐品与金额 ›</button>
     </view>
     <view wx:if="{{!paymentEnabled}}" class="hint orange">支付暂不可用，请稍后重试。</view>
-    <view class="totalbar row">
-      <view><view class="small">共 {{groups.length}} 家商户</view><view class="price">{{totalText}}</view></view>
+    <view class="totalbar">
+      <view class="card row totalbar-summary"><view class="small">共 {{groups.length}} 家商户</view><view class="price">{{totalText}}</view></view>
       <button wx:if="{{unavailable}}" class="btn outline" bindtap="openCart">调整购物车</button>
       <button wx:else class="btn" loading="{{submitting}}" disabled="{{submitting || !paymentEnabled}}" bindtap="submit">
         {{address ? '提交订单' : '添加地址'}}
@@ -49,7 +49,7 @@
     </view>
   </block>
   <view wx:if="{{!loading && !loadError && !groups.length}}" class="empty">
-    <view class="symbol"><image src="/assets/cart.svg" aria-hidden="true"/></view>
+    <view class="symbol"><image src="/assets/v2-empty-cart.svg" aria-hidden="true"/></view>
     <view class="h3">还没有选餐</view>
     <view class="muted">添加餐品后即可确认订单。</view>
     <button class="btn" bindtap="openCart">返回购物车</button>

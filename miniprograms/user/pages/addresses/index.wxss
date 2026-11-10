@@ -1,2 +1,8 @@
-.address-heading { margin-bottom: 15px; }
-.address-owner { margin-top: 5px; overflow-wrap: anywhere; }
+.address-heading { margin-bottom: 19px; }
+.address-heading .h2 { margin-bottom: 8px; font-size: 26px; }
+.address-owner { margin: 9px 0 3px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.address-entry .address { min-height: 97px; }
+.address-entry .address.selected { min-height: 123px; }
+.address .tag { padding: 0; background: none; color: #a84b21; font-weight: 700; }
+.address-actions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; margin: 0 0 11px; }
+.addresses-page .address-actions button { width: 100%; padding-inline: 5px; font-size: 12px; }

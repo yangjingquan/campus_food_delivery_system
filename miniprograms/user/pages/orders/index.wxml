@@ -9,19 +9,21 @@
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{!loading && !loadError}}">
     <view wx:for="{{visible}}" wx:key="id" class="card ordercard">
-      <view class="row"><view class="h3">{{item.merchantName}}</view><text class="orderstate">{{item.displayStatus}}</text></view>
+      <view class="h3">{{item.merchantName}}</view>
+      <view class="orderstate">{{item.displayStatus}}</view>
       <view class="muted order-summary">{{item.displayItems}}</view>
-      <view wx:if="{{item.isPayment}}" class="row split">
-        <text class="order-amount">{{item.amountText}}</text>
-        <button class="btn outline small-btn" data-id="{{item.id}}" bindtap="openPayment">查看支付单</button>
-      </view>
+      <block wx:if="{{item.isPayment}}">
+        <view class="kv"><text class="label">应付金额</text><text class="order-amount">{{item.amountText}}</text></view>
+        <view class="actions"><button class="btn small-btn order-link" data-id="{{item.id}}" bindtap="openPayment">查看支付单</button></view>
+      </block>
       <block wx:else>
-        <view class="row order-bottom"><text class="small">{{item.note}}</text><text class="order-amount">{{item.amountText}}</text></view>
-        <view class="actions"><button class="btn outline small-btn" data-id="{{item.id}}" bindtap="openOrder">查看详情</button></view>
+        <view class="small order-bottom">{{item.note}}</view>
+        <view class="kv"><text class="label">订单金额</text><text class="order-amount">{{item.amountText}}</text></view>
+        <view class="actions"><button class="btn small-btn order-link" data-id="{{item.id}}" bindtap="openOrder">查看详情</button></view>
       </block>
     </view>
     <view wx:if="{{!visible.length}}" class="empty">
-      <view class="symbol"><image src="/assets/orders.svg" aria-hidden="true"/></view>
+      <view class="symbol"><image src="/assets/v2-empty-order.svg" aria-hidden="true"/></view>
       <view class="h3">还没有相关订单</view>
       <view class="muted">点餐后可以在这里查看进度。</view>
       <button class="btn" bindtap="goHome">去点餐</button>

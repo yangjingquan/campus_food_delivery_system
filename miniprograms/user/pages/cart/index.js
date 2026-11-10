@@ -1,9 +1,11 @@
 const cart = require('../../utils/cart');
 const display = require('../../utils/display');
+const { showDialog, dialogEvents } = require('../../utils/dialog');
+
 Page({
+  ...dialogEvents,
   data: { groups: [], totals: {}, feeText: '¥0.00', foodText: '¥0.00', totalText: '¥0.00', cartCount: 0, loading: true, loadError: '' },
   onShow() {
-    this.getTabBar?.()?.refresh('pages/cart/index');
     this.load();
   },
   async load() {
@@ -35,7 +37,12 @@ Page({
     this.load();
     const tab = this.getTabBar(); if (tab) tab.refresh();
   },
-  clear() { wx.showModal({ title: '清空购物车', content: '确定移除所有餐品吗？', success: result => { if (result.confirm) { cart.save([]); this.load(); } } }); },
+  clear() {
+    showDialog(this, { title: '清空购物车', content: '确定移除所有餐品吗？', cancel: true }, () => {
+      cart.save([]);
+      return this.load();
+    });
+  },
   checkout() { if (!this.data.cartCount) return; wx.navigateTo({ url: '/pages/confirm/index' }); },
   openStore(event) { wx.navigateTo({ url: `/pages/store/index?id=${event.currentTarget.dataset.id}` }); },
   openHome() { wx.switchTab({ url: '/pages/home/index' }); }

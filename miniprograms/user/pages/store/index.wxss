@@ -1,3 +1,9 @@
-.store-title { margin: 10px 0 5px; }
-.store-service { margin: 16px 0 10px; }
-.food-price-row { flex-wrap: wrap; }
+.store-page .info > .pill { padding: 0; color: #a84b21; background: none; font-weight: 700; }
+.store-page > .row .thumb { width: 78px; height: 78px; }
+.store-title { margin: 9px 0 8px; font-size: 26px; }
+.store-service { margin: 18px 0 14px; }
+.store-page .section.h3 { margin: 14px 0; }
+.store-page .foodline { align-items: flex-start; gap: 13px; }
+.store-page .product-card { min-height: 159px; }
+.store-page .foodline .small { margin-top: 5px; }
+.store-page .food-price-row { min-height: 34px; margin-top: 20px; flex-wrap: wrap; }

@@ -16,15 +16,15 @@
       </view>
       <view class="split">
         <view class="small">{{order.locationAvailable ? '骑手已领取，可查看本订单的配送位置。' : order.fulfillStatus === '已完成' ? '订单已完成，位置共享已结束。' : '骑手尚未领取，暂不展示位置。'}}</view>
-        <button wx:if="{{order.locationAvailable}}" class="btn secondary small-btn wide map-link" bindtap="map">查看配送位置</button>
       </view>
     </view>
+    <button wx:if="{{order.locationAvailable}}" class="btn outline wide map-link" bindtap="map">查看配送位置</button>
 
     <button wx:for="{{aftersales}}" wx:key="id" class="card wide aftersale-link" data-id="{{item.id}}" bindtap="afterSale">
       <view class="row">
         <view>
           <view class="h3">售后 · {{item.status}}</view>
-          <view class="small">本次退款金额 {{item.amountText}}</view>
+          <view class="small aftersale-amount">本次退款金额 {{item.amountText}}</view>
         </view>
         <text>›</text>
       </view>
@@ -49,10 +49,8 @@
       <view class="kv"><text class="label">订单号</text><text>{{order.id}}</text></view>
       <view class="kv"><text class="label">支付记录单号</text><text>{{order.paymentId}}</text></view>
       <view wx:if="{{paidAtText}}" class="kv"><text class="label">付款时间</text><text>{{paidAtText}}</text></view>
-      <view class="actions">
-        <button class="btn outline small-btn" data-value="{{order.id}}" bindtap="copy">复制订单号</button>
-      </view>
     </view>
+    <button class="btn outline wide copy-link" data-value="{{order.id}}" bindtap="copy">复制订单号</button>
     <button wx:if="{{order.mergedPaymentStatus === '未支付'}}" class="btn wide" bindtap="pay">查看支付单</button>
     <button wx:elif="{{refund.allowed}}" class="btn outline wide" bindtap="refund">申请退款 / 售后</button>
     <view wx:elif="{{refund.reason}}" class="hint">{{refund.reason}}</view>

@@ -1,3 +1,9 @@
-.order-summary { margin-top: 7px; overflow-wrap: anywhere; }
-.order-bottom { margin-top: 9px; }
-.order-amount { flex: 0 0 auto; font-weight: 680; font-variant-numeric: tabular-nums; }
+.orders-page .h2 { font-size: 26px; }
+.orders-page .filters { margin: 18px 0 15px; }
+.orders-page .filter-rail { gap: 6px; }
+.orders-page button.chip { padding-inline: 10px; font-size: 11px; }
+.order-summary { margin-top: 9px; overflow-wrap: anywhere; }
+.order-bottom { margin-top: 10px; }
+.ordercard .orderstate { max-width: none; margin-top: 8px; text-align: left; }
+.order-amount { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.orders-page button.order-link { min-width: 112px; border: 1px solid var(--line); background: #f6f6f1; color: var(--ink); }

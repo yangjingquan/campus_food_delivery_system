@@ -1,3 +1,4 @@
+const { openCart } = require('../../utils/navigation');
 const api = require('../../utils/api');
 const cart = require('../../utils/cart');
 const { money, photo, illustration } = require('../../utils/display');
@@ -67,7 +68,7 @@ Page({
   },
 
   chooseAddress() { wx.navigateTo({ url: '/pages/addresses/index?choose=1' }); },
-  openCart() { wx.switchTab({ url: '/pages/cart/index' }); },
+  openCart() { return openCart(); },
 
   async submit() {
     if (this.data.submitting || this.data.loading || this.data.unavailable || !this.data.paymentEnabled) return;

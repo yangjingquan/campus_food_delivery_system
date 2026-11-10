@@ -24,9 +24,9 @@
     </view>
     <view class="field">
       <label>申请原因</label>
-      <picker range="{{reasons}}" value="{{reasonIndex}}" bindchange="chooseReason">
-        <view class="picker-value row"><text>{{reasons[reasonIndex]}}</text><text aria-hidden="true">⌄</text></view>
-      </picker>
+      <button class="picker-value row" bindtap="chooseReason" aria-label="申请原因 {{reasons[reasonIndex]}}">
+        <text>{{reasons[reasonIndex]}}</text><text aria-hidden="true">⌄</text>
+      </button>
     </view>
     <view class="field">
       <label for="refund-description">补充说明（选填）</label>
@@ -36,4 +36,5 @@
     <view wx:if="{{error}}" class="error refund-error">{{error}}</view>
     <button class="btn wide" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">提交申请</button>
   </block>
+  <include src="../../templates/dialog.wxml"/>
 </view>

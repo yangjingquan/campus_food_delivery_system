@@ -1,2 +1,5 @@
-.cart-page button.merchant-link { display: inline-flex; align-items: center; min-height: 40px; margin-bottom: 4px; font-weight: 680; text-align: left; }
-.food-price-row { flex-wrap: wrap; }
+.cart-page button.clear-cart { min-width: 76px; background: #f6f6f1; }
+.cart-page button.merchant-link { display: block; width: 100%; min-height: 27px; margin-bottom: 14px; font-size: 16px; font-weight: 700; text-align: left; }
+.cart-page .foodline { align-items: flex-start; gap: 13px; min-height: 97px; }
+.cart-page .food-price-row { margin-top: 36px; flex-wrap: wrap; }
+.cart-page .foodline + .foodline { margin-top: 13px; }

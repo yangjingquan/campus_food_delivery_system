@@ -1,5 +1,8 @@
-.confirm-page button.address-card { display: block; }
-.address-title { margin: 4px 0; }
-.group-title { margin-bottom: 12px; }
-.line-amount { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
-.confirm-note { margin: 12px 0; }
+.confirm-page button.address-card { display: block; min-height: 111px; }
+.address-card .subheading { color: #a84b21; font-size: 11px; letter-spacing: 0; }
+.address-title { margin: 4px 0 7px; font-size: 18px; }
+.group-title { margin-bottom: 14px; }
+.confirm-page .foodline { align-items: flex-start; gap: 13px; min-height: 97px; }
+.confirm-page .foodline .small { margin-top: 5px; }
+.line-amount { display: block; margin-top: 14px; }
+.confirm-note { margin: 16px 0; }

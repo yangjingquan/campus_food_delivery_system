@@ -18,7 +18,7 @@
       <label for="receiver-room">寝室门牌</label>
       <input id="receiver-room" maxlength="80" value="{{room}}" data-field="room" bindinput="input" placeholder="例如：302寝室"/>
     </view>
-    <label class="row default-row">
+    <label class="card row default-row">
       <text>设为默认收餐地址</text>
       <switch checked="{{isDefault}}" color="#ee692f" bindchange="toggleDefault"/>
     </label>
