@@ -72,6 +72,14 @@ public class CatalogService {
         return new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "图片不存在");
     }
 
+    public List<String> categories() {
+        return db.queryForList("""
+            SELECT DISTINCT p.category FROM merchant_product p JOIN merchant m ON m.id=p.merchant_id
+            WHERE m.audit_status='已通过' AND p.available=TRUE AND TRIM(p.category) NOT IN ('','全部')
+            ORDER BY p.category
+            """, String.class);
+    }
+
     public List<Map<String, Object>> catalog(String keyword, String category, String merchantId) {
         String term = keyword == null ? "" : keyword.trim();
         String categoryFilter = category == null || category.isBlank() || category.equals("全部") ? "" : category.trim();

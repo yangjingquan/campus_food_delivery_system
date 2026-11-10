@@ -70,7 +70,7 @@ public class UserController {
     @GetMapping("/catalog")
     public Map<String, Object> catalog(@RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "全部") String category,
             @RequestParam(defaultValue = "") String merchantId) {
-        return Map.of("merchants", catalog.catalog(keyword, category, merchantId));
+        return Map.of("merchants", catalog.catalog(keyword, category, merchantId), "categories", catalog.categories());
     }
 
     @GetMapping("/catalog/{kind:merchants|products}/{id}/photo")

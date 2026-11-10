@@ -1,6 +1,12 @@
 import axios from 'axios'
 import type { SectionKey } from '../domain/types'
 
+export interface FoodCategory {
+  id: number
+  name: string
+  productCount: number
+}
+
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/admin/v1',
   timeout: 12_000,
@@ -41,6 +47,17 @@ export const adminApi = {
   },
   productPhoto(id: string) {
     return unwrap<Blob>(http.get(`/products/${encodeURIComponent(id)}/photo`, { responseType: 'blob' }))
+  },
+  foodCategories() {
+    return unwrap<FoodCategory[]>(http.get('/food-categories'))
+  },
+  saveFoodCategory(name: string, id?: number) {
+    return unwrap<void>(id === undefined
+      ? http.post('/food-categories', { name })
+      : http.put(`/food-categories/${id}`, { name }))
+  },
+  deleteFoodCategory(id: number) {
+    return unwrap<void>(http.delete(`/food-categories/${id}`))
   },
   action<T = unknown>(type: string, payload: Record<string, unknown>) {
     return unwrap<T>(http.post('/actions', { type, payload }))

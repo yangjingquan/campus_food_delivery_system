@@ -4,7 +4,7 @@ const display = require('../../utils/display');
 Page({
   data: {
     merchants: [], config: {}, keyword: '', category: '全部',
-    categories: ['全部', '米饭', '面食', '轻食'], loading: true, loadError: '',
+    categories: ['全部'], loading: true, loadError: '',
     addressLabel: '添加收餐地址'
   },
 
@@ -28,6 +28,11 @@ Page({
       ]);
       // 搜索和筛选可能同时发起，旧响应不能覆盖最新结果。
       if (request !== this.request) return;
+      const categories = Array.isArray(data.categories) ? ['全部', ...data.categories] : this.data.categories;
+      if (!categories.includes(category)) {
+        this.setData({ categories, category: '全部' });
+        return this.load();
+      }
       const merchants = (data.merchants || []).map(item => {
         const artwork = item.products[0]?.artwork;
         return {
@@ -35,7 +40,7 @@ Page({
           fallback: display.illustration(artwork), deliveryFeeText: display.money(item.deliveryFeeCents)
         };
       });
-      this.setData({ merchants, config, loading: false });
+      this.setData({ merchants, config, categories, loading: false });
     } catch (error) {
       if (request === this.request) this.setData({ loading: false, loadError: error.message });
     }

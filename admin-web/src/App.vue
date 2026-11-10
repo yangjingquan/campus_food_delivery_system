@@ -20,6 +20,7 @@ const menuGroups = [
       { path: '/overview', title: '运营概览', icon: 'Grid' },
       { path: '/merchants', title: '商户管理', icon: 'Shop' },
       { path: '/products', title: '商户商品', icon: 'Tickets' },
+      { path: '/food-categories', title: '食品分类', icon: 'Grid' },
       { path: '/riders', title: '骑手管理', icon: 'Bicycle' },
       { path: '/orders', title: '订单管理', icon: 'Tickets', badge: 'intervene' },
       { path: '/aftersales', title: '售后管理', icon: 'ChatDotRound' },
@@ -30,7 +31,7 @@ const menuGroups = [
   },
   { label: '系统设置', items: [{ path: '/wechat', title: '微信设置', icon: 'Connection' }, { path: '/administrators', title: '管理员与角色', icon: 'User' }] },
 ]
-const menuPermission: Record<string, string> = { '/overview': 'overview.view', '/merchants': 'merchant.view', '/products': 'merchant.view', '/riders': 'rider.view', '/orders': 'order.view', '/aftersales': 'refund.view', '/finance': 'finance.view', '/withdrawals': 'withdrawal.view', '/config': 'config.view', '/wechat': 'wechat.view', '/administrators': 'admin.manage' }
+const menuPermission: Record<string, string> = { '/overview': 'overview.view', '/merchants': 'merchant.view', '/products': 'merchant.view', '/food-categories': 'food-category.view', '/riders': 'rider.view', '/orders': 'order.view', '/aftersales': 'refund.view', '/finance': 'finance.view', '/withdrawals': 'withdrawal.view', '/config': 'config.view', '/wechat': 'wechat.view', '/administrators': 'admin.manage' }
 const visibleMenuGroups = computed(() => menuGroups.map((group) => ({ ...group, items: group.items.filter((item) => auth.can(menuPermission[item.path])) })).filter((group) => group.items.length))
 const title = computed(() => String(route.meta.title || '运营概览'))
 const group = computed(() => route.meta.group ? String(route.meta.group) : '运营工作台')

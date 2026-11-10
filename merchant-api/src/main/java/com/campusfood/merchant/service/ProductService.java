@@ -13,9 +13,11 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class ProductService {
     private final JdbcTemplate db;
+    private final FoodCategoryService categories;
 
-    public ProductService(JdbcTemplate db) {
+    public ProductService(JdbcTemplate db, FoodCategoryService categories) {
         this.db = db;
+        this.categories = categories;
     }
 
     public List<Map<String, Object>> list(String merchant) {
@@ -102,6 +104,7 @@ public class ProductService {
         int stock = (int) Inputs.integer(body, "stock", "库存", 0, 1_000_000);
         boolean available = Inputs.flag(body, "available", "上下架状态");
         UploadedPhoto photo = UploadedPhoto.from(body, "商品图片");
+        category = categories.requireForProduct(category);
         int previous = 0;
         if (id == null) {
             if (photo == null) throw Inputs.invalid("请上传一张商品图片");

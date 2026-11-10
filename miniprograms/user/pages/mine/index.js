@@ -4,7 +4,7 @@ const { money } = require('../../utils/display');
 Page({
   data: {
     user: null, config: {}, working: false, message: '',
-    editingNickname: false, avatarPath: '', draftName: '', manualNickname: false
+    editingNickname: false, avatarPath: '', draftName: ''
   },
 
   onShow() {
@@ -71,14 +71,9 @@ Page({
 
   editNickname() {
     if (this.data.working || !this.data.user) return;
-    this.profileName = this.data.user.displayName;
     this.setData({
-      editingNickname: true, draftName: this.profileName, manualNickname: false, message: ''
+      editingNickname: true, draftName: this.data.user.displayName, message: ''
     });
-  },
-
-  cancelNickname() {
-    this.setData({ editingNickname: false, message: '' });
   },
 
   chooseAvatar({ detail }) {
@@ -90,18 +85,13 @@ Page({
     }
   },
 
-  trackNickname({ detail }) {
-    this.profileName = detail.value;
-  },
-
-  useManualNickname() {
-    this.setData({ manualNickname: true, draftName: this.profileName });
-  },
-
   saveNickname({ detail }) {
-    if (this.data.working || !this.data.user) return;
-    const displayName = (detail.value.displayName || '').trim();
-    this.profileName = displayName;
+    if (this.data.working || !this.data.user || !this.data.editingNickname || detail.isSwitchEmoji) return;
+    const displayName = (detail.value || '').trim();
+    if (displayName === this.data.user.displayName) {
+      this.setData({ editingNickname: false, message: '' });
+      return;
+    }
     if (!displayName || Array.from(displayName).length > 32) {
       this.setData({ message: '请输入 1–32 个字符的昵称' });
       return;
@@ -117,7 +107,7 @@ Page({
       const { data } = await save();
       if (wx.getStorageSync('userToken') !== token) return;
       this.showUser(data, selectedAvatar);
-      if (!selectedAvatar) this.cancelNickname();
+      if (!selectedAvatar) this.setData({ editingNickname: false });
       wx.showToast({ title });
     } catch (error) {
       if (wx.getStorageSync('userToken') !== token) return;

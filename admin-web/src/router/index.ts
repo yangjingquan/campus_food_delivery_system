@@ -8,6 +8,7 @@ const ConfigView = () => import('../views/ConfigView.vue')
 const WechatView = () => import('../views/WechatView.vue')
 const AdminUsersView = () => import('../views/AdminUsersView.vue')
 const ProductCatalogView = () => import('../views/ProductCatalogView.vue')
+const FoodCategoriesView = () => import('../views/FoodCategoriesView.vue')
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -16,6 +17,7 @@ export const router = createRouter({
     { path: '/overview', name: 'overview', component: DashboardView, meta: { title: '运营概览' } },
     { path: '/merchants', name: 'merchants', component: WorkspaceView, meta: { title: '商户管理' } },
     { path: '/products', name: 'products', component: ProductCatalogView, meta: { title: '商户商品', permission: 'merchant.view' } },
+    { path: '/food-categories', name: 'food-categories', component: FoodCategoriesView, meta: { title: '食品分类', permission: 'food-category.view' } },
     { path: '/riders', name: 'riders', component: WorkspaceView, meta: { title: '骑手管理' } },
     { path: '/orders', name: 'orders', component: WorkspaceView, meta: { title: '订单管理' } },
     { path: '/aftersales', name: 'aftersales', component: WorkspaceView, meta: { title: '售后管理' } },

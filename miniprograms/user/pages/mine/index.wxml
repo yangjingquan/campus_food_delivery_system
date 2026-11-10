@@ -7,16 +7,9 @@
     </button>
     <view wx:else class="avatar" aria-hidden="true">食</view>
     <view class="profile-copy">
-      <form wx:if="{{editingNickname}}" bindsubmit="saveNickname">
-        <input class="nickname-input" type="{{manualNickname ? 'text' : 'nickname'}}" name="displayName"
-          value="{{draftName}}" focus="{{!working}}" placeholder="请输入昵称"
-          bindinput="trackNickname" disabled="{{working}}" aria-label="昵称" />
-        <view class="nickname-actions">
-          <button class="link" bindtap="cancelNickname" disabled="{{working}}">取消</button>
-          <button class="link nickname-save" form-type="submit" disabled="{{working}}">保存</button>
-          <button wx:if="{{!manualNickname}}" class="link" bindtap="useManualNickname" disabled="{{working}}">手动填写</button>
-        </view>
-      </form>
+      <input wx:if="{{editingNickname}}" class="nickname-input" type="nickname"
+        value="{{draftName}}" focus="{{editingNickname}}" placeholder="请输入昵称"
+        bindchange="saveNickname" bindblur="saveNickname" disabled="{{working}}" aria-label="昵称" />
       <button wx:elif="{{user}}" class="profile-name" bindtap="editNickname" disabled="{{working}}"
         aria-label="修改昵称 {{user.displayName}}">
         <text class="h2">{{user.displayName}}</text><text class="muted" aria-hidden="true">›</text>

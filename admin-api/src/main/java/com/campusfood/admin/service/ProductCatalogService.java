@@ -2,8 +2,10 @@ package com.campusfood.admin.service;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
+import com.campusfood.admin.dto.FoodCategoryRequest;
 import com.campusfood.admin.dto.ProductPhoto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -14,10 +16,14 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.JsonNode;
 
 /** 将已鉴权的管理员商品请求转发到商品数据所属服务。 */
 @Service
 public class ProductCatalogService {
+    private static final String CATEGORIES_PATH = "/internal/v1/admin/products/categories";
+    private static final ParameterizedTypeReference<List<Map<String, Object>>> CATEGORY_LIST =
+            new ParameterizedTypeReference<>() {};
     private static final ParameterizedTypeReference<Map<String, Object>> CATALOG_RESPONSE =
             new ParameterizedTypeReference<>() {};
 
@@ -64,6 +70,51 @@ public class ProductCatalogService {
             throw serviceError(exception, true);
         } catch (RestClientException exception) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "商品图片暂不可用");
+        }
+    }
+
+    public List<Map<String, Object>> categories(String authorization) {
+        admins.requirePermission(authorization, "food-category.view");
+        try {
+            return merchantApi.get().uri(CATEGORIES_PATH).retrieve().body(CATEGORY_LIST);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "食品分类暂不可用");
+        }
+    }
+
+    public void createCategory(String authorization, FoodCategoryRequest body) {
+        admins.requirePermission(authorization, "food-category.edit");
+        changeCategory(merchantApi.post().uri(CATEGORIES_PATH).body(body));
+    }
+
+    public void renameCategory(String authorization, long id, FoodCategoryRequest body) {
+        admins.requirePermission(authorization, "food-category.edit");
+        changeCategory(merchantApi.put().uri(CATEGORIES_PATH + "/{id}", id).body(body));
+    }
+
+    public void deleteCategory(String authorization, long id) {
+        admins.requirePermission(authorization, "food-category.edit");
+        changeCategory(merchantApi.delete().uri(CATEGORIES_PATH + "/{id}", id));
+    }
+
+    private void changeCategory(RestClient.RequestHeadersSpec<?> request) {
+        try {
+            request.retrieve().toBodilessEntity();
+        } catch (RestClientResponseException exception) {
+            int status = exception.getStatusCode().value();
+            if (status == 400 || status == 404 || status == 409) {
+                String message = "食品分类操作失败，请刷新后重试";
+                try {
+                    JsonNode response = exception.getResponseBodyAs(JsonNode.class);
+                    if (response != null) message = response.path("message").asText(message);
+                } catch (RestClientException ignored) {
+                    // 旧版商户服务可能没有统一错误响应。
+                }
+                throw new ResponseStatusException(exception.getStatusCode(), message);
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "食品分类保存失败");
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "食品分类暂不可用");
         }
     }
 

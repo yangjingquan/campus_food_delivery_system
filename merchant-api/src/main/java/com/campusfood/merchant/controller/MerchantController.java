@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.campusfood.merchant.service.DomainClient;
+import com.campusfood.merchant.service.FoodCategoryService;
 import com.campusfood.merchant.service.FinanceService;
 import com.campusfood.merchant.service.OrderService;
 import com.campusfood.merchant.service.ProductService;
@@ -22,15 +23,18 @@ public class MerchantController {
     private final SessionService sessions;
     private final StoreService stores;
     private final ProductService products;
+    private final FoodCategoryService categories;
     private final OrderService orders;
     private final FinanceService finance;
     private final DomainClient domain;
 
     public MerchantController(SessionService sessions, StoreService stores, ProductService products,
-                              OrderService orders, FinanceService finance, DomainClient domain) {
+                              OrderService orders, FinanceService finance, DomainClient domain,
+                              FoodCategoryService categories) {
         this.sessions = sessions;
         this.stores = stores;
         this.products = products;
+        this.categories = categories;
         this.orders = orders;
         this.finance = finance;
         this.domain = domain;
@@ -74,6 +78,12 @@ public class MerchantController {
     @GetMapping("/products")
     public List<Map<String, Object>> products(@RequestHeader(value = AUTH, required = false) String auth) {
         return products.list(store(auth));
+    }
+
+    @GetMapping("/products/categories")
+    public List<String> productCategories(@RequestHeader(value = AUTH, required = false) String auth) {
+        store(auth);
+        return categories.names();
     }
 
     @PostMapping("/products")

@@ -5,7 +5,11 @@
   <block wx:if="{{!error && !loading}}">
     <view class="card">
       <text class="label">商品名称</text><input aria-label="商品名称" class="field" data-field="name" bindinput="input" value="{{form.name}}" maxlength="120" />
-      <text class="label">分类</text><input aria-label="分类" class="field" data-field="category" bindinput="input" value="{{form.category}}" maxlength="40" />
+      <text class="label">分类</text>
+      <picker aria-label="食品分类" mode="selector" range="{{categories}}" value="{{categoryIndex}}"
+        disabled="{{!categories.length || saving}}" bindchange="selectCategory">
+        <view class="field">{{form.category || (categories.length ? '请选择食品分类' : '暂无可选食品分类')}}</view>
+      </picker>
       <text class="label">商品描述</text><textarea aria-label="商品描述" class="field" data-field="description" bindinput="input" value="{{form.description}}" maxlength="500" />
       <text class="label">商品图片{{id ? '' : '（必填）'}}</text>
       <image wx:if="{{photo}}" class="photo" src="{{photo}}" mode="aspectFit" aria-label="商品图片预览" />

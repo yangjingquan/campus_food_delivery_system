@@ -4,7 +4,5 @@
 .page button.profile-name { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 4px; text-align: left; }
 .profile-name .h2 { min-width: 0; margin-bottom: 0; }
 .nickname-input { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: white; }
-.nickname-actions { display: flex; flex-wrap: wrap; column-gap: 12px; }
-.page button.nickname-save { color: var(--action); }
 .menu-card { margin-top: 16px; padding: 5px 15px; }
 .profile-message { margin-top: 10px; }
