@@ -46,21 +46,13 @@
   position: absolute;
   right: 7px;
   bottom: 83px;
-  width: 54px;
-  height: 54px;
-  border-radius: 22px;
-  background: #ee692f;
-  box-shadow: 2px 4px 0 #e7e7df;
-}
-.cart-fab-icon { display: block; width: 24px; height: 24px; }
-.tab-shell .cart-fab-meal {
   width: 44px;
   height: 44px;
   border-radius: 17px;
   background: rgba(238, 105, 47, .76);
   box-shadow: 2px 3px 0 rgba(41, 44, 41, .08);
 }
-.cart-fab-meal .cart-fab-icon { width: 20px; height: 20px; }
+.cart-fab-icon { display: block; width: 20px; height: 20px; }
 .badge {
   position: absolute;
   top: -5px;

@@ -1,5 +1,5 @@
 <view class="tab-shell">
-  <button class="cart-fab {{tabs[selected].icon === 'meal' ? 'cart-fab-meal' : ''}}" bindtap="openCart"
+  <button class="cart-fab" bindtap="openCart"
     aria-label="购物车，{{count}}份餐品">
     <image class="cart-fab-icon" src="/assets/v2-floating-cart.svg" aria-hidden="true"/>
     <text wx:if="{{count}}" class="badge">{{count > 99 ? '99+' : count}}</text>
