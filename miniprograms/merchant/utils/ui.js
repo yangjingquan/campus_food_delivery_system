@@ -10,12 +10,14 @@ function date(value) {
   return new Date(raw + 28800000).toISOString().slice(0, 16).replace('T', ' ');
 }
 
-function cents(value) {
-  const text = String(value || '').trim();
-  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text)) throw new Error('请输入最多两位小数的正金额');
+function cents(value, allowZero = false) {
+  const text = String(value ?? '').trim();
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text)) {
+    throw new Error(allowZero ? '请输入有效金额，最多两位小数' : '请输入最多两位小数的正金额');
+  }
   const [whole, fraction = ''] = text.split('.');
   const amount = Number(whole) * 100 + Number((fraction + '00').slice(0, 2));
-  if (amount <= 0) throw new Error('金额须大于 0');
+  if (!allowZero && amount === 0) throw new Error('金额须大于 0');
   return amount;
 }
 

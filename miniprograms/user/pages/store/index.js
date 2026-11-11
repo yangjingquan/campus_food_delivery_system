@@ -19,7 +19,8 @@ Page({
       this.setData({
         merchant: {
           ...merchant, picture: display.photo(merchant.photoPath, artwork),
-          fallback: display.illustration(artwork), deliveryFeeText: display.money(merchant.deliveryFeeCents)
+          fallback: display.illustration(artwork), deliveryFeeText: display.money(merchant.deliveryFeeCents),
+          minimumOrderText: display.money(merchant.minimumOrderCents || 0)
         },
         loading: false
       });

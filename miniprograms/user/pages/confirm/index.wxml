@@ -28,6 +28,7 @@
         </view>
       </view>
       <view class="row split"><text class="small">含本店配送 {{item.feeText}}</text><text>{{item.orderText}}</text></view>
+      <view wx:if="{{item.shortfallText}}" class="hint orange">本店商品 {{item.minimumText}} 起送，还差 {{item.shortfallText}}，不含配送费。</view>
     </view>
     <view class="card bill">
       <view class="row"><text>餐品合计</text><text>{{foodText}}</text></view>
@@ -42,7 +43,7 @@
     <view wx:if="{{!paymentEnabled}}" class="hint orange">支付暂不可用，请稍后重试。</view>
     <view class="totalbar">
       <view class="card row totalbar-summary"><view class="small">共 {{groups.length}} 家商户</view><view class="price">{{totalText}}</view></view>
-      <button wx:if="{{unavailable}}" class="btn outline" bindtap="openCart">调整购物车</button>
+      <button wx:if="{{unavailable || belowMinimum}}" class="btn outline" bindtap="openCart">调整购物车</button>
       <button wx:else class="btn" loading="{{submitting}}" disabled="{{submitting || !paymentEnabled}}" bindtap="submit">
         {{address ? '提交订单' : '添加地址'}}
       </button>

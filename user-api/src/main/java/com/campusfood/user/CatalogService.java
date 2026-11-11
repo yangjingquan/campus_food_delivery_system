@@ -88,7 +88,7 @@ public class CatalogService {
         String productPhoto = photoTableExists("merchant_product_photo")
             ? "EXISTS(SELECT 1 FROM merchant_product_photo x WHERE x.product_id=p.id)" : "FALSE";
         String sql = "SELECT " + storePhoto + " AS store_photo," + productPhoto + " AS product_photo,m.id AS merchant_id,m.name AS merchant_name,m.address AS merchant_address,m.business_status," +
-            "p.id AS product_id,p.name AS product_name,p.description,p.category,p.price_cents,p.stock,p.reserved,p.artwork,p.color,p.available " +
+            "m.minimum_order_cents,p.id AS product_id,p.name AS product_name,p.description,p.category,p.price_cents,p.stock,p.reserved,p.artwork,p.color,p.available " +
             "FROM merchant m LEFT JOIN merchant_product p ON p.merchant_id=m.id AND p.available=TRUE " +
             "WHERE m.audit_status='已通过' AND (?='' OR m.id=?) AND (?='' OR m.name LIKE ? OR p.name LIKE ?) AND (?='' OR p.category=?) " +
             "ORDER BY m.id,p.display_order,p.name";
@@ -106,6 +106,7 @@ public class CatalogService {
                 value.put("businessStatus", row.get("business_status"));
                 value.put("open", "营业中".equals(row.get("business_status")));
                 value.put("deliveryFeeCents", feePerMerchant);
+                value.put("minimumOrderCents", ((Number) row.get("minimum_order_cents")).longValue());
                 if (hasPhoto(row.get("store_photo"))) value.put("photoPath", "/catalog/merchants/" + id + "/photo");
                 value.put("products", new ArrayList<Map<String, Object>>());
                 return value;

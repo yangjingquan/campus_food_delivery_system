@@ -29,6 +29,7 @@ public class StoreService {
             result.put("store", db.queryForMap("""
                 SELECT m.id,m.name,m.contact,m.phone,m.address,m.audit_status AS auditStatus,
                        m.audit_reason AS auditReason,m.business_status AS businessStatus,
+                       m.minimum_order_cents AS minimumOrderCents,
                        EXISTS(SELECT 1 FROM merchant_store_photo WHERE merchant_id=m.id) AS hasPhoto
                 FROM merchant m WHERE m.id=?
                 """, identity.merchantId()));
@@ -105,6 +106,11 @@ public class StoreService {
     public void businessStatus(String id, Map<String, Object> body) {
         db.update("UPDATE merchant SET business_status=? WHERE id=? AND audit_status='已通过'",
             Inputs.flag(body, "open", "营业状态") ? "营业中" : "休息中", id);
+    }
+
+    public void minimumOrder(String id, Map<String, Object> body) {
+        long cents = Inputs.integer(body, "minimumOrderCents", "起送价（分）", 0, 99_999_999_999L);
+        db.update("UPDATE merchant SET minimum_order_cents=? WHERE id=? AND audit_status='已通过'", cents, id);
     }
 
     private void savePhoto(String id, UploadedPhoto photo) {

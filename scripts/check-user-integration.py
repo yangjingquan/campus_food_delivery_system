@@ -2,12 +2,14 @@
 """Exercise the user mini-program API against an isolated MySQL schema via Compose."""
 import json
 import base64
+import re
 import secrets
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -147,7 +149,26 @@ try:
     expect(200, call('POST', '/internal/v1/orders/' + order_id + '/status', {'status': '已完成'}, key=internal_key), 'complete delivery')
     ended = expect(200, call('GET', '/api/user/v1/orders/' + order_id + '/location', token=token), 'location removed after delivery')
     assert not ended['available'] and ended['state'] == 'ended', ended
-    print('PASS: isolated login/address, single and multi-store checkout, refund cap and 24-hour window, independent merchant fulfillment, and expiring location')
+    other_token = other['token']
+    other_address = expect(200, call('POST', '/api/user/v1/addresses', {
+        'name': '并发测试', 'phone': '13800000001', 'building': '5号宿舍楼', 'room': '303寝室'
+    }, other_token), 'create second user address')
+
+    def concurrent_checkout(address_id, session):
+        return expect(200, call('POST', '/api/user/v1/checkout', {
+            'addressId': address_id, 'requestKey': 'concurrent_order_001',
+            'items': [{'productId': 'P-M03-001', 'quantity': 1}]
+        }, session), 'concurrent same-merchant checkout')['merchantOrders'][0]['id']
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(concurrent_checkout, address['id'], token)
+        second = executor.submit(concurrent_checkout, other_address['id'], other_token)
+        concurrent_ids = [first.result(), second.result()]
+    orders = one['merchantOrders'] + multi['merchantOrders']
+    assert all(re.fullmatch(r'\d{14}' + re.escape(order['merchantId']) + r'\d{8}', order['id']) for order in orders)
+    assert all(re.fullmatch(r'\d{14}M03\d{8}', order_id) for order_id in concurrent_ids)
+    assert len({order['id'] for order in orders} | set(concurrent_ids)) == len(orders) + len(concurrent_ids)
+    print('PASS: order ID format and concurrent uniqueness, isolated checkout, refunds, fulfillment, and location')
 except Exception:
     if not subprocess.run(['docker', 'inspect', user_container], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
         logs = subprocess.run(['docker', 'logs', user_container], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

@@ -13,7 +13,8 @@ Page({
         this.setData({ blocked: '请先使用微信登录' });
         return;
       }
-      this.setData(await api.request('/profile'));
+      const profile = await api.request('/profile');
+      this.setData({ ...profile, minimumOrder: (Number(profile.store?.minimumOrderCents || 0) / 100).toFixed(2) });
     } catch (error) {
       this.setData({ error: error.message, loggedIn: !!api.token() });
     } finally {
@@ -22,6 +23,21 @@ Page({
   },
   shop() { ui.go('/pages/onboarding/index?edit=1'); },
   devices() { ui.go('/pages/devices/index'); },
+  inputMinimumOrder(event) { this.setData({ minimumOrder: event.detail.value, minimumOrderError: '' }); },
+  async saveMinimumOrder() {
+    if (this.data.saving) return;
+    this.setData({ saving: true, minimumOrderError: '' });
+    try {
+      const minimumOrderCents = ui.cents(this.data.minimumOrder, true);
+      await api.request('/profile/minimum-order', { minimumOrderCents }, 'PUT');
+      this.setData({ minimumOrder: (minimumOrderCents / 100).toFixed(2) });
+      wx.showToast({ title: '起送价已保存', icon: 'success' });
+    } catch (error) {
+      this.setData({ minimumOrderError: error.message });
+    } finally {
+      this.setData({ saving: false });
+    }
+  },
   business() {
     ui.action(this, async () => {
       const open = this.data.store.businessStatus !== '营业中';

@@ -6,7 +6,7 @@ const { money, photo, illustration } = require('../../utils/display');
 Page({
   data: {
     groups: [], totals: {}, address: null, foodText: '¥0.00', feeText: '¥0.00', totalText: '¥0.00',
-    config: {}, loading: true, loadError: '', submitting: false, unavailable: false
+    config: {}, loading: true, loadError: '', submitting: false, unavailable: false, belowMinimum: false
   },
 
   onShow() { this.load(); },
@@ -25,7 +25,9 @@ Page({
       if (address) wx.setStorageSync('selectedAddress', address);
 
       const latest = new Map();
+      const merchantMinimums = new Map();
       for (const merchant of catalog.merchants || []) {
+        merchantMinimums.set(merchant.id, merchant.minimumOrderCents || 0);
         for (const product of merchant.products) latest.set(product.id, { product, merchant });
       }
       this.items = cart.read().map(item => {
@@ -39,18 +41,26 @@ Page({
         };
       });
       const totals = cart.totals(this.items, config.deliveryFeeCents);
-      const groups = cart.groups(this.items).map(group => ({
-        ...group,
-        items: group.items.map(item => ({
-          ...item, amountText: money(item.priceCents * item.quantity),
-          picture: photo(item.photoPath, item.artwork), fallback: illustration(item.artwork)
-        })),
-        feeText: money(config.deliveryFeeCents),
-        orderText: money(cart.totals(group.items, config.deliveryFeeCents).totalCents)
-      }));
+      const groups = cart.groups(this.items).map(group => {
+        const amounts = cart.totals(group.items, config.deliveryFeeCents);
+        const minimum = merchantMinimums.get(group.merchantId) || 0;
+        const shortfall = minimum - amounts.foodCents;
+        return {
+          ...group,
+          items: group.items.map(item => ({
+            ...item, amountText: money(item.priceCents * item.quantity),
+            picture: photo(item.photoPath, item.artwork), fallback: illustration(item.artwork)
+          })),
+          feeText: money(amounts.deliveryFeeCents),
+          orderText: money(amounts.totalCents),
+          minimumText: minimum ? money(minimum) : '',
+          shortfallText: shortfall > 0 ? money(shortfall) : ''
+        };
+      });
       this.setData({
         groups, totals, address, config, loading: false,
         unavailable: this.items.some(item => item.unavailable),
+        belowMinimum: groups.some(group => group.shortfallText),
         paymentEnabled: ['mock', 'wechat'].includes(config.paymentMode),
         foodText: money(totals.foodCents), feeText: money(totals.deliveryFeeCents), totalText: money(totals.totalCents)
       });
@@ -71,7 +81,7 @@ Page({
   openCart() { return openCart(); },
 
   async submit() {
-    if (this.data.submitting || this.data.loading || this.data.unavailable || !this.data.paymentEnabled) return;
+    if (this.data.submitting || this.data.loading || this.data.unavailable || this.data.belowMinimum || !this.data.paymentEnabled) return;
     if (!this.data.address) return this.chooseAddress();
     const items = this.items.map(({ productId, quantity }) => ({ productId, quantity }));
     if (!items.length) return;

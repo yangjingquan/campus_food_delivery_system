@@ -53,7 +53,7 @@
         <view class="info">
           <view class="h3">{{item.name}}</view>
           <view class="small store-address" wx:if="{{item.address}}">{{item.address}}</view>
-          <view class="store-state {{item.open ? 'open' : ''}}">每店配送 {{item.deliveryFeeText}} · {{item.open ? '营业中' : '打烊 · 暂不接单'}}</view>
+          <view class="store-state {{item.open ? 'open' : ''}}">每单配送 {{item.deliveryFeeText}} · {{item.open ? '营业中' : '打烊 · 暂不接单'}}</view>
         </view>
       </view>
     </button>

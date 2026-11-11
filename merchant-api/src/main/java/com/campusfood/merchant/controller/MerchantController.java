@@ -75,6 +75,13 @@ public class MerchantController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/profile/minimum-order")
+    public ResponseEntity<Void> minimumOrder(@RequestHeader(value = AUTH, required = false) String auth,
+                                             @RequestBody Map<String, Object> body) {
+        stores.minimumOrder(store(auth), body);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/products")
     public List<Map<String, Object>> products(@RequestHeader(value = AUTH, required = false) String auth) {
         return products.list(store(auth));

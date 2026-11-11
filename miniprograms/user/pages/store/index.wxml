@@ -15,6 +15,7 @@
       <text class="small">每商户订单固定配送 {{merchant.deliveryFeeText}}</text>
       <text class="pill" wx:if="{{!merchant.open}}">打烊</text>
     </view>
+    <view wx:if="{{merchant.minimumOrderCents > 0}}" class="small">商品满 {{merchant.minimumOrderText}} 起送，不含配送费</view>
     <view class="hint {{merchant.open ? 'green' : 'orange'}}">
       {{merchant.open ? '商户做好后送至校园暂存点，再分批配送到寝室。' : '商户已打烊，餐品可浏览。'}}
     </view>

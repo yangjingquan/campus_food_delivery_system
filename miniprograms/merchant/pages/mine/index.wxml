@@ -13,6 +13,14 @@
       <button wx:if="{{store.auditStatus === '已通过'}}" class="list-button row" bindtap="business" disabled="{{saving}}" hover-class="pressed"><text>{{store.businessStatus === '营业中' ? '打烊' : '开始营业'}}</text><text class="badge">{{store.businessStatus}}</text></button>
       <button wx:if="{{store.auditStatus === '已通过'}}" class="list-button row" bindtap="devices" hover-class="pressed"><text>打印设备与订阅消息</text><text class="badge">查看</text></button>
     </view>
+    <view wx:if="{{store.auditStatus === '已通过'}}" class="card">
+      <text class="label">起送价（元）</text>
+      <input class="field" type="digit" value="{{minimumOrder}}" bindinput="inputMinimumOrder"
+        aria-label="起送价（元）" maxlength="12" disabled="{{saving}}" />
+      <view class="hint">按本店商品金额计算，不含配送费。设为 0 表示不限。</view>
+      <view wx:if="{{minimumOrderError}}" class="notice error">{{minimumOrderError}}</view>
+      <button class="btn plain wide separator" bindtap="saveMinimumOrder" disabled="{{saving}}" hover-class="pressed">保存起送价</button>
+    </view>
     <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
     <button class="btn plain wide separator" bindtap="logout" disabled="{{saving}}" hover-class="pressed">退出登录</button>
   </block>
