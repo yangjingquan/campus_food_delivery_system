@@ -165,8 +165,12 @@ try:
         second = executor.submit(concurrent_checkout, other_address['id'], other_token)
         concurrent_ids = [first.result(), second.result()]
     orders = one['merchantOrders'] + multi['merchantOrders']
-    assert all(re.fullmatch(r'\d{14}' + re.escape(order['merchantId']) + r'\d{8}', order['id']) for order in orders)
-    assert all(re.fullmatch(r'\d{14}M03\d{8}', order_id) for order_id in concurrent_ids)
+    merchant_codes = dict(row.split('\t') for row in root_sql(
+        f"SELECT id,CONV(order_code,10,36) FROM `{database}`.merchant WHERE id IN ('M01','M02','M03','M04')"
+    ).splitlines())
+    assert len(set(merchant_codes.values())) == 4
+    assert all(re.fullmatch(r'[0-9]{12}' + merchant_codes[order['merchantId']] + r'[0-9]{4}', order['id']) for order in orders)
+    assert all(re.fullmatch(r'[0-9]{12}' + merchant_codes['M03'] + r'[0-9]{4}', order_id) for order_id in concurrent_ids)
     assert len({order['id'] for order in orders} | set(concurrent_ids)) == len(orders) + len(concurrent_ids)
     print('PASS: order ID format and concurrent uniqueness, isolated checkout, refunds, fulfillment, and location')
 except Exception:

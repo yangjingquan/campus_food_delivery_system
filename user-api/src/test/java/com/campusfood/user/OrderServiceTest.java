@@ -59,6 +59,7 @@ class OrderServiceTest {
             when(rs.getInt(8)).thenReturn(0);
             when(rs.getString(9)).thenReturn("营业中");
             when(rs.getLong(10)).thenReturn(minimums.getOrDefault(productId, 0L));
+            when(rs.getLong(11)).thenReturn(secondMerchant ? 36L : 10L);
             return List.of(mapper.mapRow(rs, 0));
         }).when(db).query(anyString(), any(RowMapper.class), any(Object[].class));
     }
@@ -111,8 +112,8 @@ class OrderServiceTest {
 
         Map<?, ?> order = (Map<?, ?>) ((List<?>) response.get("merchantOrders")).getFirst();
         String id = (String) order.get("id");
-        assertTrue(id.matches("[0-9]{14}M03[0-9]{8}"));
-        LocalDateTime issuedAt = LocalDateTime.parse(id.substring(0, 14), DateTimeFormatter.ofPattern("uuuuMMddHHmmss"));
+        assertTrue(id.matches("[0-9]{12}A[0-9]{4}"));
+        LocalDateTime issuedAt = LocalDateTime.parse(id.substring(0, 12), DateTimeFormatter.ofPattern("uuMMddHHmmss"));
         assertTrue(!issuedAt.isBefore(before) && !issuedAt.isAfter(LocalDateTime.now(zone)));
         verify(db, times(2)).update(contains("INSERT INTO business_order"), any(Object[].class));
         verify(db).update(contains("SET reserved=reserved+"), any(Object[].class));

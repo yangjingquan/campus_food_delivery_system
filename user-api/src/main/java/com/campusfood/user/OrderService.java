@@ -31,13 +31,13 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class OrderService {
     private static final DateTimeFormatter ORDER_ID_TIME =
-        DateTimeFormatter.ofPattern("uuuuMMddHHmmss", Locale.ROOT).withZone(ZoneId.of("Asia/Shanghai"));
+        DateTimeFormatter.ofPattern("uuMMddHHmmss", Locale.ROOT).withZone(ZoneId.of("Asia/Shanghai"));
     private static final int ORDER_ID_ATTEMPTS = 8;
 
     private record RequestedLine(String productId, int quantity) {}
     private record CatalogLine(String productId, String merchantId, String merchantName, String productName,
                                String description, long priceCents, int stock, int reserved, String businessStatus,
-                               long minimumOrderCents) {}
+                               long minimumOrderCents, long merchantOrderCode) {}
     private record OrderLine(CatalogLine product, int quantity) {}
 
     private final JdbcTemplate db;
@@ -157,10 +157,12 @@ public class OrderService {
 
     private String insertMerchantOrder(Instant now, String paymentId, CatalogLine merchant, String summary,
             long foodCents, long fee, long total) {
-        String prefix = ORDER_ID_TIME.format(now) + merchant.merchantId();
+        // 商户短码由数据库分配，转为 36 进制后仍一一对应。
+        String shortCode = Long.toString(merchant.merchantOrderCode(), 36).toUpperCase(Locale.ROOT);
+        String prefix = ORDER_ID_TIME.format(now) + shortCode;
         for (int attempt = 0; attempt < ORDER_ID_ATTEMPTS; attempt++) {
-            int suffix = ThreadLocalRandom.current().nextInt(100_000_000);
-            String orderId = prefix + String.format(Locale.ROOT, "%08d", suffix);
+            int suffix = ThreadLocalRandom.current().nextInt(10_000);
+            String orderId = prefix + String.format(Locale.ROOT, "%04d", suffix);
             try {
                 // 用订单主键约束处理并发撞号。只重试订单插入，避免重复预占库存。
                 db.update("""
@@ -375,12 +377,12 @@ public class OrderService {
         for (RequestedLine request : sorted) {
             List<CatalogLine> found = db.query("""
                 SELECT p.id,p.merchant_id,m.name,p.name,p.description,p.price_cents,p.stock,p.reserved,
-                       m.business_status,m.minimum_order_cents
+                       m.business_status,m.minimum_order_cents,m.order_code
                 FROM merchant_product p JOIN merchant m ON m.id=p.merchant_id
                 WHERE p.id=? AND p.available=TRUE AND m.audit_status='已通过' FOR UPDATE
                 """, (rs, rowNum) -> new CatalogLine(rs.getString(1), rs.getString(2), rs.getString(3),
                     rs.getString(4), rs.getString(5), rs.getLong(6), rs.getInt(7), rs.getInt(8),
-                    rs.getString(9), rs.getLong(10)), request.productId());
+                    rs.getString(9), rs.getLong(10), rs.getLong(11)), request.productId());
             if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "商品已下架或不存在，请刷新菜单");
             CatalogLine product = found.get(0);
             if (!"营业中".equals(product.businessStatus())) throw new ResponseStatusException(HttpStatus.CONFLICT, product.merchantName() + " 当前已打烊");
