@@ -3,17 +3,19 @@
   <view class="h2">每一份付出，都有收获</view>
   <view class="small muted">配送收益与资金状态</view>
 </view>
-<view class="hero">
-  <view class="row">
-    <text class="label">可提现余额 / 元</text>
-    <template is="icon" data="{{name: 'wallet', tone: 'white'}}"/>
+<view class="hero wallet-hero">
+  <view class="row wallet-balance">
+    <view class="flex-fill">
+      <text class="label">可提现余额 / 元</text>
+      <view class="big-money {{finance.available.length > 10 ? 'long-amount' : ''}}"><text class="small">¥</text>{{finance.available}}</view>
+    </view>
+    <template is="icon" data="{{name: 'wallet', tone: 'white', size: 'wallet-symbol'}}"/>
   </view>
-  <view class="big-money"><text class="small">¥</text> {{finance.available}}</view>
   <template is="action" data="{{page: 'withdraw', label: '申请提现 ›', style: 'white full'}}"/>
   <view class="balance-sub">
-    <view><text class="span">待结算</text><text class="b">¥{{finance.pending}}</text></view>
-    <view><text class="span">售后暂缓</text><text class="b">¥{{finance.held}}</text></view>
-    <view><text class="span">提现冻结中</text><text class="b">¥{{finance.frozen}}</text></view>
+    <view><text class="span">待结算</text><text class="b {{finance.pending.length > 10 ? 'long-amount' : ''}}">¥{{finance.pending}}</text></view>
+    <view><text class="span">售后暂缓</text><text class="b {{finance.held.length > 10 ? 'long-amount' : ''}}">¥{{finance.held}}</text></view>
+    <view><text class="span">提现冻结中</text><text class="b {{finance.frozen.length > 10 ? 'long-amount' : ''}}">¥{{finance.frozen}}</text></view>
   </view>
 </view>
 <view class="sectiontitle"><text>收益概览</text><button class="link" bindtap="go" data-page="income">收入明细 ›</button></view>
@@ -22,8 +24,9 @@
   <template is="metric" data="{{value: finance.due, label: '累计应得 / 元'}}"/>
   <template is="metric" data="{{value: finance.paidOut, label: '已提现 / 元'}}"/>
 </view>
-<view class="card">
-  <template is="pairs" data="{{rows: [{label:'订单配送费',value:'¥ ' + finance.fee},
+<view class="card wallet-fees">
+  <view class="group-label">费用构成</view>
+  <template is="fees" data="{{rows: [{label:'订单配送费',value:'¥ ' + finance.fee},
     {label:'平台配送抽成',value:'− ¥ ' + finance.commission},{label:'骑手累计应得',value:'¥ ' + finance.due}]}}"/>
 </view>
 <view class="card flush">

@@ -1,4 +1,4 @@
-<view class="tabbar">
+<view wx:if="{{inline}}" class="tabbar">
   <button wx:for="{{tabs}}" wx:key="page" class="tab {{selected === item.page ? 'active' : ''}}"
     aria-label="{{item.label}}" bindtap="select" data-page="{{item.page}}" hover-class="pressed">
     <view class="tabicon">

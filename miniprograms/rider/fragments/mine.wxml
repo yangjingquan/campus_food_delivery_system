@@ -13,7 +13,7 @@
       <view class="small muted">认真送好每一单</view>
       <view class="strong top-space">累计 {{finance.orderCount}} 笔配送 · 应得 ¥{{finance.due}}</view>
     </view>
-    <template is="icon" data="{{name: 'leaf', size: 'icon-large'}}"/>
+    <template is="icon" data="{{name: 'leaf', size: 'profile-symbol'}}"/>
   </view>
 </view>
 <view class="card flush">

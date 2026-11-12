@@ -4,8 +4,8 @@
   <template is="chip" data="{{label: active.length + ' 笔配送中'}}"/>
 </view>
 <view class="segmented">
-  <button class="filter active" bindtap="refresh">配送中 {{active.length}}</button>
-  <button class="filter" bindtap="go" data-page="records">配送记录</button>
+  <button class="filter active" bindtap="refresh"><text class="control-label">配送中 {{active.length}}</text></button>
+  <button class="filter" bindtap="go" data-page="records"><text class="control-label">配送记录</text></button>
 </view>
 <template is="note" data="{{label: location.message, icon: 'pin'}}"/>
 <template wx:for="{{active}}" wx:key="id" is="orderCard" data="{{order: item, actions: true}}"/>

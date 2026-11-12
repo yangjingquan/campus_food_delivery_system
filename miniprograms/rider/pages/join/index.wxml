@@ -1,6 +1,6 @@
 <import src="../../fragments/common.wxml"/>
-<view class="page {{root ? 'root-page' : 'tight'}}">
-  <view wx:if="{{error}}" class="card">
+<view class="page {{root ? 'root-page' : ''}}">
+  <view wx:if="{{error}}" class="card error-card">
     <template is="note" data="{{label: error, tone: 'error'}}"/>
     <button class="btn outline full" bindtap="refresh" hover-class="pressed">重新加载</button>
   </view>
@@ -13,3 +13,14 @@
   </block>
 </view>
 <template wx:if="{{modal}}" is="modal" data="{{modal, busy}}"/>
+<view wx:if="{{picker}}" class="modal-layer sheet-layer" catchtap="closePicker">
+  <view class="picker-sheet" catchtap="noop">
+    <view class="row sheet-heading">
+      <button class="sheet-action muted" bindtap="closePicker" hover-class="pressed"><text class="control-label">取消</text></button>
+      <text>{{picker.title}}</text>
+      <button class="sheet-action" bindtap="confirmPicker" hover-class="pressed"><text class="control-label">确定</text></button>
+    </view>
+    <button wx:for="{{picker.options}}" wx:key="*this" class="sheet-option {{index === picker.index ? 'selected' : ''}}"
+      aria-pressed="{{index === picker.index}}" data-index="{{index}}" bindtap="selectPickerOption" hover-class="pressed"><text class="control-label">{{item}}</text></button>
+  </view>
+</view>

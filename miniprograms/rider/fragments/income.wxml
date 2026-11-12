@@ -5,7 +5,7 @@
   <template wx:for="{{visibleItems}}" wx:key="id" is="row" data="{{page: 'incomeDetail', id: item.id,
     icon: 'money', label: item.address + ' · ' + item.merchant, description: '订单 #' + item.code + ' · ' + item.status,
     value: '+ ' + item.due, status: item.incomeStatus}}"/>
-  <view wx:if="{{!visibleItems.length}}" class="empty small muted">暂无此类结算记录</view>
+  <view wx:if="{{!visibleItems.length}}" class="empty-list small muted">暂无此类结算记录</view>
 </view>
 <button wx:if="{{hasMore}}" class="btn outline full" bindtap="more" loading="{{busy}}" disabled="{{busy}}">查看更多</button>
 <template is="note" data="{{label: '订单结算后进入可提现余额。申请提现时相应金额会从可提现余额扣除并冻结。'}}"/>

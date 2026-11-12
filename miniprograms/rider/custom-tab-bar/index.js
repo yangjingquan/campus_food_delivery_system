@@ -1,6 +1,9 @@
 Component({
+  properties: {
+    inline: Boolean,
+    selected: String
+  },
   data: {
-    selected: 'home',
     tabs: [
       { page: 'home', icon: 'home', label: '配送台' },
       { page: 'orders', icon: 'orders', label: '我的配送' },

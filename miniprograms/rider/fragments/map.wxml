@@ -7,8 +7,8 @@
       <template is="icon" data="{{name: 'pin', size: 'icon-large'}}"/>
       <text class="small muted">{{order.hasCoordinates ? '配送地图' : '交付点缺少坐标'}}</text>
     </view>
-    <cover-view wx:if="{{!modal}}" class="map-badge">配送导航 · {{order.building}}</cover-view>
-    <cover-view wx:if="{{!modal}}" class="map-legend">{{location.shared ? '位置共享中' : '位置不可用'}}</cover-view>
+    <cover-view wx:if="{{!modal && order.hasCoordinates}}" class="map-badge">配送导航 · {{order.building}}</cover-view>
+    <cover-view wx:if="{{!modal && order.hasCoordinates}}" class="map-legend">{{location.shared ? '位置共享中' : '位置不可用'}}</cover-view>
   </view>
   <scroll-view class="map-pick" scroll-x>
     <button wx:for="{{active}}" wx:key="id" class="{{order.id === item.id ? 'active' : ''}}"

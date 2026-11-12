@@ -1,15 +1,18 @@
 <import src="../../fragments/common.wxml"/>
-<view class="page {{root ? 'root-page' : 'tight'}}">
-  <view wx:if="{{error}}" class="card">
-    <template is="note" data="{{label: error, tone: 'error'}}"/>
-    <button class="btn outline full" bindtap="refresh" hover-class="pressed">重新加载</button>
+<view class="page root-page">
+  <view class="root-content">
+    <view wx:if="{{error}}" class="card error-card">
+      <template is="note" data="{{label: error, tone: 'error'}}"/>
+      <button class="btn outline full" bindtap="refresh" hover-class="pressed">重新加载</button>
+    </view>
+    <view wx:elif="{{loading && !loaded}}" class="empty small muted">正在加载…</view>
+    <template wx:elif="{{gate}}" is="empty"
+      data="{{title: profile.auditStatus === '待审核' ? '学生身份审核中' : '先完成入驻，再开始配送',
+        description: '通过学生身份审核后，才可在暂存点扫码领取餐品。', page: 'audit', label: '查看入驻状态'}}"/>
+    <block wx:else>
+      <include src="../../fragments/home.wxml"/>
+    </block>
   </view>
-  <view wx:elif="{{loading && !loaded}}" class="empty small muted">正在加载…</view>
-  <template wx:elif="{{gate}}" is="empty"
-    data="{{title: profile.auditStatus === '待审核' ? '学生身份审核中' : '先完成入驻，再开始配送',
-      description: '通过学生身份审核后，才可在暂存点扫码领取餐品。', page: 'audit', label: '查看入驻状态'}}"/>
-  <block wx:else>
-    <include src="../../fragments/home.wxml"/>
-  </block>
+  <view class="root-footer"><rider-tab-bar inline selected="home"/></view>
 </view>
 <template wx:if="{{modal}}" is="modal" data="{{modal, busy}}"/>

@@ -1,5 +1,5 @@
 <import src="./common.wxml"/>
-<view class="details-title">
+<view class="details-title order-status">
   <template is="chip" data="{{label: order.status, tone: order.status === '配送中' ? '' : 'gray'}}"/>
   <view class="h2">{{order.status === '已关闭' ? '订单已关闭' : order.status === '已完成' ? '已送达，辛苦了' : '正在配送，请注意安全'}}</view>
   <text class="small muted">独立商户订单 #{{order.id}}</text>
@@ -7,13 +7,16 @@
 <template wx:if="{{order.status === '已关闭'}}" is="note"
   data="{{label: '该订单已停止配送。已领取订单的原应得报酬保留。', tone: 'warn'}}"/>
 <template wx:if="{{order.refundStatus !== '无售后'}}" is="note" data="{{label: order.refundStatus, tone: 'warn'}}"/>
-<view class="card">
+<view class="card delivery-destination">
   <view class="shop"><template is="icon" data="{{name: 'pin', size: 'icon-small'}}"/>配送目的地</view>
   <view class="destination">{{order.building}} <text class="em">{{order.room}}</text></view>
   <block wx:if="{{order.phone}}">
     <view class="divider"/>
-    <view class="row">
-      <text class="small">收餐人 {{order.receiver}} · {{order.displayPhone}}</text>
+    <view class="row contact-row">
+      <view class="small flex-fill">
+        <text>收餐人 {{order.receiver}}</text>
+        <text class="muted">{{order.displayPhone}}</text>
+      </view>
       <button class="btn outline slim" bindtap="call" hover-class="pressed" aria-label="联系收餐人">
         <template is="icon" data="{{name: 'phone', size: 'icon-small'}}"/>联系
       </button>
@@ -21,17 +24,25 @@
   </block>
 </view>
 <view class="card">
-  <view class="row">
-    <view class="shop"><template is="icon" data="{{name: 'shop', size: 'icon-small'}}"/>{{order.merchant}}</view>
-    <text class="tiny muted">共 {{order.products.length}} 种</text>
+  <view class="info-group">
+    <view class="group-label">餐品</view>
+    <view class="row">
+      <view class="shop"><template is="icon" data="{{name: 'shop', size: 'icon-small'}}"/><text>{{order.merchant}}</text></view>
+      <text class="tiny muted">共 {{order.products.length}} 种</text>
+    </view>
+    <view class="row product-row" wx:for="{{order.products}}" wx:key="index">
+      <text class="flex-fill">{{item.name}}</text><text class="muted">× {{item.quantity}}</text>
+    </view>
   </view>
-  <view class="divider"/>
-  <view class="row small product-row" wx:for="{{order.products}}" wx:key="index">
-    <text>{{item.name}}</text><text class="muted">× {{item.quantity}}</text>
+  <view class="info-group">
+    <view class="group-label">暂存点</view>
+    <template is="pairs" data="{{rows: [{label:'暂存点',value:'校园暂存点'}]}}"/>
   </view>
-  <view class="divider"/>
-  <template is="pairs" data="{{rows: [{label:'暂存点',value:'校园暂存点'},{label:'订单配送费',value:'¥ ' + order.fee},
-    {label:'平台抽成',value:'¥ ' + order.commission},{label:'骑手应得',value:'¥ ' + order.due}]}}"/>
+  <view class="info-group">
+    <view class="group-label">费用</view>
+    <template is="fees" data="{{rows: [{label:'订单配送费',value:'¥ ' + order.fee},
+      {label:'平台抽成',value:'¥ ' + order.commission},{label:'骑手应得',value:'¥ ' + order.due}]}}"/>
+  </view>
 </view>
 <view class="card timeline">
   <view class="sectiontitle timeline-title">配送进度</view>

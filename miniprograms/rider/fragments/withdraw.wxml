@@ -3,7 +3,7 @@
   <view class="row"><text class="small muted">提现至</text><text class="small">当前微信账户</text></view>
   <view class="divider"/>
   <view class="label">提现金额 / 元</view>
-  <view class="moneyinput"><text>¥</text><input type="digit" placeholder="0.00" value="{{amount}}" bindinput="amountInput" aria-label="提现金额"/></view>
+  <view class="moneyinput"><text>¥</text><input type="digit" placeholder-class="amount-placeholder" placeholder="0.00" value="{{amount}}" bindinput="amountInput" aria-label="提现金额"/></view>
   <view wx:if="{{fieldError}}" class="error-text">{{fieldError}}</view>
   <view class="row">
     <text class="small muted">可提现 ¥{{finance.available}}</text>

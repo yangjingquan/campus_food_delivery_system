@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "知行骑手"
+  "navigationBarTitleText": "知行骑手",
+  "usingComponents": {
+    "rider-tab-bar": "/custom-tab-bar/index"
+  }
 }

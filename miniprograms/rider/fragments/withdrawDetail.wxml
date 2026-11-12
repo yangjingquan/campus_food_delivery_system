@@ -5,7 +5,7 @@
       size: 'icon-large'}}"/>
   </view>
   <view class="h2">{{withdrawal.status}}</view>
-  <view class="big-money"><text class="small">¥</text> {{withdrawal.amount}}</view>
+  <view class="big-money withdraw-amount"><text class="small">¥</text>{{withdrawal.amount}}</view>
   <text class="small muted">{{withdrawal.status === '待审核' ? '已提交申请，等待管理员审核' : '可在下方查看处理进度'}}</text>
 </view>
 <template wx:if="{{withdrawal.reason || withdrawal.transferReason}}" is="note"

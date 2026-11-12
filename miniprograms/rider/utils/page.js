@@ -82,7 +82,6 @@ function register(screen) {
     },
 
     onShow() {
-      if (roots.includes(screen)) this.getTabBar?.()?.setData({ selected: screen });
       this.stopListening = location.listen(status => {
         const shared = status.syncedIds?.includes(this.orderId);
         this.setData({
@@ -392,13 +391,40 @@ function register(screen) {
       this.setData({ ['form.' + event.currentTarget.dataset.field]: event.detail.value });
     },
 
-    changeGender(event) {
-      this.setData({ genderIndex: Number(event.detail.value) });
+    openPicker(event) {
+      if (this.data.busy) return;
+      const gender = event.currentTarget.dataset.field === 'gender';
+      const selected = gender ? this.data.genderIndex : this.data.timeIndex;
+      this.setData({
+        picker: {
+          gender,
+          title: gender ? '性别' : '可送餐时间',
+          options: gender ? genderOptions : timeOptions,
+          index: Math.max(0, selected)
+        }
+      });
     },
 
-    changeTime(event) {
-      const timeIndex = Number(event.detail.value);
-      this.setData({ timeIndex, 'form.availableTime': timeIndex === 3 ? '' : timeOptions[timeIndex] });
+    selectPickerOption(event) {
+      if (!this.data.picker) return;
+      this.setData({ 'picker.index': Number(event.currentTarget.dataset.index) });
+    },
+
+    closePicker() {
+      this.setData({ picker: null });
+    },
+
+    confirmPicker() {
+      if (!this.data.picker) return;
+      const { gender, index } = this.data.picker;
+      if (gender) {
+        this.setData({ genderIndex: index, picker: null });
+      } else {
+        const availableTime = index === 3
+          ? (this.data.timeIndex === 3 ? this.data.form.availableTime : '')
+          : timeOptions[index];
+        this.setData({ timeIndex: index, 'form.availableTime': availableTime, picker: null });
+      }
     },
 
     changeConsent(event) {

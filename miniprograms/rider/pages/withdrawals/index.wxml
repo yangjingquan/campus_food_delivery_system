@@ -1,6 +1,6 @@
 <import src="../../fragments/common.wxml"/>
-<view class="page {{root ? 'root-page' : 'tight'}}">
-  <view wx:if="{{error}}" class="card">
+<view class="page {{root ? 'root-page' : ''}}">
+  <view wx:if="{{error}}" class="card error-card">
     <template is="note" data="{{label: error, tone: 'error'}}"/>
     <button class="btn outline full" bindtap="refresh" hover-class="pressed">重新加载</button>
   </view>

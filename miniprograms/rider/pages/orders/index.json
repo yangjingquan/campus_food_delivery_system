@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "我的配送"
+  "navigationBarTitleText": "我的配送",
+  "usingComponents": {
+    "rider-tab-bar": "/custom-tab-bar/index"
+  }
 }

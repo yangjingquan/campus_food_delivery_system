@@ -4,7 +4,7 @@
     <view class="shop"><template is="icon" data="{{name: 'pin', size: 'icon-small'}}"/>校园暂存点</view>
     <template is="chip" data="{{label: batches.period}}"/>
   </view>
-  <view class="h2">{{batches.current}} 当前批次</view>
+  <view class="h2 batch-heading">{{batches.current}} 当前批次</view>
   <view class="small muted">已到点待领取 {{batches.count}} 笔 · 逐单扫码领取</view>
   <view class="divider"/>
   <view class="batch-timeline">
@@ -30,7 +30,7 @@
     <view class="shop"><template is="icon" data="{{name: 'shop', size: 'icon-small'}}"/>{{item.merchant}}</view>
     <template is="chip" data="{{label: item.overdue ? '已跨两批次' : '待领取', tone: item.overdue ? 'amber' : ''}}"/>
   </view>
-  <view class="destination wait-code">#{{item.code}}</view>
+  <view class="destination">#{{item.code}}</view>
   <view class="items">到点时间 {{item.arrived}}</view>
 </view>
 <template wx:if="{{!batches.waiting.length}}" is="empty"

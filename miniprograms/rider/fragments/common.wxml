@@ -26,7 +26,7 @@
     <view class="h3">{{title}}</view>
     <view class="small muted">{{description}}</view>
     <view class="top-space" wx:if="{{page}}">
-      <template is="action" data="{{page, label, style: 'primary'}}"/>
+      <template is="action" data="{{page, label, style: 'primary full'}}"/>
     </view>
   </view>
 </template>
@@ -56,8 +56,17 @@
   </view>
 </template>
 
+<template name="fees">
+  <view class="fees">
+    <view class="fee" wx:for="{{rows}}" wx:key="label">
+      <text class="fee-label">{{item.label}}</text>
+      <text class="fee-value">{{item.value || '—'}}</text>
+    </view>
+  </view>
+</template>
+
 <template name="orderCard">
-  <view class="card">
+  <view class="card order-card">
     <view class="row">
       <view class="shop flex-fill">
         <template is="icon" data="{{name: 'shop', size: 'icon-small'}}"/>
@@ -65,7 +74,7 @@
       </view>
       <template is="chip" data="{{label: order.status, tone: order.status === '配送中' ? '' : 'gray'}}"/>
     </view>
-    <button class="full" data-page="detail" data-id="{{order.id}}" bindtap="go" hover-class="pressed">
+    <button class="order-link full" data-page="detail" data-id="{{order.id}}" bindtap="go" hover-class="pressed">
       <view class="destination">{{order.building}} <text class="em">{{order.room}}</text></view>
       <view class="items">订单 #{{order.code}}</view>
       <view class="items order-items">{{order.items}}</view>
@@ -75,7 +84,7 @@
     <template wx:if="{{order.refundStatus !== '无售后'}}" is="note" data="{{label: order.refundStatus, tone: 'warn'}}"/>
     <view class="card-actions" wx:if="{{actions && order.status === '配送中'}}">
       <template is="action" data="{{page: 'map', id: order.id, label: '导航', icon: 'nav', style: 'outline slim'}}"/>
-      <button class="btn primary slim" data-topic="complete" data-id="{{order.id}}" data-address="{{order.address}}"
+      <button class="btn slim" data-topic="complete" data-id="{{order.id}}" data-address="{{order.address}}"
         bindtap="openModal" hover-class="pressed">确认送达</button>
     </view>
     <view class="card-actions" wx:else>
@@ -91,7 +100,7 @@
 <template name="filters">
   <view class="segmented">
     <button wx:for="{{filters}}" wx:key="label" class="filter {{filter === item.value ? 'active' : ''}}"
-      data-value="{{item.value}}" bindtap="filter" hover-class="pressed">{{item.label}}</button>
+      data-value="{{item.value}}" bindtap="filter" hover-class="pressed"><text class="control-label">{{item.label}}</text></button>
   </view>
 </template>
 
