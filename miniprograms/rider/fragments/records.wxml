@@ -1,0 +1,7 @@
+<import src="./common.wxml"/>
+<view class="sectiontitle no-top"><text>配送记录</text><text class="small muted">已加载 {{items.length}} 笔</text></view>
+<template is="filters" data="{{filters, filter}}"/>
+<template wx:for="{{visibleItems}}" wx:key="id" is="orderCard" data="{{order: item}}"/>
+<template wx:if="{{!visibleItems.length}}" is="empty"
+  data="{{title: '暂无这类记录', description: '完成配送或订单关闭后，会显示在这里。', page: 'orders', label: '返回我的配送'}}"/>
+<button wx:if="{{hasMore}}" class="btn outline full" bindtap="more" loading="{{busy}}" disabled="{{busy}}">查看更多</button>

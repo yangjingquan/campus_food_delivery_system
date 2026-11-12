@@ -1,0 +1,44 @@
+<import src="./common.wxml"/>
+<view class="welcome">
+  <view wx:if="{{approved}}" class="row"><text class="small muted">校园配送</text><text class="date">{{batches.dayLabel}}</text></view>
+  <view class="h2">{{profile.name ? '你好，' + profile.name : '欢迎成为校园骑手'}}</view>
+  <view class="row">
+    <text class="small muted">校园暂存点</text>
+    <template is="chip" data="{{label: approved ? '已通过审核' : '待完成审核', tone: approved ? '' : 'amber'}}"/>
+  </view>
+</view>
+<view class="hero" wx:if="{{approved}}">
+  <view class="row">
+    <text class="label">当前配送批次 · {{batches.period}}</text>
+    <template is="chip" data="{{label: batches.operating ? '进行中' : '待开始'}}"/>
+  </view>
+  <view class="h2">{{batches.current}} <text class="hero-sub">出发批次</text></view>
+  <view class="hero-bottom">
+    <view><text class="num">{{active.length}}</text><text class="unit">笔正在配送</text></view>
+    <template is="action" data="{{page: 'orders', label: '查看配送', style: 'outline slim'}}"/>
+  </view>
+</view>
+<view class="metrics" wx:if="{{approved}}">
+  <template is="metric" data="{{value: batches.count, label: '已到点待领取'}}"/>
+  <template is="metric" data="{{value: finance.orderCount, label: '累计领取订单'}}"/>
+  <template is="metric" data="{{value: finance.due, label: '累计应得 / 元'}}"/>
+</view>
+<template wx:if="{{!approved}}" is="note" data="{{label: '通过学生身份审核后即可扫码领取。', tone: 'warn'}}"/>
+<template is="action" data="{{page: approved ? 'scan' : 'audit', icon: approved ? 'scan' : '', label: approved ? '扫码领取餐品' : '查看入驻状态'}}"/>
+<block wx:if="{{approved}}">
+  <view class="sectiontitle">
+    <text>正在配送</text>
+    <button class="link" bindtap="go" data-page="orders">全部 {{active.length}} 笔 ›</button>
+  </view>
+  <template wx:if="{{active.length}}" is="orderCard" data="{{order: active[0], actions: true}}"/>
+  <view wx:else class="card small muted">暂无配送中订单，前往暂存点逐单扫码领取。</view>
+  <button class="service-card" bindtap="go" data-page="waiting" hover-class="pressed">
+    <view class="service-icon"><template is="icon" data="{{name: 'clock'}}"/></view>
+    <view class="flex-fill">
+      <text class="b">下一批 {{batches.next}}</text>
+      <text class="span">{{batches.period}} · 查看批次安排</text>
+    </view>
+    <text class="arrow">›</text>
+  </button>
+  <template is="note" data="{{label: '请核对餐品、宿舍楼和门牌号，送达寝室门口后再确认完成。', icon: 'shield'}}"/>
+</block>

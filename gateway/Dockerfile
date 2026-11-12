@@ -6,6 +6,7 @@ COPY deploy/production/maven-settings.xml /tmp/maven-settings.xml
 COPY admin-api/pom.xml admin-api/pom.xml
 COPY user-api/pom.xml user-api/pom.xml
 COPY merchant-api/pom.xml merchant-api/pom.xml
+COPY rider-api/pom.xml rider-api/pom.xml
 COPY gateway/pom.xml gateway/pom.xml
 COPY gateway/src gateway/src
 RUN --mount=type=cache,target=/root/.m2 mvn -s /tmp/maven-settings.xml -B -DskipTests -pl gateway -am package

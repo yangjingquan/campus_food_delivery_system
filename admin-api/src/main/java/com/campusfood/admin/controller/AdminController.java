@@ -90,6 +90,16 @@ public class AdminController {
                 .body((byte[]) photo.get("image_data"));
     }
 
+    @GetMapping("/riders/{id}/student-card")
+    public ResponseEntity<byte[]> riderStudentCard(@PathVariable String id,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        var photo = service.riderStudentCard(id, authorization);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.parseMediaType((String) photo.get("media_type")))
+                .body((byte[]) photo.get("image_data"));
+    }
+
     @GetMapping("/overview")
     public Map<String, Object> overview(
             @RequestHeader(value = "Authorization", required = false) String authorization) {

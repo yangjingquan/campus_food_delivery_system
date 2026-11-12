@@ -1,0 +1,19 @@
+<import src="./common.wxml"/>
+<view class="card no-top">
+  <view class="row"><text class="small muted">提现至</text><text class="small">当前微信账户</text></view>
+  <view class="divider"/>
+  <view class="label">提现金额 / 元</view>
+  <view class="moneyinput"><text>¥</text><input type="digit" placeholder="0.00" value="{{amount}}" bindinput="amountInput" aria-label="提现金额"/></view>
+  <view wx:if="{{fieldError}}" class="error-text">{{fieldError}}</view>
+  <view class="row">
+    <text class="small muted">可提现 ¥{{finance.available}}</text>
+    <button class="link" bindtap="withdrawAll">全部提现</button>
+  </view>
+</view>
+<template is="note" data="{{label: '提交后金额将冻结。审核通过后发起转账，微信可能要求确认收款。', icon: 'shield'}}"/>
+<view class="card">
+  <view class="small strong">提现前请了解</view>
+  <view class="small muted top-space">审核、转账进度和失败原因可在提现记录中查看。</view>
+</view>
+<button class="btn primary full" bindtap="reviewWithdrawal" disabled="{{busy}}" hover-class="pressed">下一步 · 核对提现信息</button>
+<view class="top-space"><template is="action" data="{{page: 'withdrawals', label: '查看提现记录', style: 'outline full'}}"/></view>

@@ -1,0 +1,36 @@
+{
+  "appid": "wx8ebb7eaaac795c54",
+  "compileType": "miniprogram",
+  "projectname": "知行校园骑手",
+  "miniprogramRoot": "./",
+  "libVersion": "3.10.0",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "minified": true,
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "postcss": false,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "enhance": false,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "editorSetting": {}
+}

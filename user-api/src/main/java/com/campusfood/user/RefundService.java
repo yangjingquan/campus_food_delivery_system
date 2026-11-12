@@ -34,6 +34,7 @@ public class RefundService {
     public Map<String, Object> apply(long userId, String orderId, Map<String, Object> body) {
         Map<String, Object> order = lockedOrder(userId, orderId);
         if (!"支付成功".equals(order.get("mergedPaymentStatus"))
+                || order.get("rider_settled_at") != null
                 || "可提现".equals(order.get("settlement_status"))
                 || "退款失败".equals(order.get("refund_status"))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单当前不能申请售后");
@@ -267,7 +268,7 @@ public class RefundService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写协商退款原因");
         }
         var orders = db.queryForList("""
-            SELECT o.*,d.first_closed_at,p.payment_mode AS paymentMode
+            SELECT o.*,d.first_closed_at,d.rider_settled_at,p.payment_mode AS paymentMode
             FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
             JOIN payment_order p ON p.id=o.payment_id
             WHERE o.id=? AND o.merchant_id=? AND p.status='支付成功' FOR UPDATE
@@ -278,6 +279,7 @@ public class RefundService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "原支付单的真实退款渠道尚未接入");
         }
         if (!Boolean.TRUE.equals(order.get("accepted")) || Boolean.TRUE.equals(order.get("locking"))
+                || order.get("rider_settled_at") != null
                 || List.of("可提现", "已结算", "已提现").contains(order.get("settlement_status"))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单当前不能提交商户退款");
         }
@@ -515,7 +517,7 @@ public class RefundService {
     }
 
     private Map<String, Object> lockedOrder(long userId, String orderId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id,o.paid_cents,o.food_cents,o.refunded_cents,o.food_refunded_cents,o.payment_status,o.fulfill_status,o.settlement_status,o.refund_status,o.accepted,o.completed_at,d.first_closed_at,p.status AS mergedPaymentStatus,p.payment_mode AS paymentMode FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE o.id=? AND d.user_id=? FOR UPDATE", orderId, userId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id,o.paid_cents,o.food_cents,o.refunded_cents,o.food_refunded_cents,o.payment_status,o.fulfill_status,o.settlement_status,o.refund_status,o.accepted,o.completed_at,d.first_closed_at,d.rider_settled_at,p.status AS mergedPaymentStatus,p.payment_mode AS paymentMode FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE o.id=? AND d.user_id=? FOR UPDATE", orderId, userId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
         return rows.get(0);
     }

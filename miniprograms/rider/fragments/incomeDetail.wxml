@@ -1,0 +1,15 @@
+<import src="./common.wxml"/>
+<view class="details-title">
+  <view class="label">骑手应得 · 订单 #{{order.id}}</view>
+  <view class="big-money"><text class="small">¥</text> {{order.due}}</view>
+  <template is="chip" data="{{label: order.incomeStatus, tone: order.incomeStatus === '售后暂缓' ? 'amber' : ''}}"/>
+</view>
+<view class="card">
+  <template is="pairs" data="{{rows: [{label:'配送订单',value:order.address},{label:'商户',value:order.merchant},
+    {label:'配送费',value:'¥ ' + order.fee},{label:'平台抽成',value:'− ¥ ' + order.commission},{label:'骑手应得',value:'¥ ' + order.due},
+    {label:'履约状态',value:order.status},{label:'售后状态',value:order.refundStatus},
+    {label:'计时起点',value:order.startTime},{label:'预计可提现',value:order.incomeStatus === '售后暂缓' ? '售后未结，暂缓结算' : order.eligibleTime},
+    {label:'实际结算',value:order.settledTime}]}}"/>
+</view>
+<template is="note" data="{{label: order.lastRefundAt ? '以最后一次实际退款成功时间重新计算 24 小时，原应得报酬保留。' : '正常订单确认送达满 24 小时且无待处理售后后进入可提现余额。'}}"/>
+<template is="action" data="{{page: 'detail', id: order.id, label: '查看配送订单', style: 'outline full'}}"/>

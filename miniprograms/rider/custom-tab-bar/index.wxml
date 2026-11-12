@@ -1,0 +1,9 @@
+<view class="tabbar">
+  <button wx:for="{{tabs}}" wx:key="page" class="tab {{selected === item.page ? 'active' : ''}}"
+    aria-label="{{item.label}}" bindtap="select" data-page="{{item.page}}" hover-class="pressed">
+    <view class="tabicon">
+      <image src="/assets/{{item.icon}}-{{selected === item.page ? 'green' : 'muted'}}.png" mode="aspectFit"/>
+    </view>
+    <text>{{item.label}}</text>
+  </button>
+</view>

@@ -27,6 +27,7 @@ jobs={
  "campus-food-admin-api":"deploy/jenkins/Jenkinsfile.admin-api",
  "campus-food-user-api":"deploy/jenkins/Jenkinsfile.user-api",
  "campus-food-merchant-api":"deploy/jenkins/Jenkinsfile.merchant-api",
+ "campus-food-rider-api":"deploy/jenkins/Jenkinsfile.rider-api",
  "campus-food-admin-web":"deploy/jenkins/Jenkinsfile.admin-web",
 }
 for name,script in jobs.items():
@@ -64,12 +65,12 @@ PY
 )
 
 if [ "$#" -eq 0 ]; then
-  set -- campus-food-gateway campus-food-admin-api campus-food-user-api campus-food-merchant-api campus-food-admin-web
+  set -- campus-food-gateway campus-food-admin-api campus-food-user-api campus-food-merchant-api campus-food-rider-api campus-food-admin-web
 fi
 
 for name in "$@"; do
   case "$name" in
-    campus-food-gateway|campus-food-admin-api|campus-food-user-api|campus-food-merchant-api|campus-food-admin-web) ;;
+    campus-food-gateway|campus-food-admin-api|campus-food-user-api|campus-food-merchant-api|campus-food-rider-api|campus-food-admin-web) ;;
     *) echo "Unknown job: $name" >&2; exit 2 ;;
   esac
   file="$WORK/$name.xml"

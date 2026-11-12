@@ -1,0 +1,34 @@
+<import src="./common.wxml"/>
+<block wx:if="{{order}}">
+  <view class="map-wrap">
+    <map wx:if="{{order.hasCoordinates && !modal}}" class="map-native" latitude="{{order.latitude}}"
+      longitude="{{order.longitude}}" markers="{{markers}}" show-location="{{location.available}}" scale="16"/>
+    <view wx:else class="map-placeholder">
+      <template is="icon" data="{{name: 'pin', size: 'icon-large'}}"/>
+      <text class="small muted">{{order.hasCoordinates ? '配送地图' : '交付点缺少坐标'}}</text>
+    </view>
+    <cover-view wx:if="{{!modal}}" class="map-badge">配送导航 · {{order.building}}</cover-view>
+    <cover-view wx:if="{{!modal}}" class="map-legend">{{location.shared ? '位置共享中' : '位置不可用'}}</cover-view>
+  </view>
+  <scroll-view class="map-pick" scroll-x>
+    <button wx:for="{{active}}" wx:key="id" class="{{order.id === item.id ? 'active' : ''}}"
+      data-id="{{item.id}}" bindtap="selectMap" hover-class="pressed">{{item.address}}</button>
+  </scroll-view>
+  <view class="card">
+    <view class="shop"><template is="icon" data="{{name: 'pin', size: 'icon-small'}}"/>配送目的地</view>
+    <view class="destination">{{order.building}} <text class="em">{{order.room}}</text></view>
+    <view class="row">
+      <text class="small muted">订单 #{{order.code}}</text>
+      <text class="small">{{location.shared ? '此订单共享中' : '位置不可用'}}</text>
+    </view>
+  </view>
+  <template is="note" data="{{label: location.message + (location.time ? ' 最近采集 ' + location.time : ''), icon: 'pin'}}"/>
+  <button wx:if="{{!location.available}}" class="btn outline full" bindtap="authorizeLocation" hover-class="pressed">检查定位授权</button>
+  <button class="btn primary full" bindtap="openMap" hover-class="pressed">
+    <template is="icon" data="{{name: 'nav', tone: 'white', size: 'icon-small'}}"/>开始导航
+  </button>
+  <button class="btn outline full" bindtap="openModal" data-topic="complete" data-id="{{order.id}}"
+    data-address="{{order.address}}" hover-class="pressed">确认已送达此订单</button>
+</block>
+<template wx:else is="empty"
+  data="{{title: '当前没有可导航的配送', description: '可以为本人配送中的订单打开导航。', page: 'orders', label: '查看我的配送'}}"/>

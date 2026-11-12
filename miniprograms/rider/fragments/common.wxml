@@ -1,0 +1,109 @@
+<template name="icon">
+  <image class="icon {{size}}" mode="aspectFit" src="/assets/{{name}}-{{tone || 'green'}}.png" aria-hidden="true"/>
+</template>
+
+<template name="chip">
+  <view class="chip {{tone}}"><view class="dot"/><text>{{label}}</text></view>
+</template>
+
+<template name="note">
+  <view class="note {{tone}}">
+    <template is="icon" data="{{name: icon || 'info', size: 'icon-small'}}"/>
+    <text>{{label}}</text>
+  </view>
+</template>
+
+<template name="action">
+  <button class="btn {{style || 'primary full'}}" bindtap="go" data-page="{{page}}" data-id="{{id}}" hover-class="pressed">
+    <template wx:if="{{icon}}" is="icon" data="{{name: icon, tone: style ? 'green' : 'white', size: 'icon-small'}}"/>
+    <text>{{label}}</text>
+  </button>
+</template>
+
+<template name="empty">
+  <view class="empty">
+    <view class="empty-icon"><template is="icon" data="{{name: 'bag', size: 'icon-large'}}"/></view>
+    <view class="h3">{{title}}</view>
+    <view class="small muted">{{description}}</view>
+    <view class="top-space" wx:if="{{page}}">
+      <template is="action" data="{{page, label, style: 'primary'}}"/>
+    </view>
+  </view>
+</template>
+
+<template name="row">
+  <button class="listrow" bindtap="{{topic ? 'openModal' : 'go'}}" data-page="{{page}}" data-id="{{id}}"
+    data-topic="{{topic}}" hover-class="pressed">
+    <view class="rowicon"><template is="icon" data="{{name: icon}}"/></view>
+    <view class="text">
+      <text class="strong">{{label}}</text>
+      <text wx:if="{{description}}" class="small">{{description}}</text>
+    </view>
+    <view wx:if="{{value || status}}" class="right">
+      <view class="b">{{value}}</view>
+      <view class="small muted">{{status}}</view>
+    </view>
+    <text class="arrow" aria-hidden="true">›</text>
+  </button>
+</template>
+
+<template name="pairs">
+  <view class="detail-grid">
+    <view class="detail-pair" wx:for="{{rows}}" wx:key="label">
+      <text class="detail-key">{{item.label}}</text>
+      <text class="detail-value">{{item.value || '—'}}</text>
+    </view>
+  </view>
+</template>
+
+<template name="orderCard">
+  <view class="card">
+    <view class="row">
+      <view class="shop flex-fill">
+        <template is="icon" data="{{name: 'shop', size: 'icon-small'}}"/>
+        <text>{{order.merchant}}</text>
+      </view>
+      <template is="chip" data="{{label: order.status, tone: order.status === '配送中' ? '' : 'gray'}}"/>
+    </view>
+    <button class="full" data-page="detail" data-id="{{order.id}}" bindtap="go" hover-class="pressed">
+      <view class="destination">{{order.building}} <text class="em">{{order.room}}</text></view>
+      <view class="items">订单 #{{order.code}}</view>
+      <view class="items order-items">{{order.items}}</view>
+    </button>
+    <view class="divider"/>
+    <view class="row"><text class="small muted">骑手应得</text><text class="amount">¥ {{order.due}}</text></view>
+    <template wx:if="{{order.refundStatus !== '无售后'}}" is="note" data="{{label: order.refundStatus, tone: 'warn'}}"/>
+    <view class="card-actions" wx:if="{{actions && order.status === '配送中'}}">
+      <template is="action" data="{{page: 'map', id: order.id, label: '导航', icon: 'nav', style: 'outline slim'}}"/>
+      <button class="btn primary slim" data-topic="complete" data-id="{{order.id}}" data-address="{{order.address}}"
+        bindtap="openModal" hover-class="pressed">确认送达</button>
+    </view>
+    <view class="card-actions" wx:else>
+      <template is="action" data="{{page: 'detail', id: order.id, label: '查看详情', icon: 'arrow', style: 'outline slim'}}"/>
+    </view>
+  </view>
+</template>
+
+<template name="metric">
+  <view class="metric"><text class="b">{{value}}</text><text class="span">{{label}}</text></view>
+</template>
+
+<template name="filters">
+  <view class="segmented">
+    <button wx:for="{{filters}}" wx:key="label" class="filter {{filter === item.value ? 'active' : ''}}"
+      data-value="{{item.value}}" bindtap="filter" hover-class="pressed">{{item.label}}</button>
+  </view>
+</template>
+
+<template name="modal">
+  <view class="modal-layer" catchtap="closeModal">
+    <view class="modal" catchtap="noop">
+      <view class="h3">{{modal.title}}</view>
+      <view class="small modal-copy">{{modal.text}}</view>
+      <view class="modal-actions">
+        <button wx:if="{{modal.topic}}" class="btn outline" bindtap="closeModal" disabled="{{busy}}">取消</button>
+        <button class="btn primary" bindtap="confirmModal" loading="{{busy}}" disabled="{{busy}}">{{modal.confirm}}</button>
+      </view>
+    </view>
+  </view>
+</template>

@@ -1,0 +1,28 @@
+<import src="./common.wxml"/>
+<view class="profilehead">
+  <view class="avatar">{{profile.initial}}</view>
+  <view class="flex-fill">
+    <view class="h2">{{profile.name || '校园骑手'}}</view>
+    <text class="small muted">学生骑手</text>
+  </view>
+  <template is="chip" data="{{label: profile.auditStatus, tone: approved ? '' : 'amber'}}"/>
+</view>
+<view class="card profile-stats" wx:if="{{approved}}">
+  <view class="row">
+    <view>
+      <view class="small muted">认真送好每一单</view>
+      <view class="strong top-space">累计 {{finance.orderCount}} 笔配送 · 应得 ¥{{finance.due}}</view>
+    </view>
+    <template is="icon" data="{{name: 'leaf', size: 'icon-large'}}"/>
+  </view>
+</view>
+<view class="card flush">
+  <template is="row" data="{{page: 'profile', icon: 'user', label: '个人资料', description: '姓名、联系方式与可送餐时间'}}"/>
+  <template is="row" data="{{page: 'audit', icon: 'shield', label: '学生身份审核', description: approved ? '已通过学生身份审核' : '查看入驻资料与审核状态'}}"/>
+  <template is="row" data="{{page: 'records', icon: 'orders', label: '配送记录', description: '查看已完成与已关闭订单'}}"/>
+  <template is="row" data="{{page: 'wallet', icon: 'wallet', label: '我的收益', description: '结算明细与提现记录'}}"/>
+</view>
+<view class="card flush">
+  <template is="row" data="{{topic: 'permission', icon: 'pin', label: '位置授权说明', description: '按订单控制共享范围'}}"/>
+  <template is="row" data="{{page: 'help', icon: 'help', label: '帮助', description: '常见问题与联系运营'}}"/>
+</view>

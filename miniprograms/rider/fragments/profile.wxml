@@ -1,0 +1,12 @@
+<import src="./common.wxml"/>
+<view class="card">
+  <view class="profilehead">
+    <view class="avatar">{{profile.initial}}</view>
+    <view><view class="strong">{{profile.name || '校园骑手'}}</view><view class="small muted">学生骑手</view></view>
+  </view>
+  <template is="pairs" data="{{rows: [{label:'姓名',value:profile.name},{label:'联系方式',value:profile.displayPhone},
+    {label:'性别',value:profile.gender},{label:'可送餐时间',value:profile.availableTime},{label:'审核状态',value:profile.auditStatus}]}}"/>
+</view>
+<template is="note" data="{{label: '如需修改已审核资料，请联系暂存点运营人员。'}}"/>
+<template is="action" data="{{page: 'audit', label: '查看身份审核'}}"/>
+<button class="btn outline full" bindtap="openModal" data-topic="contact" hover-class="pressed">联系运营</button>

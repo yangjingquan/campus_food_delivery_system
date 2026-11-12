@@ -1,0 +1,13 @@
+<import src="./common.wxml"/>
+<view class="h2">配送路上，有据可循</view>
+<view class="card flush">
+  <template is="row" data="{{topic: 'scan', icon: 'scan', label: '如何领取多笔订单？', description: '在暂存点逐份扫描餐品小票'}}"/>
+  <template is="row" data="{{topic: 'settlement', icon: 'wallet', label: '收益何时可提现？', description: '查看正常完成、售后和退款的结算规则'}}"/>
+  <template is="row" data="{{topic: 'permission', icon: 'pin', label: '为什么需要位置信息？', description: '配送期间按订单向所属方共享'}}"/>
+  <template is="row" data="{{topic: 'refund', icon: 'orders', label: '配送中收到退款怎么办？', description: '退款成功关闭后停止配送'}}"/>
+  <template is="row" data="{{topic: 'contact', icon: 'phone', label: '联系运营', description: '校园暂存点现场运营人员'}}"/>
+</view>
+<view class="card">
+  <view class="strong">配送服务说明</view>
+  <view class="small muted top-space">请在送达寝室门口后确认完成。导航目的地为宿舍楼或可定位交付点，请按订单文字地址核对门牌。</view>
+</view>

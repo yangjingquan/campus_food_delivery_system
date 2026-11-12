@@ -44,6 +44,27 @@ public class InternalController {
         return delivery.pickup(body.get("token"), body.get("riderId"));
     }
 
+    @PostMapping("/riders/{riderId}/pickup")
+    public Map<String, Object> riderPickup(@PathVariable String riderId, @RequestBody Map<String, String> body,
+                                           HttpServletRequest request) {
+        delivery.requireInternal(request);
+        return delivery.pickup(body.get("token"), riderId, true);
+    }
+
+    @PostMapping("/riders/{riderId}/orders/{orderId}/complete")
+    public Map<String, Object> riderComplete(@PathVariable String riderId, @PathVariable String orderId,
+                                             HttpServletRequest request) {
+        delivery.requireInternal(request);
+        return delivery.riderComplete(riderId, orderId);
+    }
+
+    @PostMapping("/riders/{riderId}/orders/{orderId}/location")
+    public Map<String, Object> riderLocation(@PathVariable String riderId, @PathVariable String orderId,
+                                             @RequestBody Map<String, Object> body, HttpServletRequest request) {
+        delivery.requireInternal(request);
+        return delivery.riderLocation(riderId, orderId, body);
+    }
+
     @PostMapping("/orders/{orderId}/status")
     public Map<String, Object> updateStatus(@PathVariable String orderId, @RequestBody Map<String, Object> body, HttpServletRequest request) {
         delivery.requireInternal(request);

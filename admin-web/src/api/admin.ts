@@ -55,6 +55,9 @@ export const adminApi = {
   merchantPhoto(id: string) {
     return unwrap<Blob>(http.get(`/merchants/${encodeURIComponent(id)}/photo`, { responseType: 'blob' }))
   },
+  riderStudentCard(id: string) {
+    return unwrap<Blob>(http.get(`/riders/${encodeURIComponent(id)}/student-card`, { responseType: 'blob' }))
+  },
   products(params: { keyword?: string; merchantId?: string; availability?: string; page?: number; pageSize?: number }) {
     return unwrap<{ rows: Array<Record<string, unknown>>; total: number; page: number; pageSize: number }>(http.get('/products', { params }))
   },

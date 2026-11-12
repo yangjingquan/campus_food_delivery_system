@@ -1,0 +1,21 @@
+<import src="./common.wxml"/>
+<view class="center">
+  <view class="h2">逐单扫码，核对领餐</view>
+  <view class="small muted">请扫描每份餐品小票上的唯一订单二维码</view>
+</view>
+<view class="qrframe" aria-hidden="true">
+  <view class="corner"/><view class="corner"/><view class="corner"/><view class="corner"/>
+  <template is="icon" data="{{name: 'qr', tone: 'scan', size: 'qr-icon'}}"/>
+</view>
+<view class="small muted center">请将小票二维码对准微信扫码框</view>
+<view class="card">
+  <view class="row">
+    <text class="strong">扫描餐品小票</text>
+    <template is="chip" data="{{label: '逐单领取', tone: 'gray'}}"/>
+  </view>
+  <button class="btn primary full top-space" bindtap="scan" loading="{{busy}}" disabled="{{busy}}" hover-class="pressed">
+    <template is="icon" data="{{name: 'scan', tone: 'white', size: 'icon-small'}}"/>打开相机扫码领取
+  </button>
+</view>
+<template is="note" data="{{label: '同一趟可以配送多单。扫码成功后，该单进入配送流程。'}}"/>
+<template is="note" data="{{label: location.message, icon: 'pin'}}"/>

@@ -1,0 +1,38 @@
+<import src="./common.wxml"/>
+<view class="card no-top">
+  <view class="row">
+    <view class="shop"><template is="icon" data="{{name: 'pin', size: 'icon-small'}}"/>校园暂存点</view>
+    <template is="chip" data="{{label: batches.period}}"/>
+  </view>
+  <view class="h2">{{batches.current}} 当前批次</view>
+  <view class="small muted">已到点待领取 {{batches.count}} 笔 · 逐单扫码领取</view>
+  <view class="divider"/>
+  <view class="batch-timeline">
+    <view class="time">{{batches.current}}</view>
+    <view class="track"><text class="strong">当前批次</text><text class="tiny muted">餐品已到点可扫码领取</text></view>
+  </view>
+  <view class="batch-timeline">
+    <view class="time">{{batches.next}}</view>
+    <view class="track"><text class="strong">下一批次</text><text class="tiny muted">未赶上本批次的餐品顺延</text></view>
+  </view>
+  <view class="batch-timeline">
+    <view class="time">{{batches.later}}</view>
+    <view class="track"><text class="strong">后续批次</text><text class="tiny muted">以实际出餐与配送情况为准</text></view>
+  </view>
+  <button class="btn outline full" bindtap="subscribe" hover-class="pressed">
+    <template is="icon" data="{{name: 'bell', size: 'icon-small'}}"/>订阅配送提醒
+  </button>
+</view>
+<template is="note" data="{{label: '高峰每 ' + batches.config.peakBatch + ' 分钟、常规每 ' + batches.config.regularBatch + ' 分钟为配送批次。两批仍未领取由管理员协调。', tone: 'warn'}}"/>
+<view class="sectiontitle"><text>已到暂存点</text><text class="small muted">{{batches.count}} 笔</text></view>
+<view class="card" wx:for="{{batches.waiting}}" wx:key="code">
+  <view class="row">
+    <view class="shop"><template is="icon" data="{{name: 'shop', size: 'icon-small'}}"/>{{item.merchant}}</view>
+    <template is="chip" data="{{label: item.overdue ? '已跨两批次' : '待领取', tone: item.overdue ? 'amber' : ''}}"/>
+  </view>
+  <view class="destination wait-code">#{{item.code}}</view>
+  <view class="items">到点时间 {{item.arrived}}</view>
+</view>
+<template wx:if="{{!batches.waiting.length}}" is="empty"
+  data="{{title: '暂时没有待领取餐品', description: '可查看下一批次，或返回我的配送。', page: 'orders', label: '查看我的配送'}}"/>
+<template is="action" data="{{page: 'scan', icon: 'scan', label: '去扫码领取'}}"/>

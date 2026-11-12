@@ -244,6 +244,15 @@ public class AdminService {
         return photo;
     }
 
+    public Map<String, Object> riderStudentCard(String id, String authHeader) {
+        authorization.require(actor(authHeader), "rider.view");
+        var photo = riders.studentCard(id);
+        if (photo == null || !(photo.get("image_data") instanceof byte[])) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "学生证照片不存在");
+        }
+        return photo;
+    }
+
     @Transactional
     public Map<String, Object> action(AdminActionRequest body, String authHeader) {
         String username = actor(authHeader);

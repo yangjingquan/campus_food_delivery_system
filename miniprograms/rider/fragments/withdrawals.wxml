@@ -1,0 +1,9 @@
+<import src="./common.wxml"/>
+<view class="sectiontitle no-top"><text>提现记录</text><text class="small muted">已加载 {{items.length}} 笔</text></view>
+<view wx:if="{{items.length}}" class="card flush">
+  <template wx:for="{{items}}" wx:key="id" is="row" data="{{page: 'withdrawDetail', id: item.id, icon: 'wallet',
+    label: '提现至微信账户', description: item.time, value: '− ' + item.amount, status: item.status}}"/>
+</view>
+<template wx:else is="empty" data="{{title: '还没有提现记录', description: '申请提现后可在这里查看审核与转账进度。',
+  page: 'withdraw', label: '申请提现'}}"/>
+<button wx:if="{{hasMore}}" class="btn outline full" bindtap="more" loading="{{busy}}" disabled="{{busy}}">查看更多</button>

@@ -1,0 +1,43 @@
+server:
+  port: ${SERVER_PORT:8084}
+  error:
+    include-message: always
+spring:
+  config:
+    # 本地保留文件配置作为兜底；Nacos 中创建同名 YAML 后可覆盖服务配置。
+    import: optional:nacos:rider-api.properties?group=DEFAULT_GROUP
+  application:
+    name: rider-api
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3307/campus_admin?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}
+    username: ${DB_USER:campus}
+    password: ${DB_PASSWORD:campus_local_only}
+  flyway:
+    enabled: true
+    table: flyway_rider_api_schema_history
+    baseline-on-migrate: true
+    baseline-version: 0
+app:
+  internal-api-key: ${INTERNAL_API_KEY:}
+  wechat-master-key-file: ${WECHAT_MASTER_KEY_FILE:}
+  wechat-app-id: ${WECHAT_RIDER_APP_ID:wx8ebb7eaaac795c54}
+  user-api-url: ${RIDER_USER_API_URL:http://localhost:8081}
+  user-api-key: ${USER_API_INTERNAL_KEY:}
+  admin-api-url: ${RIDER_ADMIN_API_URL:http://localhost:8080}
+  admin-api-key: ${INTERNAL_API_KEY:}
+  reminder-template-id: ${RIDER_REMINDER_TEMPLATE_ID:}
+  reminder-time-field: ${RIDER_REMINDER_TIME_FIELD:}
+  reminder-message-field: ${RIDER_REMINDER_MESSAGE_FIELD:}
+spring.servlet.multipart:
+  max-file-size: 4MB
+  max-request-size: 5MB

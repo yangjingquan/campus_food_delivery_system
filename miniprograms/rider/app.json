@@ -1,0 +1,64 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/orders/index",
+    "pages/wallet/index",
+    "pages/mine/index",
+    "pages/waiting/index",
+    "pages/scan/index",
+    "pages/scanResult/index",
+    "pages/detail/index",
+    "pages/map/index",
+    "pages/records/index",
+    "pages/income/index",
+    "pages/incomeDetail/index",
+    "pages/withdraw/index",
+    "pages/withdrawals/index",
+    "pages/withdrawDetail/index",
+    "pages/join/index",
+    "pages/audit/index",
+    "pages/profile/index",
+    "pages/help/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "知行骑手",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f4f7f5",
+    "enablePullDownRefresh": true
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#698575",
+    "selectedColor": "#147b58",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "配送台"
+      },
+      {
+        "pagePath": "pages/orders/index",
+        "text": "我的配送"
+      },
+      {
+        "pagePath": "pages/wallet/index",
+        "text": "收益"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "配送期间向订单所属的用户和商户共享位置，并为骑手提供送达导航"
+    }
+  },
+  "requiredPrivateInfos": [
+    "getLocation"
+  ],
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

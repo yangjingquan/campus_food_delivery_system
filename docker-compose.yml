@@ -92,6 +92,8 @@ services:
       USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:-}
       USER_LOCATION_EXPIRY_SECONDS: ${USER_LOCATION_EXPIRY_SECONDS:-60}
     depends_on:
+      admin-api:
+        condition: service_healthy
       mysql:
         condition: service_healthy
       nacos:
@@ -115,6 +117,31 @@ services:
       WECHAT_MERCHANT_APP_ID: ${WECHAT_MERCHANT_APP_ID:-wxc93dfbb2d1cb6fb4}
       USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:-}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
+    volumes:
+      - ./.local/wechat-master.key:/run/secrets/wechat-master.key:ro
+    depends_on:
+      admin-api:
+        condition: service_healthy
+      user-api:
+        condition: service_healthy
+  rider-api:
+    build:
+      context: .
+      dockerfile: rider-api/Dockerfile
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/campus_admin?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USER: campus
+      DB_PASSWORD: ${DB_PASSWORD:-campus_local_only}
+      NACOS_SERVER_ADDR: nacos:8848
+      RIDER_USER_API_URL: http://user-api:8081
+      RIDER_ADMIN_API_URL: http://admin-api:8080
+      WECHAT_RIDER_APP_ID: ${WECHAT_RIDER_APP_ID:-wx8ebb7eaaac795c54}
+      USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:-}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      RIDER_REMINDER_TEMPLATE_ID: ${RIDER_REMINDER_TEMPLATE_ID:-}
+      RIDER_REMINDER_TIME_FIELD: ${RIDER_REMINDER_TIME_FIELD:-}
+      RIDER_REMINDER_MESSAGE_FIELD: ${RIDER_REMINDER_MESSAGE_FIELD:-}
       WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
     volumes:
       - ./.local/wechat-master.key:/run/secrets/wechat-master.key:ro

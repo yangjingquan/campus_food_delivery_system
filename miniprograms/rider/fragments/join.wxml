@@ -1,0 +1,33 @@
+<import src="./common.wxml"/>
+<view class="h2">加入校园配送</view>
+<view class="small muted">请填写入驻资料并上传学生证照片，供运营方核验学生身份。</view>
+<view class="card">
+  <label class="formlabel no-top" for="name">姓名</label>
+  <input class="input" id="name" value="{{form.name}}" maxlength="80" data-field="name" bindinput="formInput" placeholder="请输入姓名"/>
+  <label class="formlabel" for="phone">联系方式</label>
+  <input class="input" id="phone" type="number" value="{{form.phone}}" maxlength="11" data-field="phone" bindinput="formInput" placeholder="请输入手机号"/>
+  <view class="formlabel">性别</view>
+  <picker mode="selector" range="{{genderOptions}}" value="{{genderIndex < 0 ? 0 : genderIndex}}" bindchange="changeGender" aria-label="性别">
+    <view class="input">{{genderIndex < 0 ? '请选择' : genderOptions[genderIndex]}}</view>
+  </picker>
+  <view class="formlabel">可送餐时间</view>
+  <picker mode="selector" range="{{timeOptions}}" value="{{timeIndex < 0 ? 0 : timeIndex}}" bindchange="changeTime" aria-label="可送餐时间">
+    <view class="input">{{timeIndex < 0 ? '请选择' : timeOptions[timeIndex]}}</view>
+  </picker>
+  <input wx:if="{{timeIndex === 3}}" class="input top-space" maxlength="160" aria-label="填写可送餐时间"
+    value="{{form.availableTime}}" data-field="availableTime" bindinput="formInput" placeholder="例如 14:00-16:00"/>
+  <view class="formlabel">学生证照片</view>
+  <view class="student-card" wx:if="{{!studentCard}}">
+    <view class="student-photo"><template is="icon" data="{{name: 'user'}}"/></view>
+    <view><view class="h4 strong">上传清晰的学生证照片</view><view class="small muted">JPEG 或 PNG，4 MB 以内</view></view>
+  </view>
+  <image wx:else class="student-preview" src="{{studentCard}}" mode="aspectFit" bindtap="previewCard" aria-label="预览学生证照片"/>
+  <button class="link" bindtap="chooseCard">{{studentCard ? '更换照片' : '选择照片'}}</button>
+</view>
+<checkbox-group bindchange="changeConsent">
+  <label class="checkline"><checkbox color="#147b58" value="agree"/>
+    <text>我同意将学生证照片和联系方式用于校园骑手入驻审核。</text>
+  </label>
+</checkbox-group>
+<view wx:if="{{fieldError}}" class="error-text">{{fieldError}}</view>
+<button class="btn primary full" bindtap="submitApplication" loading="{{busy}}" disabled="{{busy}}" hover-class="pressed">提交入驻资料</button>

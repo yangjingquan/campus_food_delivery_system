@@ -105,12 +105,18 @@ services:
       USER_PAYMENT_MODE: ${USER_PAYMENT_MODE:-disabled}
       USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
       USER_LOCATION_EXPIRY_SECONDS: "60"
+      RIDER_ADMIN_API_URL: http://admin-api:8080
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
+      RIDER_TRANSFER_SCENE_ID: ${RIDER_TRANSFER_SCENE_ID:-}
+      RIDER_TRANSFER_SCENE_REPORTS: ${RIDER_TRANSFER_SCENE_REPORTS:-[]}
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
     volumes:
       - /opt/campus-food/secrets/wechat-master.key:/run/secrets/wechat-master.key:ro
     networks:
       - backend
     depends_on:
+      admin-api:
+        condition: service_healthy
       nacos:
         condition: service_healthy
     healthcheck:
@@ -151,6 +157,45 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8083'"]
+      interval: 20s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    mem_limit: 768m
+    logging: *log-config
+
+  rider-api:
+    image: campus-food/rider-api:${RIDER_API_TAG:-latest}
+    container_name: campus-food-rider-api
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:mysql://shop-mysql:3306/campus_food_delivery?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true
+      DB_USER: cfd_app
+      DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
+      NACOS_SERVER_ADDR: campus-food-nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:?set NACOS_USERNAME}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?set NACOS_PASSWORD}
+      RIDER_REMINDER_TEMPLATE_ID: ${RIDER_REMINDER_TEMPLATE_ID:-}
+      RIDER_REMINDER_TIME_FIELD: ${RIDER_REMINDER_TIME_FIELD:-}
+      RIDER_REMINDER_MESSAGE_FIELD: ${RIDER_REMINDER_MESSAGE_FIELD:-}
+      WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
+      RIDER_USER_API_URL: http://user-api:8081
+      RIDER_ADMIN_API_URL: http://admin-api:8080
+      WECHAT_RIDER_APP_ID: ${WECHAT_RIDER_APP_ID:-wx8ebb7eaaac795c54}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
+      USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY}
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
+    volumes:
+      - /opt/campus-food/secrets/wechat-master.key:/run/secrets/wechat-master.key:ro
+    networks:
+      - backend
+    depends_on:
+      admin-api:
+        condition: service_healthy
+      user-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8084'"]
       interval: 20s
       timeout: 5s
       retries: 12

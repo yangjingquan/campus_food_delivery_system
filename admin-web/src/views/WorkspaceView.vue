@@ -148,13 +148,15 @@ async function openDetails(row: Row) {
   clearPhoto()
   activeRow.value = row
   drawer.value = true
-  if (section.value !== 'merchants' || !row.hasPhoto) return
+  if (!['merchants', 'riders'].includes(section.value) || !row.hasPhoto) return
   const request = photoRequest
   try {
-    const blob = await adminApi.merchantPhoto(String(row.id))
+    const blob = section.value === 'riders'
+      ? await adminApi.riderStudentCard(String(row.id))
+      : await adminApi.merchantPhoto(String(row.id))
     if (request === photoRequest) merchantPhoto.value = URL.createObjectURL(blob)
   } catch {
-    if (request === photoRequest) photoError.value = '店铺图片加载失败'
+    if (request === photoRequest) photoError.value = '图片加载失败'
   }
 }
 function keyLabel(key: string) { return keyNames[key] || key }
@@ -289,7 +291,12 @@ function runRowAction(row: Row) {
         <p v-else class="muted">{{ photoError }}</p>
       </div>
       <div class="drawer-intro"><el-tag :type="statusType(String(activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || 'info'))" effect="light" round>{{ activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || '信息记录' }}</el-tag></div>
-      <div v-if="section === 'riders'" class="student-card-preview"><div class="id-placeholder"><el-icon><Avatar /></el-icon><span>证件待接入</span></div><div><strong>学生身份材料</strong></div></div>
+      <div v-if="section === 'riders'" class="detail-section">
+        <h3>学生身份材料</h3>
+        <img v-if="merchantPhoto" :src="merchantPhoto" alt="骑手提交的学生证照片"
+          style="display:block;max-width:100%;max-height:280px;object-fit:contain">
+        <p v-else class="muted">{{ photoError || (activeRow.hasPhoto ? '正在加载照片…' : '暂无学生证照片') }}</p>
+      </div>
       <div class="detail-grid">
         <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot','hasPhoto'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow[key], key) }}</strong></div></template>
       </div>

@@ -59,9 +59,37 @@ class MerchantSettlement {
             INSERT INTO account_journal(account_id,event_type,reference_id,available_delta,frozen_delta)
             VALUES(?,'settlement_credit',?,?,0)
             """, credit.merchant(), id, net);
+        recoverAdvances(credit.merchant(), id);
         db.update("UPDATE business_order SET settlement_status='可提现' WHERE id=?", id);
         db.update("UPDATE user_order_detail SET merchant_settled_cents=?,merchant_settled_at=? WHERE order_id=?",
             net, now, id);
+    }
+
+    private void recoverAdvances(String merchant, String order) {
+        // 商户余额入账时及时归还已垫付欠款。账户已锁定，与提现扣回使用同一账户锁和欠款顺序。
+        long available = db.queryForObject("SELECT balance_cents FROM finance_account WHERE id=?", Long.class, merchant);
+        var debts = db.queryForList("""
+            SELECT id,platform_advance_cents-recovered_cents AS outstanding
+            FROM finance_debt WHERE merchant_account_id=? AND platform_advance_cents>recovered_cents
+            ORDER BY id FOR UPDATE
+            """, merchant);
+        for (var debt : debts) {
+            long recovered = Math.min(available, ((Number) debt.get("outstanding")).longValue());
+            if (recovered == 0) {
+                return;
+            }
+            String id = debt.get("id").toString();
+            db.update("UPDATE finance_debt SET recovered_cents=recovered_cents+? WHERE id=?", recovered, id);
+            db.update("UPDATE finance_account SET balance_cents=balance_cents-? WHERE id=?", recovered, merchant);
+            db.update("UPDATE finance_account SET balance_cents=balance_cents+? WHERE id='SYSTEM_PLATFORM'", recovered);
+            String reference = java.util.UUID.nameUUIDFromBytes((order + ":" + id)
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+            db.update("""
+                INSERT INTO account_journal(account_id,event_type,reference_id,available_delta,frozen_delta,debt_id)
+                VALUES(?,'debt_recover',?, ?,0,?),('SYSTEM_PLATFORM','debt_receive',?, ?,0,?)
+                """, merchant, reference, -recovered, id, reference, recovered, id);
+            available -= recovered;
+        }
     }
 
     private record Credit(String merchant, long foodCents, BigDecimal foodRate) {

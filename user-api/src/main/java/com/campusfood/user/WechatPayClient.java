@@ -66,6 +66,26 @@ class WechatPayClient {
         return exchange(config, "GET", "/v3/refund/domestic/refunds/" + refundId, null);
     }
 
+    JsonNode riderTransfer(PaymentCredentials config, Map<String, Object> payload) {
+        return exchange(config, "POST", "/v3/fund-app/mch-transfer/transfer-bills", payload);
+    }
+
+    JsonNode queryRiderTransfer(PaymentCredentials config, String bill) {
+        return exchange(config, "GET", "/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/" + bill, null);
+    }
+
+    String encryptRecipient(PaymentCredentials config, String name) {
+        try {
+            var key = KeyFactory.getInstance("RSA").generatePublic(
+                new X509EncodedKeySpec(pem(config.publicKey(), "PUBLIC KEY")));
+            Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-1AndMGF1Padding");
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+            return Base64.getEncoder().encodeToString(cipher.doFinal(bytes(name)));
+        } catch (Exception error) {
+            throw WechatConfigurationService.paymentUnavailable();
+        }
+    }
+
     Map<String, String> parameters(PaymentCredentials config, String prepayId) {
         String timestamp = Long.toString(Instant.now().getEpochSecond());
         String nonce = nonce();
@@ -117,7 +137,7 @@ class WechatPayClient {
             JsonNode result = json.readTree(response.body());
             if (response.statusCode() >= 200 && response.statusCode() < 300) return result;
             if (response.statusCode() == 404
-                    && java.util.Set.of("ORDER_NOT_EXIST", "RESOURCE_NOT_EXISTS").contains(result.path("code").asText())) {
+                    && java.util.Set.of("ORDER_NOT_EXIST", "RESOURCE_NOT_EXISTS", "NOT_FOUND").contains(result.path("code").asText())) {
                 return result;
             }
         } catch (InterruptedException error) {

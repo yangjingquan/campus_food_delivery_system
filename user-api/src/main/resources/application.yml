@@ -43,3 +43,8 @@ app:
   location-expiry-seconds: ${USER_LOCATION_EXPIRY_SECONDS:60}
   session-hours: ${USER_SESSION_HOURS:24}
   unpaid-timeout-minutes: ${USER_UNPAID_TIMEOUT_MINUTES:30}
+  rider-transfer:
+    scene: ${RIDER_TRANSFER_SCENE_ID:}
+    reports: '${RIDER_TRANSFER_SCENE_REPORTS:[]}'
+    admin-url: ${RIDER_ADMIN_API_URL:http://localhost:8080}
+    admin-key: ${INTERNAL_API_KEY:}

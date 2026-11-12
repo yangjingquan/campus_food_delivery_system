@@ -1,0 +1,57 @@
+<import src="./common.wxml"/>
+<view class="details-title">
+  <template is="chip" data="{{label: order.status, tone: order.status === '配送中' ? '' : 'gray'}}"/>
+  <view class="h2">{{order.status === '已关闭' ? '订单已关闭' : order.status === '已完成' ? '已送达，辛苦了' : '正在配送，请注意安全'}}</view>
+  <text class="small muted">独立商户订单 #{{order.id}}</text>
+</view>
+<template wx:if="{{order.status === '已关闭'}}" is="note"
+  data="{{label: '该订单已停止配送。已领取订单的原应得报酬保留。', tone: 'warn'}}"/>
+<template wx:if="{{order.refundStatus !== '无售后'}}" is="note" data="{{label: order.refundStatus, tone: 'warn'}}"/>
+<view class="card">
+  <view class="shop"><template is="icon" data="{{name: 'pin', size: 'icon-small'}}"/>配送目的地</view>
+  <view class="destination">{{order.building}} <text class="em">{{order.room}}</text></view>
+  <block wx:if="{{order.phone}}">
+    <view class="divider"/>
+    <view class="row">
+      <text class="small">收餐人 {{order.receiver}} · {{order.displayPhone}}</text>
+      <button class="btn outline slim" bindtap="call" hover-class="pressed" aria-label="联系收餐人">
+        <template is="icon" data="{{name: 'phone', size: 'icon-small'}}"/>联系
+      </button>
+    </view>
+  </block>
+</view>
+<view class="card">
+  <view class="row">
+    <view class="shop"><template is="icon" data="{{name: 'shop', size: 'icon-small'}}"/>{{order.merchant}}</view>
+    <text class="tiny muted">共 {{order.products.length}} 种</text>
+  </view>
+  <view class="divider"/>
+  <view class="row small product-row" wx:for="{{order.products}}" wx:key="index">
+    <text>{{item.name}}</text><text class="muted">× {{item.quantity}}</text>
+  </view>
+  <view class="divider"/>
+  <template is="pairs" data="{{rows: [{label:'暂存点',value:'校园暂存点'},{label:'订单配送费',value:'¥ ' + order.fee},
+    {label:'平台抽成',value:'¥ ' + order.commission},{label:'骑手应得',value:'¥ ' + order.due}]}}"/>
+</view>
+<view class="card timeline">
+  <view class="sectiontitle timeline-title">配送进度</view>
+  <view class="timeline-item" wx:if="{{order.paidAt}}"><text class="strong">订单支付</text><text class="span">{{order.paidTime}}</text></view>
+  <view class="timeline-item" wx:if="{{order.arrivedAt}}"><text class="strong">到达暂存点</text><text class="span">{{order.arrivedTime}}</text></view>
+  <view class="timeline-item" wx:if="{{order.pickedUpAt}}"><text class="strong">扫码领取</text><text class="span">{{order.pickupTime}}</text></view>
+  <view class="timeline-item current" wx:if="{{order.closedAt || order.completedAt}}">
+    <text class="strong">{{order.status}}</text><text class="span">{{order.endTime}}</text>
+  </view>
+</view>
+<view class="card" wx:if="{{order.refunds.length}}">
+  <view class="sectiontitle timeline-title">售后记录</view>
+  <view class="timeline-item" wx:for="{{order.refunds}}" wx:key="index">
+    <text class="strong">{{item.status}} · ¥{{item.amount}}</text>
+    <text class="span">{{item.time}} · {{item.channelStatus}}</text>
+    <view wx:if="{{item.reason}}" class="small muted">{{item.reason}}</view>
+  </view>
+</view>
+<block wx:if="{{order.status === '配送中'}}">
+  <template is="action" data="{{page: 'map', id: order.id, label: '打开地图导航', icon: 'nav'}}"/>
+  <button class="btn outline full" bindtap="openModal" data-topic="complete" data-id="{{order.id}}"
+    data-address="{{order.address}}" hover-class="pressed">确认已送达</button>
+</block>

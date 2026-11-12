@@ -1,0 +1,14 @@
+<import src="./common.wxml"/>
+<view class="row page-heading">
+  <view class="h2">每一单，安心送达</view>
+  <template is="chip" data="{{label: active.length + ' 笔配送中'}}"/>
+</view>
+<view class="segmented">
+  <button class="filter active" bindtap="refresh">配送中 {{active.length}}</button>
+  <button class="filter" bindtap="go" data-page="records">配送记录</button>
+</view>
+<template is="note" data="{{label: location.message, icon: 'pin'}}"/>
+<template wx:for="{{active}}" wx:key="id" is="orderCard" data="{{order: item, actions: true}}"/>
+<template wx:if="{{!active.length}}" is="empty"
+  data="{{title: '当前没有配送任务', description: '前往暂存点，扫描餐品小票逐单领取。'}}"/>
+<template is="action" data="{{page: 'scan', icon: 'scan', label: active.length ? '继续扫码领取' : '去扫码领取'}}"/>

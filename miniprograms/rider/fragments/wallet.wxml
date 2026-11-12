@@ -1,0 +1,33 @@
+<import src="./common.wxml"/>
+<view class="welcome">
+  <view class="h2">每一份付出，都有收获</view>
+  <view class="small muted">配送收益与资金状态</view>
+</view>
+<view class="hero">
+  <view class="row">
+    <text class="label">可提现余额 / 元</text>
+    <template is="icon" data="{{name: 'wallet', tone: 'white'}}"/>
+  </view>
+  <view class="big-money"><text class="small">¥</text> {{finance.available}}</view>
+  <template is="action" data="{{page: 'withdraw', label: '申请提现 ›', style: 'white full'}}"/>
+  <view class="balance-sub">
+    <view><text class="span">待结算</text><text class="b">¥{{finance.pending}}</text></view>
+    <view><text class="span">售后暂缓</text><text class="b">¥{{finance.held}}</text></view>
+    <view><text class="span">提现冻结中</text><text class="b">¥{{finance.frozen}}</text></view>
+  </view>
+</view>
+<view class="sectiontitle"><text>收益概览</text><button class="link" bindtap="go" data-page="income">收入明细 ›</button></view>
+<view class="metrics">
+  <template is="metric" data="{{value: finance.orderCount, label: '累计领取 / 单'}}"/>
+  <template is="metric" data="{{value: finance.due, label: '累计应得 / 元'}}"/>
+  <template is="metric" data="{{value: finance.paidOut, label: '已提现 / 元'}}"/>
+</view>
+<view class="card">
+  <template is="pairs" data="{{rows: [{label:'订单配送费',value:'¥ ' + finance.fee},
+    {label:'平台配送抽成',value:'− ¥ ' + finance.commission},{label:'骑手累计应得',value:'¥ ' + finance.due}]}}"/>
+</view>
+<view class="card flush">
+  <template is="row" data="{{page: 'income', icon: 'orders', label: '收入与结算明细', description: '查看每笔订单应得与可提现时间'}}"/>
+  <template is="row" data="{{page: 'withdrawals', icon: 'wallet', label: '提现记录', description: '查看审核、转账及收款状态'}}"/>
+  <template is="row" data="{{topic: 'settlement', icon: 'info', label: '收益如何结算？', description: '满 24 小时且无未处理售后'}}"/>
+</view>
