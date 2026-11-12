@@ -94,7 +94,7 @@ textarea.field { height: 64px; }
 .label { display: block; margin-top: 8px; font-size: 13px; font-weight: 650; }
 .label:first-child { margin-top: 0; }
 .form-section { display: block; margin-top: 10px; color: var(--deep); font-size: 13px; font-weight: 700; }
-.field-grid, .tile-grid, .sales-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.field-grid, .tile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .currency-field { display: flex; align-items: center; gap: 5px; margin-top: 4px; padding: 0 10px; background: var(--field); border-radius: 8px; }
 .currency-field > text { flex: none; color: var(--muted); font-size: 13px; }
 .currency-field .field { flex: 1; min-width: 0; margin: 0; padding: 7px 0; background: transparent; }
@@ -131,14 +131,6 @@ textarea.field { height: 64px; }
 .product-thumb-image { display: block; width: 100%; height: 100%; }
 .product-line .hint { margin: 1px 0 3px; }
 
-.finance-screen .hero { background: radial-gradient(circle at 92% 95%, rgba(255, 255, 255, .08) 0 56px, transparent 57px), radial-gradient(circle at 87% 100%, rgba(255, 255, 255, .07) 0 88px, transparent 89px), linear-gradient(112deg, #165d44, #187856); }
-.hero-foot { margin-top: 7px; justify-content: flex-start; column-gap: 18px; }
-.sales-grid { margin: 9px 0 5px; gap: 0 10px; }
-.sales-grid .kv { display: block; padding: 3px 0 5px; }
-.sales-grid .kv text { display: block; text-align: left; }
-.sales-grid .kv text:last-child { font-weight: 700; }
-.sales-grid .net { grid-column: 1 / -1; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; }
-.sales-grid .net .price { color: var(--deep); }
 .tile-grid { margin-top: 9px; }
 .nav-tile {
   min-width: 0;
@@ -154,10 +146,6 @@ textarea.field { height: 64px; }
 }
 .tile-heading { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 700; }
 .tile-link { position: absolute; top: 11px; right: 9px; max-width: calc(100% - 50px); color: var(--deep); font-size: 12px; text-align: right; overflow-wrap: anywhere; }
-.finance-tiles .settlements { background: #e7f3ec; }
-.finance-tiles .debts { background: #faf1e2; }
-.finance-tiles .ledger { background: #e9f1f6; }
-.finance-tiles .withdrawals { background: #f0ecf8; }
 .business-status { display: flex; align-items: center; gap: 6px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 .status-dot.closed { background: #87978d; }
@@ -212,16 +200,9 @@ textarea.field { height: 64px; }
 .devices-screen .card .hint { margin-top: 7px; }
 @media (min-width: 520px) { .screen { padding-left: 28px; padding-right: 28px; } }
 
-/* 经营与店铺卡片的图标和入口在上，标题在下。 */
-.finance-screen .filter { background: transparent; border-color: transparent; }
-.finance-screen .filter.active { background: #dff0e5; border-color: #d7eadf; }
-.finance-screen .hero-foot { justify-content: space-between; }
-.sales-grid .kv:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+/* 店铺卡片的图标和入口在上，标题在下。 */
 .nav-tile .tile-heading { display: block; }
 .nav-tile .icon { width: 27px; height: 27px; padding: 5px; margin-bottom: 4px; border-radius: 8px; background: #e4f1e8; }
-.finance-tiles .debts .icon { background: #f1e1ca; }
-.finance-tiles .ledger .icon { background: #dce9f0; }
-.finance-tiles .withdrawals .icon { background: #e7e0f0; }
 .mine-screen .hero { min-height: 89px; background: #167653; }
 .mine-screen .hero .badge { background: #eaf5ed; color: var(--deep); }
 .mine-screen .hero .separator { margin-top: 19px; }

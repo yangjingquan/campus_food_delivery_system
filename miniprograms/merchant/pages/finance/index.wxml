@@ -1,47 +1,73 @@
 <import src="../../fragments/states.wxml" />
+
+<template name="sales-metric">
+  <view class="sales-metric {{tone}}">
+    <view class="metric-label">
+      <image class="metric-icon" src="/assets/ui/finance-{{icon}}.svg" mode="aspectFit" aria-hidden="true" />
+      <text>{{label}}</text>
+    </view>
+    <text class="metric-value">{{value}}</text>
+  </view>
+</template>
+
+<template name="account-link">
+  <button class="account-link {{kind}}" data-kind="{{kind}}" bindtap="records" hover-class="pressed" aria-label="{{title}}">
+    <view class="row top">
+      <image class="account-icon" src="/assets/ui/finance-{{icon}}.svg" mode="aspectFit" aria-hidden="true" />
+      <view class="account-link-action"><text>查看</text><view class="account-chevron" aria-hidden="true" /></view>
+    </view>
+    <view class="account-link-title">{{title}}</view>
+  </button>
+</template>
+
 <view class="screen finance-screen tab-screen">
   <view class="heading">经营与账户</view>
   <view class="hint">查看本店实收、退款与账户资金</view>
   <template is="state" data="{{blocked, error, loading}}" />
   <block wx:if="{{!blocked && !error && !loading && account}}">
-    <view class="hero">
+    <view class="balance-card">
       <view class="row top">
-        <view><view class="muted">可提现余额</view><view class="number">{{account.available}}</view></view>
-        <button class="btn" bindtap="withdraw" hover-class="pressed">申请提现</button>
+        <view class="flex">
+          <view class="balance-label">可提现余额</view>
+          <view class="balance-value">{{account.available}}</view>
+        </view>
+        <button class="btn balance-withdraw" bindtap="withdraw" hover-class="pressed">申请提现</button>
       </view>
-      <view class="row muted wrap hero-foot"><text>冻结 {{account.frozen}}</text><text>待扣回 {{account.debt}}</text></view>
+      <view class="row wrap balance-foot">
+        <text>冻结 {{account.frozen}}</text>
+        <text>待扣回 {{account.debt}}</text>
+      </view>
     </view>
-    <view class="card">
+
+    <view class="row sales-heading">
       <view class="section">销售概况</view>
-      <view class="filters">
-        <button wx:for="{{periods}}" wx:key="days" class="filter {{item.days === days ? 'active' : ''}}" data-days="{{item.days}}" bindtap="period" hover-class="pressed">{{item.label}}</button>
+      <view class="period-control" aria-label="销售统计时间">
+        <button wx:for="{{periods}}" wx:key="days" class="period-option {{item.days === days ? 'active' : ''}}"
+          data-days="{{item.days}}" bindtap="period" hover-class="pressed" aria-pressed="{{item.days === days}}">
+          <text>{{item.label}}</text>
+        </button>
       </view>
-      <view class="sales-grid">
-        <view class="kv"><text>支付订单</text><text>{{sales.count}} 单</text></view>
-        <view class="kv"><text>实付金额</text><text>{{sales.paid}}</text></view>
-        <view class="kv"><text>餐品金额</text><text>{{sales.food}}</text></view>
-        <view class="kv"><text>已退金额</text><text>{{sales.refunded}}</text></view>
-        <view class="kv net"><text>扣除退款后实收</text><text class="price">{{sales.net}}</text></view>
-      </view>
-      <view class="hint">按北京时间支付日期归集。实收含配送费，商户收入以结算与流水为准。</view>
     </view>
-    <view class="tile-grid finance-tiles">
-      <button class="nav-tile settlements" data-kind="settlements" bindtap="records" hover-class="pressed">
-        <view class="tile-heading"><image class="icon" src="/assets/ui/receipt.svg" mode="aspectFit" aria-hidden="true" /><text>订单结算</text></view>
-        <text class="tile-link">查看 ›</text>
-      </button>
-      <button class="nav-tile debts" data-kind="debts" bindtap="records" hover-class="pressed">
-        <view class="tile-heading"><image class="icon" src="/assets/ui/wallet.svg" mode="aspectFit" aria-hidden="true" /><text>欠款与扣回</text></view>
-        <text class="tile-link">查看 ›</text>
-      </button>
-      <button class="nav-tile ledger" data-kind="ledger" bindtap="records" hover-class="pressed">
-        <view class="tile-heading"><image class="icon" src="/assets/ui/ledger.svg" mode="aspectFit" aria-hidden="true" /><text>资金流水</text></view>
-        <text class="tile-link">查看 ›</text>
-      </button>
-      <button class="nav-tile withdrawals" data-kind="withdrawals" bindtap="records" hover-class="pressed">
-        <view class="tile-heading"><image class="icon" src="/assets/ui/cash.svg" mode="aspectFit" aria-hidden="true" /><text>提现记录</text></view>
-        <text class="tile-link">查看 ›</text>
-      </button>
+    <view class="sales-metrics">
+      <template is="sales-metric" data="{{tone: 'orders', icon: 'orders', label: '支付订单', value: sales.count + ' 单'}}" />
+      <template is="sales-metric" data="{{tone: 'paid', icon: 'paid', label: '实付金额', value: sales.paid}}" />
+      <template is="sales-metric" data="{{tone: 'food', icon: 'food', label: '餐品金额', value: sales.food}}" />
+      <template is="sales-metric" data="{{tone: 'refunded', icon: 'refund', label: '已退金额', value: sales.refunded}}" />
+      <template is="sales-metric" data="{{tone: 'net', icon: 'net', label: '扣除退款后实收', value: sales.net}}" />
+    </view>
+    <view class="sales-note">
+      <image class="note-icon" src="/assets/ui/finance-info.svg" mode="aspectFit" aria-hidden="true" />
+      <view>
+        <view>按北京时间支付日期归集。</view>
+        <view>实收含配送费，商户收入以结算与流水为准。</view>
+      </view>
+    </view>
+
+    <view class="account-links">
+      <template is="account-link" data="{{kind: 'settlements', icon: 'orders', title: '订单结算'}}" />
+      <template is="account-link" data="{{kind: 'debts', icon: 'debt', title: '欠款与扣回'}}" />
+      <template is="account-link" data="{{kind: 'ledger', icon: 'trend', title: '资金流水'}}" />
+      <template is="account-link" data="{{kind: 'withdrawals', icon: 'withdraw', title: '提现记录'}}" />
     </view>
   </block>
 </view>
