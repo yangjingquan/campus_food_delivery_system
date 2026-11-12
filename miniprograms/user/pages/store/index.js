@@ -1,4 +1,4 @@
-const { openCart } = require('../../utils/navigation');
+const { openCart, openCheckout } = require('../../utils/navigation');
 const api = require('../../utils/api');
 const cart = require('../../utils/cart');
 const display = require('../../utils/display');
@@ -58,5 +58,6 @@ Page({
     this.refreshCart();
   },
 
-  viewCart() { return openCart(); }
+  viewCart() { return openCart(); },
+  checkout() { return openCheckout(); }
 });

@@ -1,23 +1,32 @@
 <import src="../../fragments/states.wxml" />
-<view class="screen">
-  <view class="row top">
+<view class="screen products-screen tab-screen">
+  <view class="row top page-header">
     <view class="flex"><view class="heading">商品管理</view><view class="hint">管理售价、库存与上下架</view></view>
     <button wx:if="{{!blocked && !loading && !error}}" class="btn primary" bindtap="edit" hover-class="pressed">新增商品</button>
   </view>
   <template is="state" data="{{blocked, error, loading}}" />
   <block wx:if="{{!blocked && !error && !loading}}">
-    <scroll-view class="filters" scroll-x>
+    <view class="filters">
       <button wx:for="{{labels}}" wx:key="*this" class="filter {{index === filter ? 'active' : ''}}" data-index="{{index}}" bindtap="select" hover-class="pressed">{{item}}</button>
-    </scroll-view>
+    </view>
     <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
     <view wx:if="{{!visible.length}}" class="card empty muted">当前分类暂无商品</view>
-    <view wx:for="{{visible}}" wx:key="id" class="card">
-      <view class="row top"><text class="section flex">{{item.name}}</text><text class="badge {{item.status !== '在售' ? 'warn' : ''}}">{{item.status}}</text></view>
-      <view class="hint">{{item.category}} · 可售 {{item.availableStock}} 份 · 预占 {{item.reserved}} 份</view>
-      <view class="price separator">{{item.price}}</view>
-      <view class="actions">
+    <view wx:for="{{visible}}" wx:key="id" class="card work-card">
+      <view class="row top product-line">
+        <view class="product-thumb {{item.hasPhoto ? 'load-thumbnail' : ''}}" data-id="{{item.id}}">
+          <image wx:if="{{thumbnails[item.id]}}" class="product-thumb-image" src="{{thumbnails[item.id]}}" mode="aspectFill" lazy-load aria-label="商品图片" />
+          <image wx:else class="icon" src="/assets/ui/photo.svg" mode="aspectFit" aria-hidden="true" />
+        </view>
+        <view class="flex">
+          <view class="section">{{item.name}}</view>
+          <view class="hint">{{item.category}} · 可售 {{item.availableStock}} 份 · 预占 {{item.reserved}} 份</view>
+          <view class="price">{{item.price}}</view>
+        </view>
+        <text class="badge {{item.status !== '在售' ? 'warn' : ''}}">{{item.status}}</text>
+      </view>
+      <view class="actions split-actions">
         <button class="btn plain" data-id="{{item.id}}" bindtap="edit" hover-class="pressed">编辑／库存记录</button>
-        <button class="btn" data-id="{{item.id}}" bindtap="toggle" disabled="{{saving}}" hover-class="pressed">{{item.available ? '下架' : '上架'}}</button>
+        <button class="btn {{item.available ? 'plain' : 'primary'}}" data-id="{{item.id}}" bindtap="toggle" disabled="{{saving}}" hover-class="pressed">{{item.available ? '下架' : '上架'}}</button>
       </view>
     </view>
   </block>

@@ -1,15 +1,15 @@
 <import src="../../fragments/states.wxml" />
-<view class="screen">
+<view class="screen withdraw-screen dock-screen">
   <view class="heading">申请提现</view>
   <template is="state" data="{{error, loading}}" />
   <block wx:if="{{!error && !loading}}">
     <view class="hero"><view class="muted">扣除待扣回款项后可申请</view><view class="number">{{available}}</view><view class="muted">待扣回 {{debt}}</view></view>
     <view class="card">
       <text class="label">提现金额（元）</text>
-      <input aria-label="提现金额（元）" class="field" type="digit" value="{{amount}}" bindinput="input" placeholder="0.00" />
+      <view class="currency-field"><text aria-hidden="true">¥</text><input aria-label="提现金额（元）" class="field" type="digit" value="{{amount}}" bindinput="input" placeholder="0.00" /></view>
       <view class="hint">提交后冻结申请金额。审核进度与打款结果可在提现记录中查看。</view>
       <view wx:if="{{formError}}" class="notice error" aria-live="polite">{{formError}}</view>
-      <button class="btn primary wide separator" bindtap="submit" disabled="{{saving || (!max && !pending)}}" loading="{{saving}}" hover-class="pressed">{{pending ? '确认原申请结果' : '确认提现金额'}}</button>
     </view>
+    <view class="action-dock"><button class="btn primary" bindtap="submit" disabled="{{saving || (!max && !pending)}}" loading="{{saving}}" hover-class="pressed">{{pending ? '确认原申请结果' : '确认提现金额'}}</button></view>
   </block>
 </view>

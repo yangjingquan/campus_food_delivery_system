@@ -7,3 +7,4 @@
 .store-page .product-card { min-height: 159px; }
 .store-page .foodline .small { margin-top: 5px; }
 .store-page .food-price-row { min-height: 34px; margin-top: 20px; flex-wrap: wrap; }
+.store-actions.two-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 10px; }

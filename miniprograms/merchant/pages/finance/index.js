@@ -3,7 +3,11 @@ const ui = require('../../utils/ui');
 
 Page({
   data: { days: 1, periods: [{ days: 1, label: '今日' }, { days: 7, label: '近 7 天' }, { days: 30, label: '近 30 天' }], loading: true },
-  onShow() { this.refresh(); },
+  onShow() {
+    const tabBar = this.getTabBar?.();
+    if (tabBar) tabBar.setData({ selected: '/pages/finance/index' });
+    this.refresh();
+  },
   onPullDownRefresh() { this.refresh().finally(() => wx.stopPullDownRefresh()); },
   onboarding: ui.onboarding,
   async refresh() {

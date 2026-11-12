@@ -3,3 +3,4 @@
 .cart-page .foodline { align-items: flex-start; gap: 13px; min-height: 97px; }
 .cart-page .food-price-row { margin-top: 36px; flex-wrap: wrap; }
 .cart-page .foodline + .foodline { margin-top: 13px; }
+.cart-page .cart-quantity { min-width: 24px; font-weight: 700; line-height: 1.4; white-space: nowrap; }

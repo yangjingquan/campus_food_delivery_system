@@ -1,9 +1,9 @@
 <import src="../../fragments/states.wxml" />
-<view class="screen">
+<view class="screen order-screen">
   <view class="heading">订单详情</view>
   <template is="state" data="{{error, loading: loading && !order}}" />
   <block wx:if="{{order && !error}}">
-    <view class="hint mono" selectable>{{order.id}}</view>
+    <view class="hint">订单编号 <text class="mono" selectable>{{order.id}}</text></view>
     <view class="card">
       <view class="row summary"><text class="section">履约进度</text><text class="badge">{{order.status}}</text></view>
       <view class="kv"><text>支付</text><text>{{order.paymentStatus}}</text></view>
@@ -13,17 +13,17 @@
       <view wx:if="{{order.status === '待商户接单'}}" class="kv"><text>接单截止</text><text>{{deadline}}{{acceptExpired ? ' · 已超时' : ''}}</text></view>
       <view wx:if="{{arrivedAt}}" class="kv"><text>送达暂存点</text><text>{{arrivedAt}}</text></view>
       <view wx:if="{{order.intervene}}" class="notice">{{order.interveneReason || '待管理员介入'}}</view>
-      <view class="actions">
+      <view class="actions fulfillment-actions">
         <button wx:if="{{!order.pendingRefund && !order.intervene && !acceptExpired && order.status === '待商户接单'}}" class="btn primary" data-action="accept" bindtap="status" disabled="{{saving}}" hover-class="pressed">确认接单</button>
+        <button wx:if="{{order.accepted && order.status !== '已关闭'}}" class="btn plain" bindtap="ticket" hover-class="pressed">小票／补打</button>
         <button wx:if="{{!order.pendingRefund && order.status === '商户出餐中'}}" class="btn primary" data-action="arrive" bindtap="status" disabled="{{saving}}" hover-class="pressed">确认到点</button>
-        <button wx:if="{{order.accepted && order.status !== '已关闭'}}" class="btn" bindtap="ticket" hover-class="pressed">小票／补打</button>
         <button wx:if="{{order.status === '配送中'}}" class="btn" bindtap="map" hover-class="pressed">骑手位置</button>
       </view>
     </view>
     <view class="card">
       <view class="section">餐品与费用</view>
       <view wx:for="{{lines}}" wx:key="index" class="kv"><text>{{item.name}} × {{item.quantity}}</text><text>{{item.amount}}</text></view>
-      <view class="kv"><text>餐品小计</text><text>{{amounts.food}}</text></view>
+      <view class="kv fee-start"><text>餐品小计</text><text>{{amounts.food}}</text></view>
       <view class="kv"><text>配送费</text><text>{{amounts.delivery}}</text></view>
       <view class="kv"><text>实付</text><text class="price">{{amounts.paid}}</text></view>
       <view class="kv"><text>已退款</text><text>{{amounts.refunded}}</text></view>
@@ -32,17 +32,17 @@
     <view class="card">
       <view class="section">收餐信息</view>
       <view class="kv"><text>{{order.delivery.receiverName}}</text><text>{{order.delivery.building}} {{order.delivery.room}}</text></view>
-      <button class="btn plain wide separator" bindtap="phone" hover-class="pressed">联系用户 {{order.delivery.phone}}</button>
+      <button class="btn plain centered separator" bindtap="phone" hover-class="pressed">联系用户 {{order.delivery.phone}}</button>
     </view>
     <view class="card">
       <view class="section">售后处理</view>
       <view wx:if="{{!aftersales.length}}" class="hint">暂无售后申请</view>
       <view wx:for="{{aftersales}}" wx:key="id" class="separator">
-        <view class="row summary"><text class="price">{{item.amount}}</text><text class="badge">{{item.status}}</text></view>
+        <view class="row summary"><text class="price">{{item.amount}}</text><text class="badge {{item.status === '退款失败' ? 'danger' : item.status === '拒绝退款' || item.status === '渠道未知' || item.status === '处理中' ? 'warn' : ''}}">{{item.status}}</text></view>
         <view>{{item.reason}}</view><view class="hint">{{item.time}} · {{item.channelStatus}}</view>
         <view wx:if="{{item.channelReason}}" class="notice">{{item.channelReason}}</view>
         <view wx:if="{{item.offlineTime}}" class="hint">线下实退 {{item.offlineTime}} · {{item.offlineChannel}}</view>
-        <view wx:if="{{item.status === '待商户处理'}}" class="actions">
+        <view wx:if="{{item.status === '待商户处理'}}" class="actions split-actions refund-actions">
           <button class="btn primary" data-action="approve" data-id="{{item.id}}" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">同意退款</button>
           <button class="btn plain" data-action="reject" data-id="{{item.id}}" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">拒绝退款</button>
         </view>
@@ -60,7 +60,7 @@
         </picker>
         <block wx:if="{{refundForm.type === 'partial'}}">
           <text class="label">部分退款金额（元）</text>
-          <input aria-label="部分退款金额（元）" class="field" type="digit" data-field="amount" bindinput="input" value="{{refundForm.amount}}" />
+          <view class="currency-field"><text aria-hidden="true">¥</text><input aria-label="部分退款金额（元）" class="field" type="digit" data-field="amount" bindinput="input" value="{{refundForm.amount}}" /></view>
         </block>
         <view class="row separator"><text>退款成功后恢复该单库存</text><switch aria-label="退款成功后恢复该单库存" checked="{{refundForm.restoreStock}}" color="#167953" bindchange="restore" /></view>
       </block>
@@ -68,7 +68,7 @@
         <text class="label">处理原因</text><textarea aria-label="处理原因" class="field" data-field="reason" bindinput="input" value="{{refundForm.reason}}" maxlength="500" />
       </block>
       <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
-      <view class="actions"><button class="btn plain" bindtap="cancelRefund" disabled="{{saving}}" hover-class="pressed">取消</button><button class="btn primary" bindtap="submitRefund" disabled="{{saving}}" loading="{{saving}}" hover-class="pressed">确认处理</button></view>
+      <view class="actions split-actions"><button class="btn plain" bindtap="cancelRefund" disabled="{{saving}}" hover-class="pressed">取消</button><button class="btn primary" bindtap="submitRefund" disabled="{{saving}}" loading="{{saving}}" hover-class="pressed">确认处理</button></view>
     </view>
     <view wx:elif="{{formError}}" class="notice error">{{formError}}</view>
     <view wx:if="{{events.length}}" class="card">

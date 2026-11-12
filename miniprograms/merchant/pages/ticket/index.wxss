@@ -1,1 +1,5 @@
-.ticket-qr { display: block; width: 192px; height: 192px; margin: 12px auto; }
+.receipt-heading { padding-bottom: 9px; text-align: center; }
+.receipt-lines { border-top: 1px dashed #c9d6cc; border-bottom: 1px dashed #c9d6cc; padding: 6px 0; margin-bottom: 5px; }
+.ticket-qr { display: block; width: 178px; height: 178px; margin: 9px auto; }
+.pickup-code { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-top: 7px; color: var(--muted); }
+.pickup-code .mono { min-width: 0; color: var(--ink); text-align: right; font-weight: 700; overflow-wrap: anywhere; }

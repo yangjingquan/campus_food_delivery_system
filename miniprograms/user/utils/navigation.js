@@ -1,3 +1,7 @@
+const cart = require('./cart');
+
+let openingCheckout = false;
+
 function openCart() {
   const pages = getCurrentPages();
   const previous = pages[pages.length - 2];
@@ -5,4 +9,13 @@ function openCart() {
   return wx.navigateTo({ url: '/pages/cart/index' });
 }
 
-module.exports = { openCart };
+function openCheckout() {
+  if (openingCheckout || !cart.read().length) return;
+  openingCheckout = true;
+  return wx.navigateTo({
+    url: '/pages/confirm/index',
+    complete: () => { openingCheckout = false; }
+  });
+}
+
+module.exports = { openCart, openCheckout };

@@ -1,5 +1,5 @@
 <import src="../../fragments/states.wxml" />
-<view class="screen">
+<view class="screen onboarding-screen">
   <view class="heading">{{store && store.auditStatus === '已通过' ? '店铺资料' : '商户入驻'}}</view>
   <view class="hint">提交店铺资料，由平台管理员审核</view>
   <template is="state" data="{{error: loggedIn ? error : '', loading}}" />
@@ -8,7 +8,7 @@
     <view class="hint muted">使用当前微信账号管理店铺订单、商品和收入。</view>
     <button class="btn wide separator" bindtap="login" loading="{{saving}}" disabled="{{saving}}" hover-class="pressed">微信登录</button>
   </view>
-  <view wx:if="{{store && !loading}}" class="card">
+  <view wx:if="{{store && !loading}}" class="card store-summary">
     <view class="row"><text class="section">{{store.name}}</text><text class="badge">{{store.auditStatus}}</text></view>
     <view wx:if="{{store.auditReason}}" class="notice">{{store.auditReason}}</view>
     <view wx:if="{{revision}}" class="notice">资料变更：{{revision.status}} {{revision.reason}}</view>
@@ -20,20 +20,27 @@
       <image wx:if="{{photo}}" class="photo" src="{{photo}}" mode="aspectFill" aria-label="店铺图片" />
     </block>
     <button wx:if="{{!editable && store.auditStatus === '已通过'}}" class="btn primary wide separator" bindtap="workbench" hover-class="pressed">进入订单工作台</button>
-    <button wx:elif="{{!editable}}" class="btn plain wide separator" bindtap="refresh" hover-class="pressed">刷新审核状态</button>
+    <button wx:elif="{{!editable}}" class="btn plain centered separator" bindtap="refresh" hover-class="pressed">刷新审核状态</button>
+  </view>
+  <view wx:if="{{loggedIn && !store && !loading && !error}}" class="card store-summary">
+    <view class="row"><text class="section">入驻状态</text><text class="badge neutral">未申请</text></view>
+    <view class="hint">填写并提交店铺资料后，可在此查看审核进度。</view>
   </view>
   <view wx:if="{{loggedIn && editable && !loading && !error}}" class="card">
     <view class="section">{{store && store.auditStatus === '已通过' ? '提交资料变更' : '填写入驻资料'}}</view>
+    <view class="form-section">基本信息</view>
     <text class="label">店铺名称</text><input aria-label="店铺名称" class="field" data-field="name" bindinput="input" value="{{form.name}}" maxlength="120" />
+    <view class="form-section">联系方式</view>
     <text class="label">联系人</text><input aria-label="联系人" class="field" data-field="contact" bindinput="input" value="{{form.contact}}" maxlength="80" />
     <text class="label">联系电话</text><input aria-label="联系电话" class="field" type="number" data-field="phone" bindinput="input" value="{{form.phone}}" maxlength="20" />
     <text class="label">店铺地址</text><input aria-label="店铺地址" class="field" data-field="address" bindinput="input" value="{{form.address}}" maxlength="255" />
-    <text class="label">店铺图片</text>
+    <text class="form-section">店铺图片</text>
     <image wx:if="{{photo}}" class="photo" src="{{photo}}" mode="aspectFill" aria-label="店铺图片" />
+    <view wx:else class="photo-placeholder"><image class="icon" src="/assets/ui/photo.svg" mode="aspectFit" aria-hidden="true" /></view>
     <view wx:if="{{photoError}}" class="hint">{{photoError}}</view>
-    <button class="btn plain wide separator" bindtap="choosePhoto" hover-class="pressed">{{photo ? '更换店铺图片' : '选择店铺图片'}}</button>
+    <button class="btn plain separator" bindtap="choosePhoto" hover-class="pressed">{{photo ? '更换店铺图片' : '选择店铺图片'}}</button>
     <view class="hint">JPEG 或 PNG，最大 1 MB</view>
-    <button class="btn primary wide separator" bindtap="save" loading="{{saving}}" disabled="{{saving}}" hover-class="pressed">提交审核</button>
+    <button class="btn primary align-end separator" bindtap="save" loading="{{saving}}" disabled="{{saving}}" hover-class="pressed">提交审核</button>
   </view>
   <view wx:if="{{formError}}" class="notice error" aria-live="polite">{{formError}}</view>
 </view>

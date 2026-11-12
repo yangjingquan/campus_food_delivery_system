@@ -1,6 +1,7 @@
 const cart = require('../../utils/cart');
 const display = require('../../utils/display');
 const { showDialog, dialogEvents } = require('../../utils/dialog');
+const { openCheckout } = require('../../utils/navigation');
 
 Page({
   ...dialogEvents,
@@ -43,7 +44,7 @@ Page({
       return this.load();
     });
   },
-  checkout() { if (!this.data.cartCount) return; wx.navigateTo({ url: '/pages/confirm/index' }); },
+  checkout() { return openCheckout(); },
   openStore(event) { wx.navigateTo({ url: `/pages/store/index?id=${event.currentTarget.dataset.id}` }); },
   openHome() { wx.switchTab({ url: '/pages/home/index' }); }
 });

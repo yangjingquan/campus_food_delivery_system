@@ -4,7 +4,11 @@ const { choosePhoto } = require('../../utils/photo');
 
 Page({
   data: { loading: true, categories: [], categoryIndex: 0, form: { name: '', category: '', description: '', stock: '', price: '', available: true } },
-  onLoad(options) { this.id = options.id || ''; this.refresh(); },
+  onLoad(options) {
+    this.id = options.id || '';
+    wx.setNavigationBarTitle({ title: this.id ? '编辑商品' : '新增商品' });
+    this.refresh();
+  },
   onPullDownRefresh() { this.refresh().finally(() => wx.stopPullDownRefresh()); },
   async refresh() {
     this.setData({ loading: true, error: '' });

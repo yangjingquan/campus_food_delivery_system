@@ -1,0 +1,7 @@
+<view class="tab-bar" aria-label="商户工作台导航">
+  <button wx:for="{{tabs}}" wx:key="path" class="tab {{selected === item.path ? 'selected' : ''}}"
+    data-path="{{item.path}}" bindtap="switchTab" aria-label="{{item.text}}" aria-current="{{selected === item.path ? 'page' : 'false'}}">
+    <image class="tab-icon" src="/assets/{{item.icon}}{{selected === item.path ? '-active' : ''}}.png" mode="aspectFit" aria-hidden="true" />
+    <text>{{item.text}}</text>
+  </button>
+</view>

@@ -18,7 +18,7 @@
               <view class="price">{{food.priceText}}</view>
               <view class="stepper">
                 <button data-id="{{food.productId}}" data-delta="-1" aria-label="减少一份" bindtap="change">−</button>
-                <text>{{food.quantity}}</text>
+                <text class="cart-quantity">{{food.quantity}}</text>
                 <button data-id="{{food.productId}}" data-delta="1" aria-label="增加一份"
                   disabled="{{food.quantity >= food.availableStock || food.quantity >= 99}}" bindtap="change">＋</button>
               </view>

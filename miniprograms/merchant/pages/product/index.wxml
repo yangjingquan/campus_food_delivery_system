@@ -1,34 +1,48 @@
 <import src="../../fragments/states.wxml" />
-<view class="screen">
+<view class="screen product-screen dock-screen">
   <view class="heading">{{id ? '编辑商品' : '新增商品'}}</view>
   <template is="state" data="{{error, loading}}" />
   <block wx:if="{{!error && !loading}}">
     <view class="card">
-      <text class="label">商品名称</text><input aria-label="商品名称" class="field" data-field="name" bindinput="input" value="{{form.name}}" maxlength="120" />
+      <view class="section">基本信息</view>
+      <text class="label">商品名称</text><input aria-label="商品名称" class="field" data-field="name" bindinput="input" value="{{form.name}}" placeholder="请输入商品名称" maxlength="120" />
       <text class="label">分类</text>
       <picker aria-label="食品分类" mode="selector" range="{{categories}}" value="{{categoryIndex}}"
         disabled="{{!categories.length || saving}}" bindchange="selectCategory">
-        <view class="field">{{form.category || (categories.length ? '请选择食品分类' : '暂无可选食品分类')}}</view>
+        <view class="field row"><text>{{form.category || (categories.length ? '请选择食品分类' : '暂无可选食品分类')}}</text><text aria-hidden="true">⌄</text></view>
       </picker>
-      <text class="label">商品描述</text><textarea aria-label="商品描述" class="field" data-field="description" bindinput="input" value="{{form.description}}" maxlength="500" />
-      <text class="label">商品图片{{id ? '' : '（必填）'}}</text>
-      <image wx:if="{{photo}}" class="photo" src="{{photo}}" mode="aspectFit" aria-label="商品图片预览" />
-      <button class="btn plain wide separator" bindtap="choosePhoto" disabled="{{saving || choosingPhoto}}" hover-class="pressed">
-        {{choosingPhoto ? '正在选择图片…' : photo || form.hasPhoto ? '更换商品图片' : '选择商品图片'}}
+      <text class="label">商品描述</text><textarea aria-label="商品描述" class="field" data-field="description" bindinput="input" value="{{form.description}}" placeholder="选填，最多 500 字" maxlength="500" />
+    </view>
+    <view class="card">
+      <view class="section">商品图片</view>
+      <view class="hint">商品图片{{id ? '' : '（必填）'}}</view>
+      <button class="photo-picker {{photo ? 'has-photo' : ''}}" bindtap="choosePhoto" disabled="{{saving || choosingPhoto}}" hover-class="pressed"
+        aria-label="{{photo || form.hasPhoto ? '更换商品图片' : '选择商品图片'}}">
+        <image wx:if="{{photo}}" class="photo" src="{{photo}}" mode="aspectFit" aria-label="商品图片预览" />
+        <text wx:else class="photo-plus" aria-hidden="true">＋</text>
+        <text class="photo-picker-label">{{choosingPhoto ? '正在选择图片…' : photo || form.hasPhoto ? '更换商品图片' : '点击添加商品图片'}}</text>
       </button>
       <view class="hint">JPEG 或 PNG，最多 1 张，最大 1 MB</view>
       <view wx:if="{{photoError}}" class="notice error">{{photoError}}</view>
-      <text class="label">售价（元）</text><input aria-label="售价（元）" class="field" type="digit" data-field="price" bindinput="input" value="{{form.price}}" />
-      <text class="label">总库存（份）</text><input aria-label="总库存（份）" class="field" type="number" data-field="stock" bindinput="input" value="{{form.stock}}" />
+    </view>
+    <view class="card">
+      <view class="section">价格与库存</view>
+      <view class="field-grid">
+        <view>
+          <text class="label">售价（元）</text>
+          <view class="currency-field"><text aria-hidden="true">¥</text><input aria-label="售价（元）" class="field" type="digit" data-field="price" bindinput="input" value="{{form.price}}" /></view>
+        </view>
+        <view><text class="label">总库存（份）</text><input aria-label="总库存（份）" class="field" type="number" data-field="stock" bindinput="input" value="{{form.stock}}" /></view>
+      </view>
       <view class="hint">库存为 0 时显示售罄。待支付订单已预占 {{form.reserved || 0}} 份。</view>
       <view class="row separator"><text>商品上架</text><switch aria-label="商品上架" checked="{{form.available}}" color="#167953" bindchange="availability" /></view>
       <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
-      <button class="btn primary wide separator" bindtap="save" loading="{{saving}}" disabled="{{saving || choosingPhoto}}" hover-class="pressed">保存商品</button>
     </view>
     <view wx:if="{{id}}" class="card">
       <view class="section">手动库存调整记录</view>
       <view wx:if="{{!history.length}}" class="hint">暂无手动调整</view>
       <view wx:for="{{history}}" wx:key="index" class="kv"><text>{{item.time}}</text><text>{{item.previousStock}} → {{item.newStock}} 份</text></view>
     </view>
+    <view class="action-dock"><button class="btn primary" bindtap="save" loading="{{saving}}" disabled="{{saving || choosingPhoto}}" hover-class="pressed">保存商品</button></view>
   </block>
 </view>

@@ -1,19 +1,21 @@
 <import src="../../fragments/states.wxml" />
-<view class="screen">
+<view class="screen ticket-screen dock-screen">
   <view class="heading">小票预览</view>
   <view class="hint">同一订单补打时使用同一领取码</view>
   <template is="state" data="{{error, loading}}" />
   <block wx:if="{{ticket && !loading && !error}}">
-    <view class="card">
-      <view class="section">{{store.name}}</view>
-      <view class="hint mono" selectable>{{ticket.id}}</view>
-      <view wx:for="{{lines}}" wx:key="index" class="kv"><text>{{item.name}} × {{item.quantity}}</text><text>{{item.amount}}</text></view>
+    <view class="card receipt">
+      <view class="receipt-heading"><view class="section">{{store.name}}</view>
+      <view class="hint mono" selectable>{{ticket.id}}</view></view>
+      <view class="receipt-lines">
+        <view wx:for="{{lines}}" wx:key="index" class="kv"><text>{{item.name}} × {{item.quantity}}</text><text>{{item.amount}}</text></view>
+      </view>
       <view class="kv"><text>配送费</text><text>{{fee}}</text></view>
       <view class="kv"><text>实付</text><text class="price">{{paid}}</text></view>
       <image wx:if="{{ticket.qrImage}}" class="ticket-qr" src="{{ticket.qrImage}}" mode="aspectFit" aria-label="订单领取二维码" />
-      <view class="kv"><text>订单领取码</text><text class="mono" selectable>{{ticket.code}}</text></view>
+      <view class="pickup-code"><text>订单领取码</text><text class="mono" selectable>{{ticket.code}}</text></view>
     </view>
-    <view class="notice">打印设备尚未接入，可复制小票内容。</view>
-    <button class="btn primary wide separator" bindtap="copy" hover-class="pressed">复制小票内容</button>
+    <view class="notice info">打印设备尚未接入，可复制小票内容。</view>
+    <view class="action-dock"><button class="btn primary" bindtap="copy" hover-class="pressed">复制小票内容</button></view>
   </block>
 </view>

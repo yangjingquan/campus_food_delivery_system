@@ -13,7 +13,11 @@ const filters = [
 
 Page({
   data: { filters, filter: 0, q: '', rows: [], counts: {}, loading: true, page: 0 },
-  onShow() { this.refresh(); },
+  onShow() {
+    const tabBar = this.getTabBar?.();
+    if (tabBar) tabBar.setData({ selected: '/pages/orders/index' });
+    this.refresh();
+  },
   onPullDownRefresh() { this.refresh().finally(() => wx.stopPullDownRefresh()); },
   onReachBottom() { if (this.data.hasMore && !this.data.loading) this.load(this.data.page + 1); },
   onboarding: ui.onboarding,

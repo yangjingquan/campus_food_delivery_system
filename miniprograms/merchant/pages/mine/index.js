@@ -3,7 +3,11 @@ const ui = require('../../utils/ui');
 
 Page({
   data: { loading: true },
-  onShow() { this.refresh(); },
+  onShow() {
+    const tabBar = this.getTabBar?.();
+    if (tabBar) tabBar.setData({ selected: '/pages/mine/index' });
+    this.refresh();
+  },
   onPullDownRefresh() { this.refresh().finally(() => wx.stopPullDownRefresh()); },
   onboarding: ui.onboarding,
   async refresh() {
