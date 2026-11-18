@@ -31,8 +31,9 @@ Page({
   },
 
   refreshCart() {
-    const selected = cart.read();
-    const products = this.data.merchant.products.map(item => ({
+    const { merchant } = this.data;
+    const selected = cart.read(merchant.id);
+    const products = merchant.products.map(item => ({
       ...item, priceText: display.money(item.priceCents),
       picture: display.photo(item.photoPath, item.artwork), fallback: display.illustration(item.artwork),
       quantity: selected.find(row => row.productId === item.id)?.quantity || 0
@@ -59,5 +60,5 @@ Page({
   },
 
   viewCart() { return openCart(); },
-  checkout() { return openCheckout(); }
+  checkout() { return openCheckout(this.data.merchant.id); }
 });

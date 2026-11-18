@@ -2,8 +2,37 @@
 .orders-page .filters { margin: 18px 0 15px; }
 .orders-page .filter-rail { gap: 6px; }
 .orders-page button.chip { padding-inline: 10px; font-size: 11px; }
-.order-summary { margin-top: 9px; overflow-wrap: anywhere; }
-.order-bottom { margin-top: 10px; }
-.ordercard .orderstate { max-width: none; margin-top: 8px; text-align: left; }
-.order-amount { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
-.orders-page button.order-link { min-width: 112px; border: 1px solid var(--line); background: #f6f6f1; color: var(--ink); }
+.orders-page .ordercard { margin-bottom: 8px; padding: 10px 14px 4px; border-radius: 16px; }
+.order-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.order-name { min-width: 0; }
+.ordercard .orderstate { color: #a84b21; overflow-wrap: anywhere; }
+.order-summary {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.order-note { margin-top: 2px; overflow-wrap: anywhere; }
+.order-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  margin-top: 3px;
+  border-top: 1px solid var(--line);
+}
+.order-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 6px; min-width: 0; }
+.order-amount { color: #a84b21; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.orders-page button.order-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 650;
+}
+.order-link text { padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }

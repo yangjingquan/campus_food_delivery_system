@@ -9,11 +9,12 @@ function openCart() {
   return wx.navigateTo({ url: '/pages/cart/index' });
 }
 
-function openCheckout() {
-  if (openingCheckout || !cart.read().length) return;
+function openCheckout(merchantId) {
+  if (openingCheckout || !cart.read(merchantId).length) return;
+  const scope = merchantId ? '?merchantId=' + encodeURIComponent(merchantId) : '';
   openingCheckout = true;
   return wx.navigateTo({
-    url: '/pages/confirm/index',
+    url: '/pages/confirm/index' + scope,
     complete: () => { openingCheckout = false; }
   });
 }

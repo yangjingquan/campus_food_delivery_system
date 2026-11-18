@@ -47,7 +47,10 @@
       <view class="h3">店铺还没有上架餐品。</view>
     </view>
     <view class="totalbar">
-      <view class="card row totalbar-summary"><view class="small">已选 {{selectedCount}} 份 · 餐品</view><view class="price">{{selectedFoodText}}</view></view>
+      <view wx:if="{{selectedCount}}" class="card row totalbar-summary">
+        <view class="small">本店已选 {{selectedCount}} 份</view>
+        <view class="price">{{selectedFoodText}}</view>
+      </view>
       <view class="store-actions {{selectedCount ? 'two-actions' : ''}}">
         <button class="btn outline" bindtap="viewCart">查看购物车</button>
         <button wx:if="{{selectedCount}}" class="btn" bindtap="checkout">去结算</button>
