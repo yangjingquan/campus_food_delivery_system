@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,7 @@ public class SpyunClient {
     private final RestClient client;
     private final ObjectMapper json;
 
+    @Autowired
     public SpyunClient(ObjectMapper json) {
         this(httpClient(), json);
     }

@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -17,6 +18,16 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.json.JsonMapper;
 
 class SpyunClientTest {
+    @Test
+    void springCreatesClientUsingProductionConstructor() {
+        try (var context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(tools.jackson.databind.ObjectMapper.class, () -> JsonMapper.builder().build());
+            context.register(SpyunClient.class);
+            context.refresh();
+            assertNotNull(context.getBean(SpyunClient.class));
+        }
+    }
+
     private final RestClient.Builder builder = RestClient.builder().baseUrl("https://open.spyun.net");
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final SpyunClient client = new SpyunClient(builder.build(), JsonMapper.builder().build());
