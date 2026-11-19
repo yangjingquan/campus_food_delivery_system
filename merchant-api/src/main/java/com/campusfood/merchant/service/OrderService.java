@@ -89,8 +89,27 @@ public class OrderService {
         db.update("INSERT INTO merchant_pickup_ticket(order_id,token) VALUES(?,?) ON DUPLICATE KEY UPDATE order_id=order_id",
             id, candidate);
         String code = db.queryForObject("SELECT token FROM merchant_pickup_ticket WHERE order_id=?", String.class, id);
-        return Map.of("id", id, "lines", lines(id), "paidCents", order.get("paidCents"),
-            "deliveryCents", order.get("deliveryCents"), "code", code, "qrImage", TicketQr.image(code));
+        var ticket = receipt(merchant, id);
+        ticket.put("code", code);
+        ticket.put("qrImage", TicketQr.image(code));
+        ticket.put("orderQrImage", TicketQr.image(id));
+        ticket.put("createdTime", ReceiptFormatter.time(ticket.remove("createdAt")));
+        return ticket;
+    }
+
+    public Map<String, Object> receipt(String merchant, String id) {
+        Map<String, Object> order = owned(merchant, id);
+        if (!Boolean.TRUE.equals(order.get("accepted")) || "已关闭".equals(order.get("status"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "接单后且订单未关闭时可打印小票");
+        }
+        var ticket = new LinkedHashMap<>(order);
+        ticket.putAll(db.queryForMap("""
+            SELECT m.name AS merchantName,CONCAT(d.building,' ',d.room) AS address,d.created_at AS createdAt
+            FROM user_order_detail d JOIN business_order o ON o.id=d.order_id
+            JOIN merchant m ON m.id=o.merchant_id WHERE d.order_id=? AND o.merchant_id=?
+            """, id, merchant));
+        ticket.put("lines", lines(id));
+        return ticket;
     }
 
     private List<Map<String, Object>> lines(String id) {

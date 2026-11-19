@@ -8,6 +8,7 @@ import com.campusfood.merchant.service.FoodCategoryService;
 import com.campusfood.merchant.service.FinanceService;
 import com.campusfood.merchant.service.OrderService;
 import com.campusfood.merchant.service.ProductService;
+import com.campusfood.merchant.service.PrintingService;
 import com.campusfood.merchant.service.SessionService;
 import com.campusfood.merchant.service.StoreService;
 import org.springframework.http.CacheControl;
@@ -27,10 +28,11 @@ public class MerchantController {
     private final OrderService orders;
     private final FinanceService finance;
     private final DomainClient domain;
+    private final PrintingService printing;
 
     public MerchantController(SessionService sessions, StoreService stores, ProductService products,
                               OrderService orders, FinanceService finance, DomainClient domain,
-                              FoodCategoryService categories) {
+                              FoodCategoryService categories, PrintingService printing) {
         this.sessions = sessions;
         this.stores = stores;
         this.products = products;
@@ -38,6 +40,7 @@ public class MerchantController {
         this.orders = orders;
         this.finance = finance;
         this.domain = domain;
+        this.printing = printing;
     }
 
     @PostMapping("/auth/login")
@@ -138,12 +141,34 @@ public class MerchantController {
     @PostMapping("/orders/{id}/status")
     public Map<String, Object> orderAction(@RequestHeader(value = AUTH, required = false) String auth, @PathVariable String id,
                                            @RequestBody Map<String, String> body) {
-        return domain.orderAction(store(auth), id, body.getOrDefault("action", ""));
+        String merchant = store(auth);
+        String action = body.getOrDefault("action", "");
+        if ("accept".equals(action)) printing.prepareAcceptance(merchant, id);
+        return domain.orderAction(merchant, id, action);
     }
 
     @PostMapping("/orders/{id}/ticket")
     public Map<String, Object> ticket(@RequestHeader(value = AUTH, required = false) String auth, @PathVariable String id) {
-        return orders.ticket(store(auth), id);
+        String merchant = store(auth);
+        var result = new java.util.LinkedHashMap<>(orders.ticket(merchant, id));
+        result.put("printing", printing.latest(merchant, id));
+        return result;
+    }
+
+    @GetMapping("/printer")
+    public Map<String, Object> printer(@RequestHeader(value = AUTH, required = false) String auth) {
+        return printing.device(store(auth));
+    }
+
+    @PostMapping("/printer/bind")
+    public Map<String, Object> bindPrinter(@RequestHeader(value = AUTH, required = false) String auth) {
+        return printing.bind(store(auth));
+    }
+
+    @PostMapping("/orders/{id}/print")
+    public Map<String, Object> print(@RequestHeader(value = AUTH, required = false) String auth,
+                                    @PathVariable String id, @RequestBody Map<String, Object> body) {
+        return printing.reprint(store(auth), id, body);
     }
 
     @GetMapping("/orders/{id}/location")

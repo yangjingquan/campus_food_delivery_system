@@ -1,8 +1,14 @@
 <view class="screen devices-screen">
   <view class="heading">打印与消息</view>
   <view class="card">
-    <view class="row"><view class="tile-heading"><image class="icon" src="/assets/ui/printer.svg" mode="aspectFit" aria-hidden="true" /><text class="section">打印设备</text></view><text class="badge warn">等待设备接入</text></view>
-    <view class="hint">接单后可在订单详情生成小票及领取码。连接实体打印机需要平台配置对应型号。</view>
+    <view class="row"><view class="tile-heading"><image class="icon" src="/assets/ui/printer.svg" mode="aspectFit" aria-hidden="true" /><text class="section">打印设备</text></view><text class="badge {{printer.configured ? '' : 'warn'}}">{{loading ? '正在加载' : printer.configured ? '已配置' : '等待设备配置'}}</text></view>
+    <view class="hint">接单后自动提交商鹏云打印，可在订单详情进入小票页面查看状态和补打。</view>
+    <view wx:if="{{printer.sn}}" class="kv"><text>本店设备 SN</text><text class="mono">{{printer.sn}}</text></view>
+    <view wx:if="{{printer}}" class="hint">{{printer.message}}</view>
+    <button wx:if="{{printer.configured}}" class="btn primary separator" bindtap="bindPrinter" disabled="{{saving}}" loading="{{saving}}" hover-class="pressed">连接本店打印机</button>
+    <button wx:if="{{error}}" class="btn plain separator" bindtap="refresh" hover-class="pressed">重新加载</button>
+    <view wx:if="{{error || formError}}" class="notice error">{{error || formError}}</view>
+    <view wx:if="{{printerMessage}}" class="notice info">{{printerMessage}}</view>
   </view>
   <view class="card">
     <view class="row"><view class="tile-heading"><image class="icon" src="/assets/ui/bell.svg" mode="aspectFit" aria-hidden="true" /><text class="section">新订单提醒</text></view><text wx:if="{{!canSubscribe}}" class="badge warn">等待模板配置</text></view>

@@ -1,21 +1,41 @@
 <import src="../../fragments/states.wxml" />
 <view class="screen ticket-screen dock-screen">
   <view class="heading">小票预览</view>
-  <view class="hint">同一订单补打时使用同一领取码</view>
+  <view class="hint">接单后自动打印，补打可在下方操作</view>
   <template is="state" data="{{error, loading}}" />
   <block wx:if="{{ticket && !loading && !error}}">
     <view class="card receipt">
-      <view class="receipt-heading"><view class="section">{{store.name}}</view>
-      <view class="hint mono" selectable>{{ticket.id}}</view></view>
+      <view class="receipt-heading">
+        <view class="receipt-store">{{store.name}}</view>
+        <image wx:if="{{ticket.orderQrImage}}" class="ticket-qr" src="{{ticket.orderQrImage}}" mode="aspectFit" aria-label="订单号二维码" />
+        <view class="hint mono" selectable>{{ticket.id}}</view>
+      </view>
       <view class="receipt-lines">
-        <view wx:for="{{lines}}" wx:key="index" class="kv"><text>{{item.name}} × {{item.quantity}}</text><text>{{item.amount}}</text></view>
+        <view class="receipt-table receipt-table-head"><text>名称</text><text>单价</text><text>数量</text><text>金额</text></view>
+        <view wx:for="{{lines}}" wx:key="index" class="receipt-table">
+          <text>{{item.name}}</text><text>{{item.unitPrice}}</text><text>{{item.quantity}}</text><text>{{item.amount}}</text>
+        </view>
       </view>
       <view class="kv"><text>配送费</text><text>{{fee}}</text></view>
-      <view class="kv"><text>实付</text><text class="price">{{paid}}</text></view>
+      <view class="kv"><text>总金额</text><text class="price">{{paid}}</text></view>
+      <view class="kv"><text>送货地址</text><text>{{ticket.address}}</text></view>
+      <view class="kv"><text>下单时间</text><text>{{ticket.createdTime}}</text></view>
+    </view>
+    <view class="card">
+      <view class="row"><text class="section">打印状态</text><text class="badge {{!canPrint || ticket.printing.status === 'failed' || ticket.printing.status === 'unknown' ? 'warn' : ''}}">{{printLabel}}</text></view>
+      <view class="hint">{{ticket.printing.message}}</view>
+      <view wx:if="{{ticket.printing.providerId}}" class="hint mono">打印任务 {{ticket.printing.providerId}}</view>
+      <button class="btn plain separator" bindtap="refresh" hover-class="pressed">刷新打印状态</button>
+      <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
+    </view>
+    <view class="card">
+      <view class="section">骑手领取码</view>
       <image wx:if="{{ticket.qrImage}}" class="ticket-qr" src="{{ticket.qrImage}}" mode="aspectFit" aria-label="订单领取二维码" />
       <view class="pickup-code"><text>订单领取码</text><text class="mono" selectable>{{ticket.code}}</text></view>
     </view>
-    <view class="notice info">打印设备尚未接入，可复制小票内容。</view>
-    <view class="action-dock"><button class="btn primary" bindtap="copy" hover-class="pressed">复制小票内容</button></view>
+    <view class="action-dock">
+      <button class="btn plain" bindtap="copy" hover-class="pressed">复制小票内容</button>
+      <button class="btn primary" bindtap="print" disabled="{{saving || printPending || !canPrint}}" loading="{{saving}}" hover-class="pressed">打印／补打</button>
+    </view>
   </block>
 </view>
