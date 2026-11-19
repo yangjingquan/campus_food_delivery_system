@@ -87,21 +87,31 @@ public class DeliveryService {
 
     @Transactional
     public Map<String, Object> pickup(String token, String riderId, boolean rejectDuplicate) {
-        if (token == null || !token.matches("[A-Za-z0-9_-]{22}") || riderId == null || riderId.length() > 32) {
+        String code = token == null ? "" : token.trim();
+        if (!code.matches("[A-Za-z0-9_-]{1,64}") || riderId == null || riderId.isBlank() || riderId.length() > 32) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "领取码或骑手编号无效");
         }
         var riders = db.queryForList("SELECT name FROM rider WHERE id=? AND audit_status='已通过'",
             String.class, riderId);
         if (riders.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "骑手未通过审核");
 
-        // 锁住订单而不是只锁二维码，扫码与其他履约入口使用同一行状态互斥。
+        // 小票支持订单号二维码，也兼容历史随机领取码；两种入口统一锁定同一笔订单。
+        var matches = db.queryForList("""
+            SELECT id FROM business_order WHERE id=?
+            UNION
+            SELECT order_id AS id FROM merchant_pickup_ticket WHERE token=?
+            """, String.class, code, code);
+        if (matches.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单号或领取码无效");
+        if (matches.size() != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "二维码对应多个订单，请联系运营核对");
+        }
         var orders = db.queryForList("""
             SELECT o.id,o.fulfill_status,o.pending_refund,o.locking,o.refund_status,d.pickup_rider_id,
                 o.delivery_cents,d.operations_rule_id
-            FROM merchant_pickup_ticket t JOIN business_order o ON o.id=t.order_id
-            JOIN user_order_detail d ON d.order_id=o.id WHERE t.token=? FOR UPDATE
-            """, token);
-        if (orders.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "领取码无效");
+            FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
+            WHERE o.id=? FOR UPDATE
+            """, matches.getFirst());
+        if (orders.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "配送订单不存在");
         Map<String, Object> order = orders.getFirst();
         String id = order.get("id").toString();
         if ("已关闭".equals(order.get("fulfill_status"))) {
