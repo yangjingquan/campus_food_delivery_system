@@ -101,6 +101,7 @@ export interface ConfigSnapshot {
   serviceEnd: string
   peakStart: string
   peakEnd: string
+  peakPeriods: Array<{ start: string; end: string }>
   acceptTimeout: number
   reminderInterval: number
   effectiveAt: string

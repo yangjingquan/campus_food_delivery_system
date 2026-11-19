@@ -14,7 +14,8 @@
 </template>
 
 <template name="action">
-  <button class="btn {{style || 'primary full'}}" bindtap="go" data-page="{{page}}" data-id="{{id}}" hover-class="pressed">
+  <button class="btn {{style || 'primary full'}}" bindtap="go" data-page="{{page}}" data-id="{{id}}"
+    loading="{{page === 'scan' && busy}}" disabled="{{page === 'scan' && busy}}" hover-class="pressed">
     <template wx:if="{{icon}}" is="icon" data="{{name: icon, tone: style ? 'green' : 'white', size: 'icon-small'}}"/>
     <text>{{label}}</text>
   </button>

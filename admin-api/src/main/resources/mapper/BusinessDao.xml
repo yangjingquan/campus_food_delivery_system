@@ -56,11 +56,20 @@
     </select>
 
     <select id="listOperationsConfigs" resultType="map">
-        SELECT CONCAT('OPS-V',LPAD(id,3,'0')) AS version,fee_cents AS feeCents,food_rate AS foodRate,
+        SELECT id AS configId,CONCAT('OPS-V',LPAD(id,3,'0')) AS version,fee_cents AS feeCents,food_rate AS foodRate,
         delivery_rate AS deliveryRate,regular_batch AS regularBatch,peak_batch AS peakBatch,service_start AS serviceStart,
         service_end AS serviceEnd,peak_start AS peakStart,peak_end AS peakEnd,accept_timeout AS acceptTimeout,
         reminder_interval AS reminderInterval,effective_at AS effectiveAt,operator FROM operations_config ORDER BY id DESC
     </select>
+
+    <select id="listPeakPeriods" resultType="map">
+        SELECT start_time AS start,end_time AS end FROM operations_peak_period
+        WHERE config_id=#{configId} ORDER BY start_time
+    </select>
+
+    <insert id="insertPeakPeriod">
+        INSERT INTO operations_peak_period(config_id,start_time,end_time) VALUES(#{configId},#{start},#{end})
+    </insert>
 
     <insert id="insertOrderNote">
         INSERT INTO order_note(order_id,actor,note) VALUES(#{orderId},#{actor},#{note})

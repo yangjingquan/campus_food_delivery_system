@@ -24,7 +24,7 @@
   <template is="metric" data="{{value: finance.due, label: '累计应得 / 元'}}"/>
 </view>
 <template wx:if="{{!approved}}" is="note" data="{{label: '通过学生身份审核后即可扫码领取。', tone: 'warn'}}"/>
-<template is="action" data="{{page: approved ? 'scan' : 'audit', icon: approved ? 'scan' : '', label: approved ? '扫码领取餐品' : '查看入驻状态'}}"/>
+<template is="action" data="{{busy, page: approved ? 'scan' : 'audit', icon: approved ? 'scan' : '', label: approved ? '扫码领取餐品' : '查看入驻状态'}}"/>
 <block wx:if="{{approved}}">
   <view class="sectiontitle">
     <text>正在配送</text>

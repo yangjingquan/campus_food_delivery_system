@@ -3,6 +3,7 @@ const api = require('./api');
 const permissionKey = 'rider-location-explained';
 let enabled = false;
 let busy = false;
+let resampleRequested = false;
 let generation = 0;
 let timer;
 let state = { message: '配送期间经授权后按订单共享位置。', available: false };
@@ -36,8 +37,13 @@ async function authorize() {
   return true;
 }
 
-async function sample() {
-  if (!enabled || busy || !wx.getStorageSync(permissionKey) || !wx.getStorageSync('campus-rider-token')) return;
+async function sample(refreshAfterCurrent = false) {
+  if (!enabled || !wx.getStorageSync(permissionKey) || !wx.getStorageSync('campus-rider-token')) return;
+  if (busy) {
+    // 领单可能与已有位置请求同时完成，补采一次以包含新领取的订单。
+    resampleRequested = resampleRequested || refreshAfterCurrent;
+    return;
+  }
   const run = generation;
   busy = true;
   try {
@@ -79,6 +85,10 @@ async function sample() {
     }
   } finally {
     busy = false;
+    if (resampleRequested) {
+      resampleRequested = false;
+      sample();
+    }
   }
 }
 
@@ -92,6 +102,7 @@ function start() {
 function stop() {
   generation++;
   enabled = false;
+  resampleRequested = false;
   clearInterval(timer);
   publish({ message: '前台定位已暂停。', available: false, capturedAt: state.capturedAt });
 }

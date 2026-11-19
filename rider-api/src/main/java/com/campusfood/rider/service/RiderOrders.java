@@ -76,10 +76,14 @@ public class RiderOrders {
 
     public Map<String, Object> batches() {
         var config = db.queryForMap("""
-            SELECT service_start AS serviceStart,service_end AS serviceEnd,peak_start AS peakStart,
+            SELECT id,service_start AS serviceStart,service_end AS serviceEnd,peak_start AS peakStart,
                    peak_end AS peakEnd,regular_batch AS regularBatch,peak_batch AS peakBatch
             FROM operations_config ORDER BY id DESC LIMIT 1
             """);
+        config.put("peakPeriods", db.queryForList("""
+            SELECT start_time AS start,end_time AS end FROM operations_peak_period
+            WHERE config_id=? ORDER BY start_time
+            """, config.remove("id")));
         // 未领取列表只显示领餐所需信息，隐藏寝室、用户身份和二维码凭据。
         var waiting = db.queryForList("""
             SELECT o.merchant,o.id AS code,d.arrived_at AS arrivedAt,

@@ -35,4 +35,4 @@
 </view>
 <template wx:if="{{!batches.waiting.length}}" is="empty"
   data="{{title: '暂时没有待领取餐品', description: '可查看下一批次，或返回我的配送。', page: 'orders', label: '查看我的配送'}}"/>
-<template is="action" data="{{page: 'scan', icon: 'scan', label: '去扫码领取'}}"/>
+<template is="action" data="{{busy, page: 'scan', icon: 'scan', label: '去扫码领取'}}"/>

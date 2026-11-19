@@ -231,7 +231,8 @@ function register(screen) {
 
     go(event) {
       const { page, id } = event.currentTarget.dataset;
-      navigate(page, id, screen === 'scanResult' && page === 'scan');
+      if (page === 'scan') return this.scan();
+      navigate(page, id);
     },
 
     openModal(event) {
@@ -303,16 +304,16 @@ function register(screen) {
           if (String(error.errMsg).includes('cancel')) return;
           throw new Error('无法打开扫码，请检查摄像头权限');
         }
-        const result = await api.request('/pickup', 'POST', { token: code.result });
-        const detail = await api.request('/orders/' + encodeURIComponent(result.orderId)).catch(() => null);
-        getApp().scanResult = { ok: true, order: detail ? display.order(detail) : null };
-        location.sample();
+        await api.request('/pickup', 'POST', { token: code.result });
+        // 服务端提交订单归属后，立即重新查询本人任务并上报位置。
+        location.sample(true);
+        await this.refresh();
+        toast('领取成功，已开始配送');
       } catch (error) {
-        getApp().scanResult = { ok: false, message: errorMessage(error) };
+        toast(errorMessage(error));
       } finally {
         this.setData({ busy: false });
       }
-      navigate('scanResult', '', true);
     },
 
     async subscribe() {

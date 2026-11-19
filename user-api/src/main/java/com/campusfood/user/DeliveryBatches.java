@@ -28,6 +28,10 @@ class DeliveryBatches {
             SELECT id,service_start,service_end,peak_start,peak_end,regular_batch,peak_batch
             FROM operations_config ORDER BY id DESC LIMIT 1
             """);
+        rule.put("peakPeriods", db.queryForList("""
+            SELECT start_time AS start,end_time AS end FROM operations_peak_period
+            WHERE config_id=? ORDER BY start_time
+            """, rule.get("id")));
         db.update("""
             UPDATE user_order_detail SET arrived_at=?,batch_alert_at=?,batch_rule_id=?
             WHERE order_id=? AND arrived_at IS NULL
@@ -38,17 +42,24 @@ class DeliveryBatches {
         LocalDate day = Instant.ofEpochMilli(arrival).atZone(CAMPUS_ZONE).toLocalDate();
         LocalTime serviceStart = LocalTime.parse(rule.get("service_start").toString());
         LocalTime serviceEnd = LocalTime.parse(rule.get("service_end").toString());
-        LocalTime peakStart = LocalTime.parse(rule.get("peak_start").toString());
-        LocalTime peakEnd = LocalTime.parse(rule.get("peak_end").toString());
+        List<?> periods = rule.get("peakPeriods") instanceof List<?> list ? list
+                : List.of(Map.of("start", rule.get("peak_start"), "end", rule.get("peak_end")));
         int regular = ((Number) rule.get("regular_batch")).intValue();
         int peak = ((Number) rule.get("peak_batch")).intValue();
         if (regular < 1 || peak < 1) throw new IllegalStateException("配送批次间隔无效");
         List<Long> departures = new ArrayList<>();
         for (int offset = 0; offset < 3; offset++) {
             LocalDate date = day.plusDays(offset);
-            addDepartures(departures, date, serviceStart, peakStart, regular);
-            addDepartures(departures, date, peakStart, peakEnd, peak);
-            addDepartures(departures, date, peakEnd, serviceEnd, regular);
+            LocalTime cursor = serviceStart;
+            for (Object value : periods) {
+                var period = (Map<?, ?>) value;
+                LocalTime start = LocalTime.parse(period.get("start").toString());
+                LocalTime end = LocalTime.parse(period.get("end").toString());
+                addDepartures(departures, date, cursor, start, regular);
+                addDepartures(departures, date, start, end, peak);
+                cursor = end;
+            }
+            addDepartures(departures, date, cursor, serviceEnd, regular);
         }
         return departures.stream().filter(instant -> instant > arrival).skip(1).findFirst().orElseThrow();
     }

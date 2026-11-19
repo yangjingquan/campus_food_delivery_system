@@ -86,6 +86,9 @@ public class BusinessService {
                     "debts", db.listDebts());
             case "config" -> {
                 List<Map<String, Object>> all = db.listOperationsConfigs();
+                for (var config : all) {
+                    config.put("peakPeriods", db.listPeakPeriods(config.remove("configId")));
+                }
                 yield Map.of("config", all.get(0), "history", all.subList(1, all.size()));
             }
             default -> throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "该模块尚未接入");
@@ -153,16 +156,47 @@ public class BusinessService {
                     number(c, "reminderInterval", 1, 1440);
             var food = rate(c, "foodRate");
             var delivery = rate(c, "deliveryRate");
-            String start = time(c, "serviceStart"), end = time(c, "serviceEnd"), ps = time(c, "peakStart"), pe =
-                    time(c, "peakEnd");
-            if (start.compareTo(end) >= 0 || ps.compareTo(pe) >= 0 || ps.compareTo(start) < 0 || pe.compareTo(end) > 0)
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "服务与高峰时段无效");
+            String start = time(c, "serviceStart"), end = time(c, "serviceEnd");
+            if (start.compareTo(end) >= 0)
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "配送服务开始时间须早于结束时间");
+            var periods = peakPeriods(c, start, end);
+            // 保留旧字段以兼容已有客户端，无高峰时段时使用零长度窗口。
+            String ps = periods.isEmpty() ? start : periods.getFirst().get("start");
+            String pe = periods.isEmpty() ? start : periods.getFirst().get("end");
             db.insertOperationsConfig(fee, food, delivery, regular, peak, start, end, ps, pe, accept, reminder, actor);
+            long configId = operations.lockLatestVersion();
+            for (var period : periods) db.insertPeakPeriod(configId, period.get("start"), period.get("end"));
             audit(actor, type, current, current, "新版本", "");
             return Map.of("ok", true);
         }
         throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                 "此操作依赖交易或支付渠道，尚未接入，未执行任何资金操作");
+    }
+
+    private static List<Map<String, String>> peakPeriods(Map<?, ?> config, String serviceStart, String serviceEnd) {
+        Object value = config.get("peakPeriods");
+        if (!config.containsKey("peakPeriods")) {
+            if (field(config, "peakStart").equals(field(config, "peakEnd"))
+                    && field(config, "peakStart").matches("([01][0-9]|2[0-3]):[0-5][0-9]")) return List.of();
+            value = List.of(Map.of("start", field(config, "peakStart"), "end", field(config, "peakEnd")));
+        }
+        if (!(value instanceof List<?> values) || values.size() > 48)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "高峰时段格式无效，最多支持 48 个");
+        List<Map<String, String>> periods = new ArrayList<>();
+        for (Object item : values) {
+            if (!(item instanceof Map<?, ?> period))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "高峰时段格式无效");
+            String start = time(period, "start"), end = time(period, "end");
+            if (start.compareTo(end) >= 0 || start.compareTo(serviceStart) < 0 || end.compareTo(serviceEnd) > 0)
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "高峰时段须在配送服务时间内，且开始时间早于结束时间");
+            periods.add(Map.of("start", start, "end", end));
+        }
+        periods.sort(Comparator.comparing(period -> period.get("start")));
+        for (int i = 1; i < periods.size(); i++) {
+            if (periods.get(i).get("start").compareTo(periods.get(i - 1).get("end")) < 0)
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "高峰时段不能重叠");
+        }
+        return periods;
     }
 
     private int countById(String table, String id) {

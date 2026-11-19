@@ -38,6 +38,10 @@ public interface BusinessDao extends BaseMapper<BusinessOrder> {
 
     List<Map<String, Object>> listOperationsConfigs();
 
+    List<Map<String, String>> listPeakPeriods(@Param("configId") Object configId);
+
+    int insertPeakPeriod(@Param("configId") long configId, @Param("start") String start, @Param("end") String end);
+
     int insertOrderNote(@Param("orderId") Object orderId, @Param("actor") String actor, @Param("note") String note);
 
     int insertOperationsConfig(@Param("fee") int fee, @Param("foodRate") java.math.BigDecimal foodRate,

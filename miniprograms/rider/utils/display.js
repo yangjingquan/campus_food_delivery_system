@@ -68,13 +68,17 @@ function schedule(data) {
   const config = data.config;
   const serviceStart = toMinutes(config.serviceStart);
   const serviceEnd = toMinutes(config.serviceEnd);
-  const peakStart = toMinutes(config.peakStart);
-  const peakEnd = toMinutes(config.peakEnd);
-  const windows = [
-    [serviceStart, peakStart, config.regularBatch],
-    [peakStart, peakEnd, config.peakBatch],
-    [peakEnd, serviceEnd, config.regularBatch]
-  ];
+  const periods = Array.isArray(config.peakPeriods)
+    ? config.peakPeriods : [{ start: config.peakStart, end: config.peakEnd }];
+  const windows = [];
+  let cursor = serviceStart;
+  periods.forEach(period => {
+    const start = toMinutes(period.start);
+    const end = toMinutes(period.end);
+    windows.push([cursor, start, config.regularBatch], [start, end, config.peakBatch]);
+    cursor = end;
+  });
+  windows.push([cursor, serviceEnd, config.regularBatch]);
   const departures = windows.flatMap(([start, end, interval]) => {
     const result = [];
     if (interval < 1 || start >= end) return result;
@@ -85,7 +89,7 @@ function schedule(data) {
   const planned = [...departures.filter(value => value > minutes).map(toClock),
     ...departures.map(value => '明日 ' + toClock(value))].slice(0, 3);
   const operating = minutes >= serviceStart && minutes < serviceEnd;
-  const peak = minutes >= peakStart && minutes < peakEnd;
+  const peak = periods.some(period => minutes >= toMinutes(period.start) && minutes < toMinutes(period.end));
   return {
     ...data,
     dayLabel: (clock.getUTCMonth() + 1) + '月' + clock.getUTCDate() + '日 · 周' + '日一二三四五六'[clock.getUTCDay()],

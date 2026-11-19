@@ -23,7 +23,7 @@ public class CatalogService {
     }
 
     public Map<String, Object> config() {
-        var config = db.queryForMap("SELECT fee_cents,regular_batch,peak_batch,service_start,service_end,peak_start,peak_end,accept_timeout,reminder_interval FROM operations_config ORDER BY id DESC LIMIT 1");
+        var config = db.queryForMap("SELECT id,fee_cents,regular_batch,peak_batch,service_start,service_end,peak_start,peak_end,accept_timeout,reminder_interval FROM operations_config ORDER BY id DESC LIMIT 1");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("deliveryFeeCents", ((Number) config.get("fee_cents")).longValue());
         result.put("regularBatchMinutes", ((Number) config.get("regular_batch")).intValue());
@@ -32,6 +32,10 @@ public class CatalogService {
         result.put("serviceEnd", config.get("service_end"));
         result.put("peakStart", config.get("peak_start"));
         result.put("peakEnd", config.get("peak_end"));
+        result.put("peakPeriods", db.queryForList("""
+            SELECT start_time AS start,end_time AS end FROM operations_peak_period
+            WHERE config_id=? ORDER BY start_time
+            """, config.get("id")));
         result.put("acceptTimeoutMinutes", ((Number) config.get("accept_timeout")).intValue());
         result.put("reminderIntervalMinutes", ((Number) config.get("reminder_interval")).intValue());
         result.put("locationExpirySeconds", locationExpirySeconds);

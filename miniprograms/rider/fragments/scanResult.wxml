@@ -11,5 +11,5 @@
 <view class="card row">
   <text class="small muted">当前配送中</text><text class="b">{{active.length}} 笔</text>
 </view>
-<template is="action" data="{{page: 'scan', icon: 'scan', label: '继续扫码领取'}}"/>
+<template is="action" data="{{busy, page: 'scan', icon: 'scan', label: '继续扫码领取'}}"/>
 <view class="top-space"><template is="action" data="{{page: 'orders', label: '查看我的配送', style: 'outline full'}}"/></view>

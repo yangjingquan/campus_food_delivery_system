@@ -126,6 +126,31 @@ try:
     config=check(200,call('GET','/api/admin/v1/workspace?section=config',token=token),'current config')['config']
     check(200,action('config.save',{'patch':config},token),'save operations config')
     assert sql('SELECT COUNT(*) FROM operations_config')=='2'
+    config_state=check(200,call('GET','/api/admin/v1/workspace?section=config',token=token),'peak migration')
+    assert config_state['config']['peakPeriods']==[{'start':'11:30','end':'13:30'}]
+    original_version=config_state['config']['version']
+    config=config_state['config']
+    config['peakPeriods']=[{'start':'17:00','end':'19:00'},{'start':'11:30','end':'13:30'}]
+    check(200,action('config.save',{'patch':config},token),'multiple peak periods')
+    config_state=check(200,call('GET','/api/admin/v1/workspace?section=config',token=token),'multiple peaks readback')
+    config=config_state['config']
+    assert config['peakPeriods']==[{'start':'11:30','end':'13:30'},{'start':'17:00','end':'19:00'}]
+    assert next(row for row in config_state['history'] if row['version']==original_version)['peakPeriods']==[{'start':'11:30','end':'13:30'}]
+    for periods in (
+        [{'start':'11:30','end':'13:30'},{'start':'13:00','end':'14:00'}],
+        [{'start':'09:00','end':'11:00'}],
+        [{'start':'19:00','end':'18:00'}],
+    ):
+        check(400,action('config.save',{'patch':{**config,'peakPeriods':periods}},token),'invalid peaks rejected')
+    config['peakPeriods']=[]
+    check(200,action('config.save',{'patch':config},token),'remove all peak periods')
+    config=check(200,call('GET','/api/admin/v1/workspace?section=config',token=token),'no peaks readback')['config']
+    assert config['peakPeriods']==[]
+    assert config['peakStart']==config['peakEnd']
+    legacy={key:value for key,value in config.items() if key!='peakPeriods'}
+    legacy.update(peakStart='12:00',peakEnd='13:00')
+    check(200,action('config.save',{'patch':legacy},token),'legacy peak payload')
+    assert check(200,call('GET','/api/admin/v1/workspace?section=config',token=token),'legacy peak readback')['config']['peakPeriods']==[{'start':'12:00','end':'13:00'}]
     check(200,call('POST','/api/admin/v1/administrators',{'username':'test_finance','password':'test-password-123','role':'finance'},token),'create finance')
     finance=check(200,call('POST','/api/admin/v1/auth/login',{'username':'test_finance','password':'test-password-123'}),'finance login')['token']
     check(200,call('GET','/api/admin/v1/workspace?section=finance',token=finance),'finance read')
