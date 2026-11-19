@@ -37,6 +37,8 @@ public class AdminService {
     private final AuthorizationService authorization;
     private final WithdrawalService withdrawals;
     private final WechatService wechat;
+    private final PrintingSettingsService printing;
+    private final MerchantPrinterSettingsService merchantPrinters;
     private final BCryptPasswordEncoder passwords = new BCryptPasswordEncoder();
     private final SecureRandom random = new SecureRandom();
     @Value("${app.bootstrap-user}")
@@ -49,7 +51,8 @@ public class AdminService {
     public AdminService(AdminDao db, StringRedisTemplate redis, BusinessService business,
                         AuthorizationService authorization, WithdrawalService withdrawals, WechatService wechat,
                         AdminUserRoleMapper roles, MerchantMapper merchants, RiderMapper riders,
-                        ConfigurationLockMapper configurationLocks) {
+                        ConfigurationLockMapper configurationLocks, PrintingSettingsService printing,
+                        MerchantPrinterSettingsService merchantPrinters) {
         this.db = db;
         this.configurationLocks = configurationLocks;
         this.roles = roles;
@@ -60,6 +63,8 @@ public class AdminService {
         this.authorization = authorization;
         this.withdrawals = withdrawals;
         this.wechat = wechat;
+        this.printing = printing;
+        this.merchantPrinters = merchantPrinters;
     }
 
     // 仅在账户或角色尚未初始化时创建本地引导管理员及超级管理员角色。
@@ -157,6 +162,11 @@ public class AdminService {
         };
         authorization.require(username, permission);
         if (section.equals("wechat")) return wechat.workspace();
+        if (section.equals("config")) {
+            var result = new java.util.LinkedHashMap<>(business.workspace(section));
+            result.put("printing", printing.current());
+            return result;
+        }
         Object orders =
                 authorization.permissions(username).contains("order.view") ? business.workspace("orders").get("rows") :
                         List.of();
@@ -253,17 +263,23 @@ public class AdminService {
         return photo;
     }
 
+    public Map<String, Object> merchantPrinter(String id, String authHeader) {
+        authorization.require(actor(authHeader), "merchant.printer.edit");
+        return merchantPrinters.current(id);
+    }
+
     @Transactional
     public Map<String, Object> action(AdminActionRequest body, String authHeader) {
         String username = actor(authHeader);
         String type = String.valueOf(body.type());
         String permission = switch (type) {
             case "merchant.audit" -> "merchant.audit";
+            case "merchant.save-printer" -> "merchant.printer.edit";
             case "rider.audit" -> "rider.audit";
             case "order.coordinate" -> "order.coordinate";
             case "refund.apply", "refund.offline", "refund.query" -> "refund.manage";
             case "withdrawal.review" -> "withdrawal.review";
-            case "config.save" -> "config.edit";
+            case "config.save", "config.save-printing" -> "config.edit";
             case "wechat.save-app", "wechat.save-payment", "wechat.rollback" -> "wechat.edit";
             default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "操作不存在");
         };
@@ -273,6 +289,8 @@ public class AdminService {
         // 回滚可能恢复旧版支付材料，继续要求额外的支付管理权限。
         if (type.equals("wechat.rollback")) authorization.require(username, "wechat.toggle");
         if (type.startsWith("wechat.")) return wechat.action(type, payload, username);
+        if (type.equals("config.save-printing")) return printing.save(payload, username);
+        if (type.equals("merchant.save-printer")) return merchantPrinters.save(payload, username);
         if (type.equals("withdrawal.review")) return withdrawals.review(payload, username);
         if (!type.equals("merchant.audit") && !type.equals("rider.audit"))
             return business.action(type, payload, username);

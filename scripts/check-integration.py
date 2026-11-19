@@ -256,6 +256,45 @@ try:
     check(200,action('wechat.rollback',{'version':oldversion,'targetVersion':1,'reason':'验证历史回滚'},token),'wechat rollback')
     state=check(200,call('GET','/api/admin/v1/workspace?section=wechat',token=token),'wechat rollback read')
     assert state['config']['enabled'] is True and not state['config']['userSecretSet'] and len(state['history'])>=2
+    check(200,call('POST','/api/admin/v1/administrators',{'username':'test_print_read','password':'test-password-123','role':'readonly'},token),'create printing settings viewer')
+    printing_viewer=check(200,call('POST','/api/admin/v1/auth/login',{'username':'test_print_read','password':'test-password-123'}),'printing settings viewer login')['token']
+    config_path='/api/admin/v1/workspace?section=config'
+    printing_state=check(200,call('GET',config_path,token=token),'printing settings initial state')
+    assert printing_state['printing']=={'appId':'','appSecretSet':False}
+    operations_version=printing_state['config']['version']
+    printer_secret=secrets.token_hex(24)
+    printer={'appId':'test-printer','appSecret':printer_secret}
+    check(403,action('config.save-printing',printer,printing_viewer),'read-only printing settings')
+    check(400,action('config.save-printing',{'appId':printer['appId']},token),'initial printer secret required')
+    saved=check(200,action('config.save-printing',printer,token),'save printing settings')
+    assert saved=={'appId':printer['appId'],'appSecretSet':True}
+    check(200,action('config.save-printing',{'appId':printer['appId'],'appSecret':''},token),'keep existing printer secret')
+    check(400,action('config.save-printing',{'appId':'replacement-printer'},token),'new AppID requires new secret')
+    printing_state=check(200,call('GET',config_path,token=printing_viewer),'printing settings readback')
+    assert printing_state['printing']==saved and printing_state['config']['version']==operations_version
+    assert printer_secret not in json.dumps(printing_state)
+    assert sql("SELECT COUNT(*) FROM wechat_secret WHERE purpose='printer_appsecret' AND OCTET_LENGTH(ciphertext)="+str(len(printer_secret)+16)+" AND HEX(ciphertext) NOT LIKE '%"+printer_secret.encode().hex().upper()+"%'")=='1'
+    rotated=check(200,action('config.save-printing',{'appId':'replacement-printer','appSecret':secrets.token_hex(24)},token),'rotate printer credentials')
+    assert rotated=={'appId':'replacement-printer','appSecretSet':True}
+    assert sql("SELECT COUNT(*) FROM wechat_secret WHERE purpose='printer_appsecret'")=='1'
+    assert sql("SELECT COUNT(*) FROM admin_audit_log WHERE action_name='config.save-printing'")=='2'
+    merchant_printer_path='/api/admin/v1/merchants/{}/printer'
+    merchant_pkey=secrets.token_hex(24)
+    merchant_printer={'id':'M01','sn':'SN-FIRST','pkey':merchant_pkey}
+    check(401,action('merchant.save-printer',merchant_printer,None),'printer save requires admin session')
+    check(403,action('merchant.save-printer',merchant_printer,printing_viewer),'read-only merchant printer forbidden')
+    check(403,call('GET',merchant_printer_path.format('M01'),token=printing_viewer),'read-only merchant printer read forbidden')
+    check(404,action('merchant.save-printer',{**merchant_printer,'id':'missing-merchant'},token),'merchant must exist')
+    check(400,action('merchant.save-printer',{**merchant_printer,'pkey':''},token),'initial merchant PKey required')
+    assert check(200,action('merchant.save-printer',merchant_printer,token),'save first merchant printer')=={'sn':'SN-FIRST','pkeySet':True}
+    assert check(200,call('GET',merchant_printer_path.format('M02'),token=token),'second merchant independent')=={'sn':'','pkeySet':False}
+    check(200,action('merchant.save-printer',{'id':'M02','sn':'SN-SECOND','pkey':secrets.token_hex(24)},token),'save second merchant printer')
+    assert check(200,call('GET',merchant_printer_path.format('M01'),token=token),'read first merchant printer')=={'sn':'SN-FIRST','pkeySet':True}
+    check(400,action('merchant.save-printer',{'id':'M01','sn':'SN-NEW'},token),'changing SN requires PKey')
+    check(200,action('merchant.save-printer',{'id':'M01','sn':'SN-FIRST'},token),'retain existing PKey')
+    assert sql("SELECT OCTET_LENGTH(ciphertext) FROM wechat_secret s JOIN merchant_printer_settings p ON p.pkey_secret_id=s.id WHERE p.merchant_id='M01'")==str(len(merchant_pkey)+16)
+    check(200,action('merchant.save-printer',{'id':'M01','sn':'SN-NEW','pkey':secrets.token_hex(24)},token),'replace merchant PKey')
+    assert sql("SELECT COUNT(*) FROM wechat_secret WHERE purpose='merchant_printer_pkey'")=='2'
     print('PASS: RBAC, session revocation, last-super protection, debt recovery, idempotency, freeze/unfreeze, transfer failure, concurrency and encrypted secrets')
 except BaseException:
     if created_container:

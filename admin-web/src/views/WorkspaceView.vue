@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
-import { adminApi } from '../api/admin'
+import { adminApi, type MerchantPrinter } from '../api/admin'
 import { useAuthStore } from '../stores/auth'
 import { money } from '../domain/rules'
 import type { Order, SectionKey } from '../domain/types'
@@ -30,6 +30,13 @@ const statusFilter = ref('')
 const activeFinanceTab = ref('accounts')
 const finance = ref<{ accounts: Row[]; ledger: Row[]; debts: Row[]; journal: Row[] }>({ accounts: [], ledger: [], debts: [], journal: [] })
 const drawer = ref(false)
+const printerDialog = ref(false)
+const printerLoadingId = ref('')
+const printerSaving = ref(false)
+const printerTarget = ref<{ id: string; name: string; saved: MerchantPrinter }>()
+const printerForm = reactive({ sn: '', pkey: '' })
+const printerNeedsPkey = computed(() => !printerTarget.value?.saved.pkeySet || printerForm.sn.trim() !== printerTarget.value.saved.sn)
+const printerChanged = computed(() => printerForm.sn.trim() !== printerTarget.value?.saved.sn || !!printerForm.pkey)
 const activeRow = ref<Row | null>(null)
 const merchantPhoto = ref('')
 const photoError = ref('')
@@ -121,7 +128,48 @@ async function load() {
   finally { loading.value = false }
 }
 onMounted(() => { void load() })
-watch(section, () => { keyword.value = ''; statusFilter.value = ''; activeFinanceTab.value = 'accounts'; load() })
+watch(section, () => {
+  printerDialog.value = false
+  printerForm.pkey = ''
+  keyword.value = ''
+  statusFilter.value = ''
+  activeFinanceTab.value = 'accounts'
+  load()
+})
+
+async function openPrinter(row: Row) {
+  if (printerLoadingId.value || !auth.can('merchant.printer.edit')) return
+  printerLoadingId.value = row.id
+  try {
+    const saved = await adminApi.merchantPrinter(row.id)
+    if (section.value !== 'merchants') return
+    printerTarget.value = { id: row.id, name: row.name, saved }
+    printerForm.sn = saved.sn
+    printerForm.pkey = ''
+    printerDialog.value = true
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '读取打印机设置失败')
+  } finally {
+    printerLoadingId.value = ''
+  }
+}
+
+async function savePrinter() {
+  if (!printerTarget.value || printerSaving.value || !printerChanged.value || !auth.can('merchant.printer.edit')) return
+  const sn = printerForm.sn.trim()
+  if (!sn) return ElMessage.warning('请输入打印机 SN')
+  if (printerNeedsPkey.value && !printerForm.pkey.trim()) return ElMessage.warning('请输入打印机 PKey')
+  printerSaving.value = true
+  try {
+    await adminApi.saveMerchantPrinter(printerTarget.value.id, sn, printerForm.pkey)
+    printerDialog.value = false
+    ElMessage.success('打印机设置已保存')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '保存打印机设置失败')
+  } finally {
+    printerSaving.value = false
+  }
+}
 
 function displayValue(row: Row, key: string) {
   const value = row[key]
@@ -269,10 +317,12 @@ function runRowAction(row: Row) {
           <span v-else>{{ displayValue(scope.row, column.key) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" :width="section === 'merchants' || section === 'riders' ? 220 : section === 'aftersales' ? 190 : section === 'withdrawals' ? 250 : 170" fixed="right">
+      <el-table-column label="操作" :width="section === 'merchants' && auth.can('merchant.printer.edit') ? 275 : section === 'merchants' || section === 'riders' ? 220 : section === 'aftersales' ? 190 : section === 'withdrawals' ? 250 : 170" fixed="right">
         <template #default="scope">
           <template v-if="section === 'merchants' || section === 'riders'">
             <el-button link type="primary" @click="runRowAction(scope.row)">{{ rowActionText(scope.row) }}</el-button>
+            <el-button v-if="section === 'merchants' && auth.can('merchant.printer.edit') && !String(scope.row.id).startsWith('revision:')"
+              link type="primary" :loading="printerLoadingId === scope.row.id" @click="openPrinter(scope.row)">打印机设置</el-button>
             <template v-if="scope.row.auditStatus === '待审核' && auth.can(section === 'merchants' ? 'merchant.audit' : 'rider.audit')"><el-button link type="success" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === '资料变更' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'approve')">通过</el-button><el-button link type="danger" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === '资料变更' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'reject')">驳回</el-button></template>
           </template>
           <template v-else-if="section === 'orders'"><el-button link type="primary" @click="handlePrimary(scope.row)">订单详情</el-button><el-button v-if="scope.row.intervene && auth.can('order.coordinate')" link type="warning" @click="coordinate(scope.row as unknown as Order)">记录协调</el-button></template>
@@ -283,6 +333,25 @@ function runRowAction(row: Row) {
       <template #empty><el-empty description="没有符合条件的记录" /></template>
     </el-table>
   </div>
+
+  <el-dialog v-model="printerDialog" title="打印机设置" width="min(480px, 94vw)" destroy-on-close
+    :close-on-click-modal="false" :close-on-press-escape="!printerSaving" :show-close="!printerSaving"
+    @close="printerForm.pkey = ''">
+    <el-form v-if="printerTarget" label-position="top" :disabled="printerSaving" @submit.prevent="savePrinter">
+      <p class="muted">{{ printerTarget.name }} · {{ printerTarget.id }}</p>
+      <el-form-item label="打印机 SN" required>
+        <el-input v-model="printerForm.sn" maxlength="128" autocomplete="off" placeholder="请输入设备 SN" />
+      </el-form-item>
+      <el-form-item label="打印机 PKey" :required="printerNeedsPkey">
+        <el-input v-model="printerForm.pkey" type="password" maxlength="512" autocomplete="new-password"
+          :placeholder="printerNeedsPkey ? '请输入设备 PKey' : '留空保留已保存的 PKey'" />
+      </el-form-item>
+      <div class="form-actions">
+        <el-button :disabled="printerSaving" @click="printerDialog = false">取消</el-button>
+        <el-button native-type="submit" type="primary" :disabled="!printerChanged" :loading="printerSaving">保存设置</el-button>
+      </div>
+    </el-form>
+  </el-dialog>
 
   <el-drawer v-model="drawer" :title="activeRow?.name || activeRow?.id || '记录详情'" size="min(560px, 94vw)" destroy-on-close @close="clearPhoto">
     <template v-if="activeRow">

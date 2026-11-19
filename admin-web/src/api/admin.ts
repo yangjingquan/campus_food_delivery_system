@@ -7,6 +7,11 @@ export interface FoodCategory {
   productCount: number
 }
 
+export interface MerchantPrinter {
+  sn: string
+  pkeySet: boolean
+}
+
 export interface AdminSessionUser {
   name: string
   role: string
@@ -54,6 +59,14 @@ export const adminApi = {
   },
   merchantPhoto(id: string) {
     return unwrap<Blob>(http.get(`/merchants/${encodeURIComponent(id)}/photo`, { responseType: 'blob' }))
+  },
+  merchantPrinter(id: string) {
+    return unwrap<MerchantPrinter>(http.get(`/merchants/${encodeURIComponent(id)}/printer`))
+  },
+  saveMerchantPrinter(id: string, sn: string, pkey: string) {
+    return unwrap<MerchantPrinter>(http.post('/actions', {
+      type: 'merchant.save-printer', payload: { id, sn, pkey },
+    }))
   },
   riderStudentCard(id: string) {
     return unwrap<Blob>(http.get(`/riders/${encodeURIComponent(id)}/student-card`, { responseType: 'blob' }))

@@ -1,21 +1,15 @@
 package com.campusfood.admin.service;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.*;
+import java.security.KeyFactory;
 import java.security.spec.*;
 import java.util.*;
-import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import com.campusfood.admin.dao.WechatDao;
 import com.campusfood.admin.dao.ConfigurationLockMapper;
 import com.campusfood.admin.dao.WechatConfigMapper;
-import com.campusfood.admin.dao.WechatSecretMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,19 +20,16 @@ public class WechatService {
     private final WechatDao db;
     private final ConfigurationLockMapper configurationLocks;
     private final WechatConfigMapper configurations;
-    private final WechatSecretMapper secrets;
-    private final SecureRandom random = new SecureRandom();
-    @Value("${app.wechat-master-key-file:}")
-    private String keyFile;
+    private final ConfigurationSecretService encryption;
     @Value("${USER_PAYMENT_MODE:disabled}")
     private String paymentMode;
 
-    public WechatService(WechatDao db, WechatSecretMapper secrets, ConfigurationLockMapper configurationLocks,
+    public WechatService(WechatDao db, ConfigurationSecretService encryption, ConfigurationLockMapper configurationLocks,
                          WechatConfigMapper configurations) {
         this.db = db;
         this.configurationLocks = configurationLocks;
         this.configurations = configurations;
-        this.secrets = secrets;
+        this.encryption = encryption;
     }
 
     private static String value(Map<?, ?> p, String key) {
@@ -53,50 +44,6 @@ public class WechatService {
         var current = new LinkedHashMap<>(all.get(0));
         current.put("enabled", "wechat".equals(paymentMode));
         return Map.of("config", current, "history", all.subList(1, all.size()), "audit", audit);
-    }
-
-    private Long encrypt(String purpose, String content) {
-        if (content.isEmpty()) return null;
-        if (content.length() > 16384) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "材料长度超过限制");
-        try {
-            if (keyFile.isBlank()) throw new IllegalStateException("missing key");
-            byte[] key =
-                    Base64.getDecoder().decode(Files.readString(Path.of(keyFile), StandardCharsets.US_ASCII).trim());
-            if (key.length != 32) throw new IllegalStateException("invalid key length");
-            String fingerprint = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(key));
-            // 历史密文先尝试解密，再补记密钥指纹，避免误用新密钥。
-            var untagged = secrets.lockUntagged();
-            for (var old : untagged) {
-                try {
-                    Cipher check = Cipher.getInstance("AES/GCM/NoPadding");
-                    check.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"),
-                            new GCMParameterSpec(128, (byte[]) old.get("nonce")));
-                    check.updateAAD(old.get("purpose").toString().getBytes(StandardCharsets.UTF_8));
-                    byte[] plain = check.doFinal((byte[]) old.get("ciphertext"));
-                    Arrays.fill(plain, (byte) 0);
-                } catch (Exception ex) {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "加密主密钥与已有材料不匹配，请恢复原密钥");
-                }
-                secrets.tagKey(fingerprint, old.get("id"));
-            }
-            Integer mismatched = secrets.countMismatched(fingerprint);
-            if (mismatched != null && mismatched > 0)
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "加密主密钥与已有材料不匹配，请恢复原密钥");
-            byte[] nonce = new byte[12];
-            random.nextBytes(nonce);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, nonce));
-            // 将用途绑定到密文，防止不同用途的敏感材料被互换。
-            cipher.updateAAD(purpose.getBytes(StandardCharsets.UTF_8));
-            byte[] encrypted = cipher.doFinal(content.getBytes(StandardCharsets.UTF_8));
-            Arrays.fill(key, (byte) 0);
-            db.insertSecret(purpose, nonce, encrypted, fingerprint);
-            return db.lastInsertedId();
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "密钥加密服务不可用，配置未保存");
-        }
     }
 
     private static void validateSecret(String purpose, String text) {
@@ -153,7 +100,7 @@ public class WechatService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AppID 格式无效");
             validateSecret(appType + "_appsecret", secret);
             current.put(appType + "_app_id", appId);
-            if (!secret.isEmpty()) current.put(appType + "_secret_id", encrypt(appType + "_appsecret", secret));
+            if (!secret.isEmpty()) current.put(appType + "_secret_id", encryption.encrypt(appType + "_appsecret", secret));
             reason = appType + " 端 AppID；AppSecret：" + (secret.isEmpty() ? "保留" : "已替换");
         } else if (type.equals("wechat.save-payment")) {
             String[][] fields =
@@ -173,7 +120,7 @@ public class WechatService {
             for (String[] field : secrets) {
                 String v = value(p, field[0]);
                 validateSecret(field[1], v);
-                if (!v.isEmpty()) current.put(field[2], encrypt(field[1], v));
+                if (!v.isEmpty()) current.put(field[2], encryption.encrypt(field[1], v));
             }
             reason = "支付标识及回调；API v3 密钥：" + (value(p, "apiV3Key").isEmpty() ? "保留" : "已替换") +
                     "；商户私钥：" + (value(p, "merchantPrivateKey").isEmpty() ? "保留" : "已替换") + "；微信公钥：" +

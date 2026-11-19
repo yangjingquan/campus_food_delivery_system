@@ -6,10 +6,21 @@ import { useAuthStore } from '../stores/auth'
 import { money, toCents } from '../domain/rules'
 import type { ConfigSnapshot } from '../domain/types'
 
+interface PrintingSettings {
+  appId: string
+  appSecretSet: boolean
+}
+
 const loading = ref(false)
 const auth = useAuthStore()
 const saving = ref(false)
 const history = ref<ConfigSnapshot[]>([])
+const savedPrinting = ref<PrintingSettings>()
+const printingForm = reactive({ appId: '', appSecret: '' })
+const printingSaving = ref(false)
+const printingEditable = computed(() => auth.can('config.edit') && !!savedPrinting.value)
+const printingChanged = computed(() => printingForm.appId.trim() !== savedPrinting.value?.appId || !!printingForm.appSecret)
+const needsPrintingSecret = computed(() => !savedPrinting.value?.appSecretSet || printingForm.appId.trim() !== savedPrinting.value.appId)
 const form = reactive({
   version: '', fee: '4.00', foodRate: 10, deliveryRate: 20, regularBatch: 30, peakBatch: 20,
   serviceStart: '10:30', serviceEnd: '20:30',
@@ -41,9 +52,13 @@ const scheduleError = computed(() => {
 async function load() {
   loading.value = true
   try {
-    const result = await adminApi.workspace<{ config: ConfigSnapshot; history: ConfigSnapshot[] }>('config')
+    const result = await adminApi.workspace<{ config: ConfigSnapshot; history: ConfigSnapshot[]; printing?: PrintingSettings }>('config')
     setForm(result.config)
     history.value = result.history
+    if (result.printing && !printingSaving.value && (!savedPrinting.value || !printingChanged.value)) {
+      savedPrinting.value = result.printing
+      resetPrinting()
+    }
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '配置读取失败。') }
   finally { loading.value = false }
 }
@@ -69,6 +84,29 @@ async function save() {
     if (error instanceof Error && !['cancel', 'close'].includes(error.message)) ElMessage.error(error.message)
   } finally { saving.value = false }
 }
+function resetPrinting() {
+  printingForm.appId = savedPrinting.value?.appId ?? ''
+  printingForm.appSecret = ''
+}
+async function savePrinting() {
+  if (!printingEditable.value || printingSaving.value || !printingChanged.value || loading.value) return
+  const appId = printingForm.appId.trim()
+  if (!appId) return ElMessage.warning('请输入打印机 AppID')
+  if (needsPrintingSecret.value && !printingForm.appSecret.trim()) return ElMessage.warning('请输入打印机 AppSecret')
+
+  printingSaving.value = true
+  try {
+    savedPrinting.value = await adminApi.action<PrintingSettings>('config.save-printing', {
+      appId, appSecret: printingForm.appSecret,
+    })
+    resetPrinting()
+    ElMessage.success('打印设置已保存')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '打印设置保存失败')
+  } finally {
+    printingSaving.value = false
+  }
+}
 onMounted(() => { void load() })
 </script>
 
@@ -77,6 +115,7 @@ onMounted(() => { void load() })
     <h1>运营配置</h1>
   </div>
   <div class="config-layout operations-config" v-loading="loading">
+    <div class="config-main">
     <section class="panel-card config-form-panel">
       <div class="section-heading"><h2>配送规则</h2></div>
       <el-form label-position="top" class="config-grid" :disabled="!auth.can('config.edit') || saving">
@@ -125,6 +164,34 @@ onMounted(() => { void load() })
       </el-form>
       <div class="config-actions"><el-button :disabled="saving" @click="reset">取消修改</el-button><el-button v-if="auth.can('config.edit')" type="primary" :loading="saving" :disabled="loading || !!scheduleError" @click="save">保存并生成新版本</el-button></div>
     </section>
+    <section class="panel-card config-form-panel" aria-labelledby="printing-title">
+      <div class="section-heading">
+        <h2 id="printing-title">打印设置</h2>
+        <el-tag v-if="savedPrinting" :type="savedPrinting.appSecretSet ? 'success' : 'info'" effect="light">
+          {{ savedPrinting.appSecretSet ? '已配置' : '未配置' }}
+        </el-tag>
+      </div>
+      <el-form v-if="savedPrinting" label-position="top" :disabled="!printingEditable || printingSaving || loading"
+        @submit.prevent="savePrinting">
+        <div class="config-grid">
+          <el-form-item label="打印机 AppID" required>
+            <el-input v-model="printingForm.appId" :maxlength="128" autocomplete="off" placeholder="请输入 AppID" />
+          </el-form-item>
+          <el-form-item label="打印机 AppSecret" :required="needsPrintingSecret">
+            <el-input v-model="printingForm.appSecret" type="password" :maxlength="512" autocomplete="new-password"
+              :placeholder="needsPrintingSecret ? '请输入 AppSecret' : '留空保留已保存的 AppSecret'" />
+          </el-form-item>
+        </div>
+        <div v-if="printingEditable" class="config-actions">
+          <el-button :disabled="!printingChanged" @click="resetPrinting">取消修改</el-button>
+          <el-button type="primary" native-type="submit" :loading="printingSaving" :disabled="!printingChanged">
+            保存打印设置
+          </el-button>
+        </div>
+      </el-form>
+      <p v-else-if="!loading" role="status" class="printing-unavailable">暂时无法读取打印设置</p>
+    </section>
+    </div>
     <aside class="config-aside">
       <section class="panel-card rule-preview">
         <h3>金额分配预览</h3><p>以餐品 ¥20.00、配送费 {{ preview.fee }} 为例</p>
@@ -144,6 +211,8 @@ onMounted(() => { void load() })
 
 <style scoped>
 .operations-config { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 20px; }
+.config-main { display: grid; min-width: 0; gap: 20px; }
+.printing-unavailable { margin: 0; color: var(--muted); }
 .fee-fields { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .fee-fields :deep(.el-input-group__prepend), .fee-fields :deep(.el-input-group__append) { padding: 0 10px; }
 .peak-section { grid-column: 1 / -1; min-width: 0; margin: 4px 0 8px; border: 1px solid var(--line); border-radius: 10px; }
