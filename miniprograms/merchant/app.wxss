@@ -210,8 +210,7 @@ textarea.field { height: 64px; }
 .mine-screen .hero .badge { background: #eaf5ed; color: var(--deep); }
 .mine-screen .hero .separator { margin-top: 19px; }
 .mine-screen .business-status .section { color: var(--deep); }
-.mine-screen .form-row { justify-content: flex-start; }
-.mine-screen .form-row .currency-field { flex: 0 1 55%; }
+.mine-screen .form-row { align-items: stretch; }
 .mine-screen .form-row .btn { flex: none; }
 .onboarding-screen .photo-placeholder { height: 110px; }
 .product-screen .photo-picker { min-height: 172px; }

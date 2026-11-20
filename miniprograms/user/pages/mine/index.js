@@ -151,7 +151,7 @@ Page({
       showDialog(this, {
         title: '配送规则与费用',
         content: config.serviceStart
-          ? `每店配送费 ${money(config.deliveryFeeCents)}。配送时段 ${config.serviceStart}–${config.serviceEnd}，高峰每 ${config.peakBatchMinutes} 分钟一批。`
+          ? `每单配送费 ${money(config.deliveryFeeCents)}。配送时段 ${config.serviceStart}–${config.serviceEnd}，高峰每 ${config.peakBatchMinutes} 分钟一批。`
           : '暂时无法获取配送配置，请稍后重试。'
       });
     }
