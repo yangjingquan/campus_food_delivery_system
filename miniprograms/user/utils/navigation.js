@@ -9,9 +9,14 @@ function openCart() {
   return wx.navigateTo({ url: '/pages/cart/index' });
 }
 
-function openCheckout(merchantId) {
-  if (openingCheckout || !cart.read(merchantId).length) return;
-  const scope = merchantId ? '?merchantId=' + encodeURIComponent(merchantId) : '';
+function openCheckout(merchantScope) {
+  if (openingCheckout || !cart.read(merchantScope).length) return;
+  let scope = '';
+  if (Array.isArray(merchantScope)) {
+    scope = '?merchantIds=' + merchantScope.map(id => encodeURIComponent(id)).join(',');
+  } else if (merchantScope) {
+    scope = '?merchantId=' + encodeURIComponent(merchantScope);
+  }
   openingCheckout = true;
   return wx.navigateTo({
     url: '/pages/confirm/index' + scope,

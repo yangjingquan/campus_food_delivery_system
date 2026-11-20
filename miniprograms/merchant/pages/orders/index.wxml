@@ -25,7 +25,7 @@
     </view>
     <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
     <view wx:if="{{!rows.length}}" class="card empty muted">没有符合条件的订单</view>
-    <view wx:for="{{rows}}" wx:key="id" class="card work-card">
+    <view wx:for="{{rows}}" wx:key="id" class="card work-card" data-id="{{item.id}}" bindtap="details" hover-class="pressed">
       <view class="row summary">
         <text class="section mono">#{{item.suffix}}</text>
         <text class="badge {{item.status === '待商户接单' ? 'warn' : item.status === '已关闭' ? 'neutral' : ''}}">{{item.status}}</text>
@@ -34,10 +34,10 @@
       <view class="hint">{{item.time}}</view>
       <view wx:if="{{item.status === '待商户接单'}}" class="hint deadline">{{item.acceptExpired ? '已过接单时限' : '接单截止 ' + item.deadline}}</view>
       <view wx:if="{{item.intervene}}" class="notice">{{item.interveneReason || '待管理员介入'}}</view>
-      <view class="actions split-actions">
-        <button class="btn plain" data-id="{{item.id}}" bindtap="details" hover-class="pressed">订单详情</button>
-        <button wx:if="{{!item.pendingRefund && !item.intervene && !item.acceptExpired && item.status === '待商户接单'}}" class="btn primary" data-id="{{item.id}}" data-action="accept" bindtap="update" disabled="{{saving}}" hover-class="pressed">确认接单</button>
-        <button wx:if="{{!item.pendingRefund && item.status === '商户出餐中'}}" class="btn primary" data-id="{{item.id}}" data-action="arrive" bindtap="update" disabled="{{saving}}" hover-class="pressed">确认到点</button>
+      <view class="actions">
+        <button wx:if="{{!item.pendingRefund && !item.intervene && !item.acceptExpired && item.status === '待商户接单'}}" class="btn primary" data-id="{{item.id}}" data-action="accept" catchtap="update" disabled="{{saving}}" hover-class="pressed" hover-stop-propagation>确认接单</button>
+        <button wx:if="{{!item.pendingRefund && item.status === '商户出餐中'}}" class="btn primary" data-id="{{item.id}}" data-action="arrive" catchtap="update" disabled="{{saving}}" hover-class="pressed" hover-stop-propagation>确认到点</button>
+        <button class="btn plain align-end" data-id="{{item.id}}" catchtap="details" hover-class="pressed" hover-stop-propagation>订单详情</button>
       </view>
     </view>
   </block>

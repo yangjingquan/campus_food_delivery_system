@@ -187,7 +187,8 @@ textarea.field { height: 64px; }
   box-shadow: 0 -2px 8px rgba(31, 57, 42, .06);
 }
 .action-dock .btn { width: 56%; min-width: 160px; max-width: 300px; min-height: 40px; }
-.fulfillment-actions .btn.primary:last-child { margin-left: auto; }
+.fulfillment-actions { justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.fulfillment-actions .btn { min-width: 108px; min-height: 44px; }
 .refund-actions .btn.plain { order: -1; }
 .fee-start { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; }
 .map { display: block; width: 100%; height: 260px; margin-top: 8px; border-radius: 16px; overflow: hidden; background: #e2ebe4; box-shadow: 0 1px 5px rgba(31, 57, 42, .09); }
@@ -219,5 +220,4 @@ textarea.field { height: 64px; }
 .withdraw-screen .hero .muted:last-child { margin-top: 20px; }
 .withdraw-screen .currency-field { min-height: 48px; }
 .withdraw-screen .currency-field .field { font-size: 22px; font-weight: 700; }
-.order-screen .fulfillment-actions .btn:not(.primary) { background: #fff; border: 1px solid var(--line); }
 .record-card .settled > text:last-child { color: var(--deep); font-weight: 700; }

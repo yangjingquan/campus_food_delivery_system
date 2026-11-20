@@ -8,6 +8,7 @@ const source = fs.readFileSync(path.join(__dirname, '../pages/ticket/index.js'),
 
 function pageFor(printing, extra = {}) {
   const calls = [];
+  const printRequests = [];
   let definition;
   const response = {
     id: 'order-1', paidCents: 1500, deliveryCents: 200, code: 'pickup-token',
@@ -15,9 +16,13 @@ function pageFor(printing, extra = {}) {
     ...extra
   };
   if (printing !== undefined) response.printing = printing;
-  const api = { request: async (url) => {
+  const api = { request: async (url, body, method) => {
     calls.push(url);
     if (url.endsWith('/ticket')) return response;
+    if (url.endsWith('/print')) {
+      printRequests.push({ body, method });
+      return { status: 'waiting' };
+    }
     if (url === '/profile') return { store: { name: '测试商户' } };
     if (url === '/orders/order-1') return { delivery: { building: '一号楼', room: '101' } };
     throw new Error('不应发起的请求 ' + url);
@@ -33,7 +38,7 @@ function pageFor(printing, extra = {}) {
         action: async (page, work) => work()
       };
     },
-    wx: { getStorageSync() { return ''; } },
+    wx: { getStorageSync() { return ''; }, setStorageSync() {}, removeStorageSync() {}, showToast() {} },
     clearTimeout, setTimeout
   });
   const page = {
@@ -41,7 +46,7 @@ function pageFor(printing, extra = {}) {
     setData(values) { Object.assign(this.data, values); }
   };
   page.onLoad({ id: 'order-1' });
-  return { page, calls };
+  return { page, calls, printRequests };
 }
 
 test('旧版接口缺少 printing 时可预览小票，并明确提示更新打印服务', async () => {
@@ -84,10 +89,14 @@ test('新版接口保持真实状态和小票数据，不额外查询旧版元�
 });
 
 test('新版接口没有历史打印任务时仍支持打印，排队时禁用重复提交', async () => {
-  const { page } = pageFor({ status: 'none', message: '尚无打印任务' });
+  const { page, printRequests } = pageFor({ status: 'none', message: '尚无打印任务' });
   await page.refresh();
   assert.equal(page.data.canPrint, true);
   assert.equal(page.data.printPending, false);
+  await page.print();
+  assert.equal(printRequests.length, 1);
+  assert.equal(printRequests[0].method, 'POST');
+  assert.match(printRequests[0].body.requestKey, /^print_/);
   const pending = pageFor({ status: 'waiting', message: '已排队' });
   await pending.page.refresh();
   assert.equal(pending.page.data.canPrint, true);

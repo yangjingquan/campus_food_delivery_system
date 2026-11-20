@@ -61,12 +61,7 @@ Page({
   },
   print() {
     if (!this.data.canPrint || this.data.printPending) return;
-    ui.action(this, async () => {
-      const unknown = this.requestKey || this.data.ticket.printing.status === 'unknown';
-      const content = unknown
-        ? '上次提交结果可能尚未确认，请先核对设备是否已出纸。确认继续处理补打申请？'
-        : '将向本店打印机提交一份小票，请确认打印机已开机且有纸。';
-      if (!await ui.confirm('打印／补打小票', content)) return;
+    return ui.action(this, async () => {
       if (!this.requestKey) {
         this.requestKey = 'print_' + Date.now() + '_' + Math.random().toString(36).slice(2);
         wx.setStorageSync(this.storageKey, this.requestKey);

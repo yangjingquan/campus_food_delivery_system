@@ -4,7 +4,10 @@ const cart = require('../../utils/cart');
 const display = require('../../utils/display');
 
 Page({
-  data: { merchant: null, products: [], selectedCount: 0, selectedFoodText: '¥0.00', loading: true, loadError: '' },
+  data: {
+    merchant: null, products: [], selectedCount: 0, selectedFoodText: '¥0.00',
+    belowMinimum: false, shortfallText: '', loading: true, loadError: ''
+  },
 
   onLoad(query) { this.merchantId = query.id; },
   onShow() { this.load(); },
@@ -21,10 +24,10 @@ Page({
           ...merchant, picture: display.photo(merchant.photoPath, artwork),
           fallback: display.illustration(artwork), deliveryFeeText: display.money(merchant.deliveryFeeCents),
           minimumOrderText: display.money(merchant.minimumOrderCents || 0)
-        },
-        loading: false
+        }
       });
       this.refreshCart();
+      this.setData({ loading: false });
     } catch (error) {
       this.setData({ merchant: null, loading: false, loadError: error.message });
     }
@@ -33,6 +36,12 @@ Page({
   refreshCart() {
     const { merchant } = this.data;
     const selected = cart.read(merchant.id);
+    const currentPrices = new Map(merchant.products.map(item => [item.id, item.priceCents]));
+    const pricedItems = selected.map(item => ({
+      ...item, priceCents: currentPrices.get(item.productId) ?? item.priceCents
+    }));
+    const { foodCents } = cart.totals(pricedItems, 0);
+    const shortfall = (merchant.minimumOrderCents || 0) - foodCents;
     const products = merchant.products.map(item => ({
       ...item, priceText: display.money(item.priceCents),
       picture: display.photo(item.photoPath, item.artwork), fallback: display.illustration(item.artwork),
@@ -40,7 +49,8 @@ Page({
     }));
     this.setData({
       products, selectedCount: selected.reduce((n, item) => n + item.quantity, 0),
-      selectedFoodText: display.money(cart.totals(selected, 0).foodCents)
+      selectedFoodText: display.money(foodCents),
+      belowMinimum: shortfall > 0, shortfallText: shortfall > 0 ? display.money(shortfall) : ''
     });
   },
 
@@ -60,5 +70,9 @@ Page({
   },
 
   viewCart() { return openCart(); },
-  checkout() { return openCheckout(this.data.merchant.id); }
+  checkout() {
+    const { merchant, loading, selectedCount, belowMinimum } = this.data;
+    if (!merchant || loading || !selectedCount || belowMinimum) return;
+    return openCheckout(merchant.id);
+  }
 });

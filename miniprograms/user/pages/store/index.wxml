@@ -27,9 +27,12 @@
         </view>
         <view class="info">
           <view class="h3">{{item.name}}</view>
-          <view class="small" wx:if="{{item.description}}">{{item.description}}</view>
+          <view class="small product-description" wx:if="{{item.description}}">{{item.description}}</view>
           <view class="row food-price-row">
-            <view class="price">{{item.priceText}}</view>
+            <view class="product-pricing">
+              <view class="price">{{item.priceText}}</view>
+              <view wx:if="{{item.availableStock}}" class="small">剩余 {{item.availableStock}} 份</view>
+            </view>
             <view wx:if="{{item.quantity || (merchant.open && item.availableStock)}}" class="stepper">
               <button wx:if="{{item.quantity}}" data-id="{{item.id}}" data-delta="-1" aria-label="减少一份" bindtap="change">−</button>
               <text wx:if="{{item.quantity}}">{{item.quantity}}</text>
@@ -38,7 +41,6 @@
             </view>
             <text wx:else class="tag">{{merchant.open ? '已售罄' : '暂不接单'}}</text>
           </view>
-          <view wx:if="{{item.availableStock}}" class="small">剩余 {{item.availableStock}} 份</view>
         </view>
       </view>
     </view>
@@ -48,12 +50,15 @@
     </view>
     <view class="totalbar">
       <view wx:if="{{selectedCount}}" class="card row totalbar-summary">
-        <view class="small">本店已选 {{selectedCount}} 份</view>
+        <view>
+          <view class="small">本店已选 {{selectedCount}} 份</view>
+          <view wx:if="{{belowMinimum}}" class="small minimum-shortfall">还差 {{shortfallText}} 起送</view>
+        </view>
         <view class="price">{{selectedFoodText}}</view>
       </view>
       <view class="store-actions {{selectedCount ? 'two-actions' : ''}}">
         <button class="btn outline" bindtap="viewCart">查看购物车</button>
-        <button wx:if="{{selectedCount}}" class="btn" bindtap="checkout">去结算</button>
+        <button wx:if="{{selectedCount}}" class="btn" disabled="{{belowMinimum}}" bindtap="checkout">去结算</button>
       </view>
     </view>
   </block>

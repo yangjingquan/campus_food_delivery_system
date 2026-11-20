@@ -10,7 +10,11 @@ Page({
     config: {}, loading: true, loadError: '', submitting: false, unavailable: false, belowMinimum: false
   },
 
-  onLoad(query) { this.merchantId = query.merchantId; },
+  onLoad(query) {
+    this.merchantScope = query.merchantIds === undefined
+      ? query.merchantId
+      : query.merchantIds.split(',').filter(Boolean).map(id => decodeURIComponent(id));
+  },
   onShow() { this.load(); },
 
   async load() {
@@ -32,7 +36,7 @@ Page({
         merchantMinimums.set(merchant.id, merchant.minimumOrderCents || 0);
         for (const product of merchant.products) latest.set(product.id, { product, merchant });
       }
-      this.items = cart.read(this.merchantId).map(item => {
+      this.items = cart.read(this.merchantScope).map(item => {
         const entry = latest.get(item.productId);
         const unavailable = !entry || !entry.merchant.open || entry.product.availableStock < item.quantity;
         return {

@@ -25,17 +25,20 @@
             </view>
           </view>
         </view>
-        <view class="row split"><text class="small">本商户固定配送费</text><text>{{item.feeText}}</text></view>
+        <view wx:if="{{item.eligible}}" class="row split"><text class="small">本商户固定配送费</text><text>{{item.feeText}}</text></view>
+        <view wx:else class="split small cart-excluded">
+          {{item.shortfallText ? '还差 ' + item.shortfallText + ' 起送，暂不参与结算' : '店铺暂不可用，暂不参与结算'}}
+        </view>
       </view>
     </view>
-    <view class="hint">{{groups.length > 1 ? '合并付款后按商户拆单，各店独立出餐、配送与售后。' : '本店独立出餐、配送与售后。'}}</view>
+    <view wx:if="{{checkoutCount}}" class="hint">{{checkoutCount > 1 ? '合并付款后按商户拆单，各店独立出餐、配送与售后。' : '本店独立出餐、配送与售后。'}}</view>
     <view class="card bill">
       <view class="row"><text>餐品金额</text><text>{{foodText}}</text></view>
-      <view class="row"><text>配送费（{{groups.length}} 笔）</text><text>{{feeText}}</text></view>
+      <view class="row"><text>预估配送费（{{groups.length}} 笔）</text><text>{{feeText}}</text></view>
     </view>
     <view class="totalbar">
-      <view class="card row totalbar-summary"><view class="small">合计（含配送费）</view><view class="price">{{totalText}}</view></view>
-      <button class="btn" bindtap="checkout">去结算</button>
+      <view class="card row totalbar-summary"><view class="small">预估合计（含配送费）</view><view class="price">{{totalText}}</view></view>
+      <button class="btn" disabled="{{!checkoutCount}}" bindtap="checkout">去结算</button>
     </view>
   </block>
   <view wx:if="{{!loading && !loadError && !cartCount}}" class="empty">

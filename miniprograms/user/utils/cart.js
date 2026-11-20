@@ -1,6 +1,7 @@
-function read(merchantId) {
+function read(merchantScope) {
   const items = wx.getStorageSync('shoppingCart') || [];
-  return merchantId ? items.filter(item => item.merchantId === merchantId) : items;
+  if (Array.isArray(merchantScope)) return items.filter(item => merchantScope.includes(item.merchantId));
+  return merchantScope ? items.filter(item => item.merchantId === merchantScope) : items;
 }
 function save(items) { wx.setStorageSync('shoppingCart', items); return items; }
 function totals(items, feePerMerchant) {
