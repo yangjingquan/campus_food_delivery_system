@@ -18,11 +18,19 @@
       <label for="receiver-room">寝室门牌</label>
       <input id="receiver-room" maxlength="80" value="{{room}}" data-field="room" bindinput="input" placeholder="例如：302寝室"/>
     </view>
+    <view class="field location-field">
+      <view class="location-heading">收餐位置</view>
+      <button class="btn outline wide location-picker" loading="{{choosingLocation}}" disabled="{{saving || choosingLocation}}" bindtap="chooseLocation">
+        {{hasLocation ? '重新选择地图位置' : '在地图中设置位置'}}
+      </button>
+      <view class="hint location-hint">{{hasLocation ? (locationName || '已设置收餐位置') : '请选择楼栋实际入口，方便骑手准确送达。'}}</view>
+    </view>
     <label class="card row default-row">
       <text>设为默认收餐地址</text>
       <switch checked="{{isDefault}}" color="#ee692f" bindchange="toggleDefault"/>
     </label>
     <view wx:if="{{error}}" class="error address-error">{{error}}</view>
-    <button class="btn wide" loading="{{saving}}" disabled="{{saving}}" bindtap="save">保存地址</button>
+    <button wx:if="{{locationPermissionDenied}}" class="link" bindtap="openLocationSettings">打开位置权限设置 ›</button>
+    <button class="btn wide" loading="{{saving}}" disabled="{{saving || choosingLocation}}" bindtap="save">保存地址</button>
   </block>
 </view>

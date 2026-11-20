@@ -1,4 +1,5 @@
 const api = require('../../utils/api');
+const { hasCoordinates } = require('../../utils/coordinates');
 
 const { showDialog, dialogEvents } = require('../../utils/dialog');
 
@@ -14,7 +15,7 @@ Page({
     try {
       await getApp().ensureLogin();
       const { data } = await api.get('/addresses');
-      const rows = data.rows || [];
+      const rows = (data.rows || []).map(address => ({ ...address, needsLocation: !hasCoordinates(address) }));
       const current = wx.getStorageSync('selectedAddress');
       const selected = rows.find(item => item.id === current?.id) || rows.find(item => item.isDefault);
       if (selected) wx.setStorageSync('selectedAddress', selected);
@@ -31,6 +32,10 @@ Page({
   select(event) {
     const address = this.data.rows.find(item => item.id === event.currentTarget.dataset.id);
     if (!address) return;
+    if (!hasCoordinates(address)) {
+      wx.navigateTo({ url: `/pages/address-edit/index?id=${encodeURIComponent(address.id)}` });
+      return;
+    }
     wx.setStorageSync('selectedAddress', address);
     this.setData({ selectedId: address.id });
     if (this.data.choose) wx.navigateBack({ delta: 1 });

@@ -8,3 +8,6 @@
   transform-origin: right center;
 }
 .address-error { margin-bottom: 10px; }
+
+.location-heading { margin-bottom: 8px; font-weight: 650; }
+.location-hint { margin: 8px 0 0; overflow-wrap: anywhere; }

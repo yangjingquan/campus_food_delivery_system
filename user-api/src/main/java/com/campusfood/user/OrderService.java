@@ -72,6 +72,7 @@ public class OrderService {
             if (!fingerprint.equals(previous.get(0).get("request_fingerprint"))) throw new ResponseStatusException(HttpStatus.CONFLICT, "该下单请求标识已用于其他购物车，请刷新后重试");
             return checkoutResponse(previous.get(0).get("id").toString());
         }
+        var coordinates = AddressCoordinates.require(address);
         List<OrderLine> lines = lockAndValidate(requested);
         Map<String, Object> operations = db.queryForMap(
             "SELECT fee_cents,id,food_rate FROM operations_config ORDER BY id DESC LIMIT 1");
@@ -136,10 +137,10 @@ public class OrderService {
                 foodCents, feePerMerchant, merchantTotal);
             db.update("""
                 INSERT INTO user_order_detail(order_id,user_id,payment_id,address_id,receiver_name,phone,building,room,
-                    operations_rule_id,food_rate_snapshot)
-                VALUES(?,?,?,?,?,?,?,?,?,?)
+                    operations_rule_id,food_rate_snapshot,destination_latitude,destination_longitude)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
                 """, orderId, userId, paymentId, addressId, address.get("name"), address.get("phone"),
-                address.get("building"), address.get("room"), operations.get("id"), operations.get("food_rate"));
+                address.get("building"), address.get("room"), operations.get("id"), operations.get("food_rate"), coordinates.latitude(), coordinates.longitude());
             for (OrderLine line : merchantLines) {
                 CatalogLine item = line.product();
                 long amount = Math.multiplyExact(item.priceCents(), line.quantity());

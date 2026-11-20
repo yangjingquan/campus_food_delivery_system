@@ -54,8 +54,9 @@ public class RiderOrders {
         // 配送结束后仍可查履约与收益，收餐联系电话仅配送期间提供。
         if ("配送中".equals(order.get("status"))) {
             order.putAll(db.queryForMap("""
-                SELECT d.receiver_name AS receiver,d.phone,t.latitude,t.longitude
-                FROM user_order_detail d LEFT JOIN delivery_destination t ON t.building=d.building
+                SELECT d.receiver_name AS receiver,d.phone,
+                       d.destination_latitude AS latitude,d.destination_longitude AS longitude
+                FROM user_order_detail d
                 WHERE d.order_id=?
                 """, id));
         }

@@ -34,6 +34,10 @@
       { "pagePath": "pages/mine/index", "text": "我的" }
     ]
   },
+  "permission": {
+    "scope.userLocation": { "desc": "用于选择收餐地址的地图位置，方便骑手准确送达" }
+  },
+  "requiredPrivateInfos": ["chooseLocation"],
   "sitemapLocation": "sitemap.json",
   "lazyCodeLoading": "requiredComponents"
 }

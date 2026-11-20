@@ -30,7 +30,8 @@ function order(data) {
     eligibleTime: date(data.eligibleAt),
     settledTime: date(data.settledAt),
     displayPhone: maskPhone(data.phone),
-    hasCoordinates: data.latitude != null && data.longitude != null,
+    hasCoordinates: [data.latitude, data.longitude].every(value => (typeof value === 'number' || typeof value === 'string') && String(value).trim() !== '' && Number.isFinite(Number(value)))
+      && Math.abs(Number(data.latitude)) <= 90 && Math.abs(Number(data.longitude)) <= 180,
     refunds: (data.refunds || []).map(item => ({
       ...item,
       time: date(item.actualAt || item.createdAt),

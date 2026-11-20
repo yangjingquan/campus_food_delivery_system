@@ -15,16 +15,17 @@ public class AddressService {
     public AddressService(JdbcTemplate db) { this.db = db; }
 
     public List<Map<String, Object>> list(long userId) {
-        return db.queryForList("SELECT id,receiver_name AS name,phone,building,room,is_default AS isDefault FROM user_address WHERE user_id=? ORDER BY is_default DESC,updated_at DESC", userId);
+        return db.queryForList("SELECT id,receiver_name AS name,phone,building,room,latitude,longitude,is_default AS isDefault FROM user_address WHERE user_id=? ORDER BY is_default DESC,updated_at DESC", userId);
     }
 
     @Transactional
     public Map<String, Object> create(long userId, Map<String, Object> body) {
         Address address = validate(body);
+        var coordinates = AddressCoordinates.require(body);
         String id = UUID.randomUUID().toString();
         boolean makeDefault = address.makeDefault() || count(userId) == 0;
         if (makeDefault) db.update("UPDATE user_address SET is_default=FALSE WHERE user_id=?", userId);
-        db.update("INSERT INTO user_address(id,user_id,receiver_name,phone,building,room,is_default) VALUES(?,?,?,?,?,?,?)", id, userId, address.name(), address.phone(), address.building(), address.room(), makeDefault);
+        db.update("INSERT INTO user_address(id,user_id,receiver_name,phone,building,room,latitude,longitude,is_default) VALUES(?,?,?,?,?,?,?,?,?)", id, userId, address.name(), address.phone(), address.building(), address.room(), coordinates.latitude(), coordinates.longitude(), makeDefault);
         return byId(userId, id);
     }
 
@@ -32,9 +33,11 @@ public class AddressService {
     public Map<String, Object> update(long userId, String id, Map<String, Object> body) {
         require(userId, id);
         Address address = validate(body);
+        var coordinates = AddressCoordinates.require(body);
         boolean makeDefault = address.makeDefault();
         if (makeDefault) db.update("UPDATE user_address SET is_default=FALSE WHERE user_id=?", userId);
-        db.update("UPDATE user_address SET receiver_name=?,phone=?,building=?,room=?,is_default=? WHERE id=? AND user_id=?", address.name(), address.phone(), address.building(), address.room(), makeDefault, id, userId);
+        db.update("UPDATE user_address SET receiver_name=?,phone=?,building=?,room=?,latitude=?,longitude=?,is_default=? WHERE id=? AND user_id=?", address.name(), address.phone(), address.building(), address.room(), coordinates.latitude(), coordinates.longitude(), makeDefault, id, userId);
+        fillLegacyOrderCoordinates(userId, id, address, coordinates);
         return byId(userId, id);
     }
 
@@ -48,9 +51,20 @@ public class AddressService {
     }
 
     public Map<String, Object> require(long userId, String id) {
-        var rows = db.queryForList("SELECT id,user_id,receiver_name AS name,phone,building,room,is_default AS isDefault FROM user_address WHERE id=? AND user_id=?", id, userId);
+        var rows = db.queryForList("SELECT id,user_id,receiver_name AS name,phone,building,room,latitude,longitude,is_default AS isDefault FROM user_address WHERE id=? AND user_id=?", id, userId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "收餐地址不存在");
         return rows.get(0);
+    }
+
+    /** 只补齐原地址楼栋、门牌完全相同且仍未结束的旧订单，不覆盖已有目的地。 */
+    private void fillLegacyOrderCoordinates(long userId, String id, Address address, AddressCoordinates coordinates) {
+        db.update("""
+                UPDATE user_order_detail d JOIN business_order o ON o.id=d.order_id
+                SET d.destination_latitude=?,d.destination_longitude=?
+                WHERE d.user_id=? AND d.address_id=? AND CAST(d.building AS BINARY)=CAST(? AS BINARY) AND CAST(d.room AS BINARY)=CAST(? AS BINARY)
+                  AND d.destination_latitude IS NULL AND d.destination_longitude IS NULL
+                  AND o.fulfill_status NOT IN ('已完成','已关闭')
+                """, coordinates.latitude(), coordinates.longitude(), userId, id, address.building(), address.room());
     }
 
     private Map<String, Object> byId(long userId, String id) { return require(userId, id); }

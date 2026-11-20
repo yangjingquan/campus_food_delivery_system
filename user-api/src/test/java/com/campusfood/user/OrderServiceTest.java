@@ -39,7 +39,7 @@ class OrderServiceTest {
         db = mock(JdbcTemplate.class);
         addresses = mock(AddressService.class);
         when(addresses.require(8L, "ADDR-1")).thenReturn(Map.of(
-            "name", "林同学", "phone", "13800000000", "building", "5号宿舍楼", "room", "302寝室"));
+            "name", "林同学", "phone", "13800000000", "building", "5号宿舍楼", "room", "302寝室", "latitude", new BigDecimal("41.8"), "longitude", new BigDecimal("123.4")));
         when(db.queryForList(contains("SELECT id,request_fingerprint"), any(Object[].class))).thenReturn(List.of());
         when(db.queryForMap(contains("SELECT fee_cents"))).thenReturn(Map.of(
             "id", 1L, "fee_cents", 400L, "food_rate", BigDecimal.TEN));
@@ -118,6 +118,25 @@ class OrderServiceTest {
         verify(db, times(2)).update(contains("INSERT INTO business_order"), any(Object[].class));
         verify(db).update(contains("SET reserved=reserved+"), any(Object[].class));
         verify(db).update(contains("INSERT INTO user_order_detail"), any(Object[].class));
+    }
+
+    @Test
+    void checkoutCopiesSelectedCoordinatesIntoOrderSnapshot() {
+        checkout(List.of(Map.of("productId", "P1", "quantity", 1)), "coordinates_key_001");
+        var values = org.mockito.ArgumentCaptor.forClass(Object[].class);
+        verify(db).update(contains("INSERT INTO user_order_detail"), values.capture());
+        assertEquals(new BigDecimal("41.8"), values.getValue()[10]);
+        assertEquals(new BigDecimal("123.4"), values.getValue()[11]);
+    }
+
+    @Test
+    void oldAddressWithoutCoordinatesCannotCreateNewOrdersOrReserveStock() {
+        when(addresses.require(8L, "ADDR-1")).thenReturn(Map.of(
+                "name", "同学", "building", "旧楼栋", "room", "101"));
+        var error = assertThrows(ResponseStatusException.class, () -> checkout(
+                List.of(Map.of("productId", "P1", "quantity", 1)), "coordinates_key_002"));
+        assertEquals(400, error.getStatusCode().value());
+        verify(db, never()).update(anyString(), any(Object[].class));
     }
 
     private Map<String, Object> checkout(List<Map<String, Object>> items, String requestKey) {

@@ -1,5 +1,6 @@
 const { openCart } = require('../../utils/navigation');
 const api = require('../../utils/api');
+const { hasCoordinates } = require('../../utils/coordinates');
 const cart = require('../../utils/cart');
 const { money, photo, illustration } = require('../../utils/display');
 
@@ -59,7 +60,7 @@ Page({
         };
       });
       this.setData({
-        groups, totals, address, config, loading: false,
+        groups, totals, address, addressNeedsLocation: !!address && !hasCoordinates(address), config, loading: false,
         unavailable: this.items.some(item => item.unavailable),
         belowMinimum: groups.some(group => group.shortfallText),
         paymentEnabled: ['mock', 'wechat'].includes(config.paymentMode),
@@ -79,11 +80,15 @@ Page({
   },
 
   chooseAddress() { wx.navigateTo({ url: '/pages/addresses/index?choose=1' }); },
+  completeAddress() {
+    if (this.data.address) wx.navigateTo({ url: `/pages/address-edit/index?id=${encodeURIComponent(this.data.address.id)}` });
+  },
   openCart() { return openCart(); },
 
   async submit() {
     if (this.data.submitting || this.data.loading || this.data.unavailable || this.data.belowMinimum || !this.data.paymentEnabled) return;
     if (!this.data.address) return this.chooseAddress();
+    if (!hasCoordinates(this.data.address)) return this.completeAddress();
     const items = this.items.map(({ productId, quantity }) => ({ productId, quantity }));
     if (!items.length) return;
     this.setData({ submitting: true, submitError: '' });
