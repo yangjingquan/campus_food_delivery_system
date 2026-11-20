@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import { adminApi, type MerchantPrinter } from '../api/admin'
+import ListPagination from '../components/ListPagination.vue'
+import { useListPagination } from '../domain/useListPagination'
 import { useAuthStore } from '../stores/auth'
 import { money } from '../domain/rules'
 import type { FinanceSection } from '../router'
@@ -104,6 +106,8 @@ const filteredRows = computed(() => currentRows.value.filter((row) => {
   const text = Object.values(row).filter((value) => typeof value === 'string' || typeof value === 'number').join(' ').toLowerCase()
   return (!keyword.value || text.includes(keyword.value.toLowerCase())) && (!statusFilter.value || row[statusKey.value] === statusFilter.value)
 }))
+const { page, pageSize, total, pageRows } = useListPagination(() => filteredRows.value)
+watch([keyword, statusFilter, section, financeSection], () => { page.value = 1 })
 
 async function load() {
   const request = ++loadRequest
@@ -216,7 +220,15 @@ function detailValue(value: unknown, key: string) {
   if (value === 0) return '0'
   return value || '—'
 }
-function resetFilters() { keyword.value = ''; statusFilter.value = '' }
+function searchList() {
+  page.value = 1
+  void load()
+}
+function resetFilters() {
+  keyword.value = ''
+  statusFilter.value = ''
+  page.value = 1
+}
 async function audit(row: Row, subject: string, decision: 'approve' | 'reject') {
   let reason = ''
   if (decision === 'reject') {
@@ -289,26 +301,27 @@ function runRowAction(row: Row) {
       <div class="panel-toolbar finance-toolbar">
         <el-input v-model="keyword" clearable placeholder="搜索主体、订单或流水号" aria-label="搜索主体、订单或流水号" class="toolbar-search" :prefix-icon="Search" />
       </div>
-      <el-table :key="financeSection" :data="filteredRows" row-key="id" v-loading="loading" stripe class="data-table">
+      <el-table :key="financeSection" :data="pageRows" row-key="id" v-loading="loading" stripe class="data-table">
         <el-table-column v-for="column in columns" :key="column.key" :prop="column.key" :label="column.label" :min-width="column.minWidth || 110" show-overflow-tooltip>
           <template #default="scope"><el-tag v-if="column.key === 'settlement' || column.key === 'status'" :type="statusType(String(scope.row[column.key]))" effect="light" round>{{ scope.row[column.key] }}</el-tag><span v-else>{{ displayValue(scope.row, column.key) }}</span></template>
         </el-table-column>
         <el-table-column v-if="financeSection === 'debts'" label="操作" width="220" fixed="right"><template #default="scope"><el-button link type="primary" @click="openDetails(scope.row)">查看去向</el-button></template></el-table-column>
         <template #empty><el-empty description="没有符合条件的记录" /></template>
       </el-table>
+      <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading" />
     </div>
   </template>
 
   <div v-else class="panel-card workbench-panel">
     <div class="panel-toolbar">
       <div class="filter-set">
-        <el-input v-model="keyword" clearable placeholder="搜索编号、名称或说明" aria-label="搜索编号、名称或说明" class="toolbar-search" :prefix-icon="Search" @keyup.enter="load" />
+        <el-input v-model="keyword" clearable placeholder="搜索编号、名称或说明" aria-label="搜索编号、名称或说明" class="toolbar-search" :prefix-icon="Search" @keyup.enter="searchList" />
         <el-select v-model="statusFilter" clearable placeholder="全部状态" aria-label="筛选状态" class="status-select"><el-option v-for="status in statusOptions" :key="status" :label="status" :value="status" /></el-select>
-        <el-button @click="load"><el-icon><Search /></el-icon>查询</el-button>
+        <el-button @click="searchList"><el-icon><Search /></el-icon>查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
       </div>
     </div>
-    <el-table :data="filteredRows" row-key="id" v-loading="loading" stripe class="data-table">
+    <el-table :data="pageRows" row-key="id" v-loading="loading" stripe class="data-table">
       <el-table-column v-if="section === 'orders'" label="介入提醒" width="125" fixed="left"><template #default="scope"><el-tag v-if="scope.row.intervene" type="warning" effect="light" round>待管理员介入</el-tag><span v-else class="muted">—</span></template></el-table-column>
       <el-table-column v-for="column in columns" :key="column.key" :prop="column.key" :label="column.label" :min-width="column.minWidth || 110" show-overflow-tooltip>
         <template #default="scope">
@@ -332,6 +345,7 @@ function runRowAction(row: Row) {
       </el-table-column>
       <template #empty><el-empty description="没有符合条件的记录" /></template>
     </el-table>
+    <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading" />
   </div>
 
   <el-dialog v-model="printerDialog" title="打印机设置" width="min(480px, 94vw)" destroy-on-close

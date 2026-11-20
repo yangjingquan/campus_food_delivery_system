@@ -125,6 +125,11 @@ services:
         condition: service_healthy
       user-api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'echo > /dev/tcp/127.0.0.1/8083'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
   rider-api:
     build:
       context: .
@@ -179,7 +184,11 @@ services:
       VITE_API_BASE_URL: /api/admin/v1
       VITE_PROXY_TARGET: http://gateway:8080
     depends_on:
-      - gateway
+      gateway:
+        condition: service_started
+      # 管理端商品和食品分类接口依赖商户服务，即使只启动 admin-web 也需要它。
+      merchant-api:
+        condition: service_healthy
     init: true
 volumes:
   nacos_data:

@@ -2,6 +2,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '../api/admin'
+import ListPagination from '../components/ListPagination.vue'
+import { useListPagination } from '../domain/useListPagination'
 import { useAuthStore } from '../stores/auth'
 import { money, toCents } from '../domain/rules'
 import type { ConfigSnapshot } from '../domain/types'
@@ -15,6 +17,7 @@ const loading = ref(false)
 const auth = useAuthStore()
 const saving = ref(false)
 const history = ref<ConfigSnapshot[]>([])
+const { page, pageSize, total, pageRows } = useListPagination(() => history.value)
 const savedPrinting = ref<PrintingSettings>()
 const printingForm = reactive({ appId: '', appSecret: '' })
 const printingSaving = ref(false)
@@ -203,7 +206,9 @@ onMounted(() => { void load() })
       <section class="panel-card history-panel">
         <div class="section-heading"><div><h3>配置变更记录</h3></div><el-icon><Clock /></el-icon></div>
         <el-empty v-if="!history.length" description="暂无变更记录" :image-size="70" />
-        <div v-for="item in history" :key="item.version" class="history-item"><div><strong>{{ item.version }}</strong><el-tag size="small" type="info" effect="light">历史版本</el-tag></div><p>{{ item.operator }} · {{ new Date(item.effectiveAt).toLocaleString('zh-CN') }}</p><small>配送费 ¥{{ (item.feeCents / 100).toFixed(2) }} · 餐品抽成 {{ item.foodRate }}% · 配送抽成 {{ item.deliveryRate }}%</small><p class="history-peaks">高峰 {{ item.peakPeriods?.map(period => `${period.start}–${period.end}`).join('、') || '未设置' }}</p></div>
+        <div v-for="item in pageRows" :key="item.version" class="history-item"><div><strong>{{ item.version }}</strong><el-tag size="small" type="info" effect="light">历史版本</el-tag></div><p>{{ item.operator }} · {{ new Date(item.effectiveAt).toLocaleString('zh-CN') }}</p><small>配送费 ¥{{ (item.feeCents / 100).toFixed(2) }} · 餐品抽成 {{ item.foodRate }}% · 配送抽成 {{ item.deliveryRate }}%</small><p class="history-peaks">高峰 {{ item.peakPeriods?.map(period => `${period.start}–${period.end}`).join('、') || '未设置' }}</p></div>
+        <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total"
+          :disabled="loading" label="运营配置变更记录分页" />
       </section>
     </aside>
   </div>

@@ -2,11 +2,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi, type FoodCategory } from '../api/admin'
+import ListPagination from '../components/ListPagination.vue'
+import { useListPagination } from '../domain/useListPagination'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const canEdit = computed(() => auth.can('food-category.edit'))
 const rows = ref<FoodCategory[]>([])
+const { page, pageSize, total, pageRows } = useListPagination(() => rows.value)
 const loading = ref(false)
 const loadError = ref('')
 const busy = ref(false)
@@ -86,7 +89,7 @@ onMounted(load)
   </div>
 
   <section class="panel-card workbench-panel">
-    <el-table v-loading="loading" :data="rows" class="data-table" row-key="id" stripe>
+    <el-table v-loading="loading" :data="pageRows" class="data-table" row-key="id" stripe>
       <el-table-column prop="name" label="分类名称" min-width="120" show-overflow-tooltip />
       <el-table-column prop="productCount" label="关联商品" width="100" align="right" />
       <el-table-column v-if="canEdit" label="操作" width="150">
@@ -103,6 +106,7 @@ onMounted(load)
         </el-empty>
       </template>
     </el-table>
+    <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading" />
   </section>
 
   <el-dialog v-model="dialog" :title="editing ? '修改食品分类' : '新增食品分类'"

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Picture } from '@element-plus/icons-vue'
 import { adminApi } from '../api/admin'
+import ListPagination from '../components/ListPagination.vue'
 import { money } from '../domain/rules'
 
 interface ProductRow {
@@ -30,9 +31,11 @@ const merchants = ref<MerchantOption[]>([])
 const keyword = ref('')
 const merchantId = ref('')
 const availability = ref('')
+const appliedFilters = ref({ keyword: '', merchantId: '', availability: '' })
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+let productRequest = 0
 const photoOpen = ref(false)
 const photoLoading = ref(false)
 const photoUrl = ref('')
@@ -47,21 +50,26 @@ function hasPhoto(value: ProductRow['hasPhoto']) {
 }
 
 async function loadProducts() {
+  const request = ++productRequest
   loading.value = true
   try {
     const result = await adminApi.products({
-      keyword: keyword.value.trim(),
-      merchantId: merchantId.value,
-      availability: availability.value,
+      ...appliedFilters.value,
       page: page.value,
       pageSize: pageSize.value,
     })
-    rows.value = result.rows as unknown as ProductRow[]
+    if (request !== productRequest) return
     total.value = result.total
+    const lastPage = Math.max(1, Math.ceil(total.value / pageSize.value))
+    if (page.value > lastPage) {
+      page.value = lastPage
+      return
+    }
+    rows.value = result.rows as unknown as ProductRow[]
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '商品目录加载失败')
+    if (request === productRequest) ElMessage.error(error instanceof Error ? error.message : '商品目录加载失败')
   } finally {
-    loading.value = false
+    if (request === productRequest) loading.value = false
   }
 }
 
@@ -76,21 +84,14 @@ async function loadMerchants() {
 
 function search() {
   page.value = 1
-  void loadProducts()
+  appliedFilters.value = { keyword: keyword.value.trim(), merchantId: merchantId.value, availability: availability.value }
 }
 
 function resetFilters() {
   keyword.value = ''
   merchantId.value = ''
   availability.value = ''
-  page.value = 1
-  void loadProducts()
-}
-
-function changePageSize(size: number) {
-  pageSize.value = size
-  page.value = 1
-  void loadProducts()
+  search()
 }
 
 function displayTime(value: ProductRow['updatedAt']) {
@@ -123,11 +124,12 @@ function clearPhoto() {
   photoUrl.value = ''
 }
 
-onMounted(() => {
-  void loadProducts()
-  void loadMerchants()
+watch([page, pageSize, appliedFilters], loadProducts, { immediate: true })
+onMounted(loadMerchants)
+onUnmounted(() => {
+  productRequest++
+  clearPhoto()
 })
-onUnmounted(clearPhoto)
 </script>
 
 <template>
@@ -206,17 +208,7 @@ onUnmounted(clearPhoto)
       <template #empty><el-empty description="没有符合条件的商品" /></template>
     </el-table>
 
-    <div class="product-pagination">
-      <el-pagination
-        v-model:current-page="page"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @current-change="loadProducts"
-        @size-change="changePageSize"
-      />
-    </div>
+    <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading" jumper />
   </section>
 
   <el-dialog v-model="photoOpen" :title="photoTitle" width="min(680px, 92vw)" @closed="clearPhoto">
