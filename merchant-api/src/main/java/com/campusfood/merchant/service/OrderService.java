@@ -14,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class OrderService {
+    private static final int ORDER_PAGE_SIZE = 10;
     private static final String BASE = """
         SELECT o.id,o.payment_id AS paymentId,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryCents,
                o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,
@@ -45,12 +46,12 @@ public class OrderService {
 
     public Map<String, Object> list(String merchant, String status, String keyword, int page) {
         String term = "%" + keyword.trim() + "%";
-        int offset = Math.min(100_000, Math.max(0, page)) * 30;
+        long offset = (long) Math.max(0, page) * ORDER_PAGE_SIZE;
         var rows = db.queryForList(BASE + """
             AND (?='' OR o.fulfill_status=?)
             AND (o.id LIKE ? OR o.items LIKE ? OR CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) LIKE ?)
-            ORDER BY o.paid_at DESC,o.id DESC LIMIT 31 OFFSET ?
-            """, merchant, status, status, term, term, term, offset);
+            ORDER BY o.paid_at DESC,o.id DESC LIMIT ? OFFSET ?
+            """, merchant, status, status, term, term, term, ORDER_PAGE_SIZE + 1, offset);
         var counts = db.queryForMap("""
             SELECT COUNT(CASE WHEN o.fulfill_status='待商户接单' AND o.pending_refund=FALSE
                           AND o.refund_status NOT IN ('退款失败','平台介入')
@@ -58,7 +59,8 @@ public class OrderService {
                    COUNT(CASE WHEN o.refund_status='待商户处理' THEN 1 END) AS aftersales
             FROM business_order o JOIN user_order_detail d ON d.order_id=o.id WHERE o.merchant_id=? AND o.paid_at>0
             """, System.currentTimeMillis(), merchant);
-        return Map.of("rows", rows.subList(0, Math.min(rows.size(), 30)), "hasMore", rows.size() > 30, "counts", counts);
+        return Map.of("rows", rows.subList(0, Math.min(rows.size(), ORDER_PAGE_SIZE)),
+            "hasMore", rows.size() > ORDER_PAGE_SIZE, "counts", counts);
     }
 
     public Map<String, Object> detail(String merchant, String id) {

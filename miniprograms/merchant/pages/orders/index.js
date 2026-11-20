@@ -13,19 +13,19 @@ const filters = [
 ];
 
 Page({
-  data: { filters, filter: 0, q: '', rows: [], counts: {}, loading: true, page: 0 },
+  data: { filters, filter: 0, q: '', rows: [], counts: {}, loading: true, page: 0, hasMore: false, moreError: '' },
   onShow() {
     const tabBar = this.getTabBar?.();
     if (tabBar) tabBar.setData({ selected: '/pages/orders/index' });
     this.refresh();
   },
   onPullDownRefresh() { this.refresh().finally(() => wx.stopPullDownRefresh()); },
-  onReachBottom() { if (this.data.hasMore && !this.data.loading) this.load(this.data.page + 1); },
+  onReachBottom() { if (!this.data.moreError) return this.loadMore(); },
   onboarding: ui.onboarding,
 
   async refresh() {
     const run = this.requestId = (this.requestId || 0) + 1;
-    this.setData({ loading: true, error: '', blocked: '' });
+    this.setData({ loading: true, error: '', blocked: '', hasMore: false, moreError: '' });
     try {
       const access = await ui.access();
       if (this.requestId !== run) return;
@@ -42,27 +42,41 @@ Page({
 
   async load(page) {
     const run = this.requestId = (this.requestId || 0) + 1;
-    this.setData({ loading: true, error: '' });
+    if (page === 0) {
+      this.orderQuery = { status: filters[this.data.filter].status, q: this.data.q };
+      this.setData({ page: 0, hasMore: false });
+    }
+    this.setData({ loading: true, error: '', moreError: '' });
     try {
-      const data = await api.request('/orders', { page, status: filters[this.data.filter].status, q: this.data.q });
+      const data = await api.request('/orders', { ...this.orderQuery, page });
       if (this.requestId !== run) return;
       const rows = data.rows.map(order => ({
         ...order, amount: ui.money(order.paidCents), time: ui.date(order.paidAt), suffix: order.id.slice(-8),
         deadline: ui.date(order.acceptDeadlineAt), acceptExpired: Date.now() >= order.acceptDeadlineAt
       }));
-      this.setData({ rows: page ? this.data.rows.concat(rows) : rows, counts: data.counts, page, hasMore: data.hasMore });
+      const previous = page > 0 ? this.data.rows : [];
+      const seen = new Set(previous.map(order => order.id));
+      this.setData({
+        rows: previous.concat(rows.filter(order => !seen.has(order.id))),
+        counts: data.counts, page, hasMore: data.hasMore
+      });
     } catch (error) {
-      if (this.requestId === run) this.setData({ error: error.message });
+      if (this.requestId === run) this.setData(page > 0 ? { moreError: error.message } : { error: error.message });
     } finally {
       if (this.requestId === run) this.setData({ loading: false });
     }
   },
 
+  loadMore() {
+    if (!this.data.hasMore || this.data.loading || this.data.blocked || this.data.error) return;
+    return this.load(this.data.page + 1);
+  },
+
   search(event) { this.setData({ q: event.detail.value }); },
-  submitSearch() { this.load(0); },
+  submitSearch() { return this.load(0); },
   filter(event) {
     this.setData({ filter: Number(event.currentTarget.dataset.index) });
-    this.load(0);
+    return this.load(0);
   },
   details(event) { ui.go('/pages/order/index?id=' + encodeURIComponent(event.currentTarget.dataset.id)); },
   aftersales() { ui.go('/pages/aftersales/index'); },

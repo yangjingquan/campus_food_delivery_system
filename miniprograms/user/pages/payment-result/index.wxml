@@ -10,22 +10,30 @@
     </view>
     <view wx:if="{{syncError}}" class="hint orange">{{syncError}}</view>
     <block wx:if="{{payment.status === '支付成功'}}">
-      <view wx:for="{{orders}}" wx:key="id" class="result-order">
-        <view class="card">
+      <view wx:for="{{orders}}" wx:key="id" class="card result-order">
+        <view class="result-order-head">
           <view class="h3">{{item.merchantName || item.merchant}}</view>
-          <view wx:if="{{item.pickupCode}}" class="small">取餐号 {{item.pickupCode}}</view>
           <view class="orderstate">{{item.status}}</view>
-          <view class="kv"><text class="label">商户订单号</text><text>{{item.id}}</text></view>
-          <view class="kv"><text class="label">订单实付</text><text>{{item.amountText}}</text></view>
         </view>
-        <button class="btn outline wide" data-id="{{item.id}}" bindtap="openOrder">查看订单</button>
+        <view wx:if="{{item.pickupCode}}" class="small result-pickup">取餐号 {{item.pickupCode}}</view>
+        <view class="kv"><text class="label">商户订单号</text><text>{{item.id}}</text></view>
+        <view class="kv"><text class="label">订单实付</text><text>{{item.amountText}}</text></view>
+        <view wx:if="{{orders.length > 1}}" class="result-actions">
+          <button class="btn result-action" data-id="{{item.id}}" bindtap="openOrder"
+            aria-label="查看{{item.merchantName || item.merchant}}订单"><text>查看订单</text></button>
+        </view>
       </view>
     </block>
     <view class="card">
       <view class="kv"><text class="label">{{orders.length > 1 ? '共同支付记录单号' : '支付记录单号'}}</text><text>{{payment.id}}</text></view>
       <view class="kv"><text class="label">{{payment.status === '支付成功' ? '已付金额' : '支付单金额'}}</text><text>{{amountText}}</text></view>
     </view>
-    <view class="column">
+    <view wx:if="{{payment.status === '支付成功'}}" class="result-actions">
+      <button wx:if="{{orders.length === 1}}" class="btn result-action"
+        data-id="{{orders[0].id}}" bindtap="openOrder"><text>查看订单</text></button>
+      <button class="btn result-action result-action-primary" bindtap="orders"><text>查看全部订单</text></button>
+    </view>
+    <view wx:else class="column">
       <button wx:if="{{payment.status === '未支付'}}" class="btn outline wide" bindtap="load">刷新支付结果</button>
       <button wx:if="{{payment.status === '未支付'}}" class="btn secondary wide" bindtap="openPayment">返回支付单</button>
       <button class="btn wide" bindtap="orders">查看全部订单</button>

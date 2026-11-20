@@ -119,7 +119,10 @@ public class UserController {
     @GetMapping("/payments/{paymentId}")
     public Map<String, Object> payment(@PathVariable String paymentId, HttpServletRequest request) { return orders.payment(auth.require(request).userId(), paymentId); }
     @GetMapping("/orders")
-    public Map<String, Object> orderList(@RequestParam(defaultValue = "全部") String status, HttpServletRequest request) { return Map.of("rows", orders.list(auth.require(request).userId(), status)); }
+    public Map<String, Object> orderList(@RequestParam(defaultValue = "全部") String status,
+            @RequestParam(defaultValue = "1") int page, HttpServletRequest request) {
+        return orders.list(auth.require(request).userId(), status, page);
+    }
     @GetMapping("/orders/{orderId}")
     public Map<String, Object> order(@PathVariable String orderId, HttpServletRequest request) { return orders.detail(auth.require(request).userId(), orderId); }
     @GetMapping("/orders/{orderId}/location")

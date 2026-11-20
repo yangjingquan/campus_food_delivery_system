@@ -33,6 +33,7 @@ public class OrderService {
     private static final DateTimeFormatter ORDER_ID_TIME =
         DateTimeFormatter.ofPattern("uuMMddHHmmss", Locale.ROOT).withZone(ZoneId.of("Asia/Shanghai"));
     private static final int ORDER_ID_ATTEMPTS = 8;
+    private static final int ORDER_PAGE_SIZE = 10;
 
     private record RequestedLine(String productId, int quantity) {}
     private record CatalogLine(String productId, String merchantId, String merchantName, String productName,
@@ -335,9 +336,74 @@ public class OrderService {
             "foodCents", foodCents, "deliveryFeeCents", deliveryFeeCents, "merchantCount", orders.size());
     }
 
-    public List<Map<String, Object>> list(long userId, String status) {
+    public Map<String, Object> list(long userId, String status, int page) {
+        if (page < 1) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "页码必须从 1 开始");
         String filter = status == null || status.isBlank() ? "全部" : status;
-        return db.queryForList("SELECT o.id,o.payment_id AS paymentId,o.merchant_id AS merchantId,o.merchant AS merchantName,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryFeeCents,o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,o.payment_status AS paymentStatus,o.fulfill_status AS fulfillStatus,o.fulfillment_type AS fulfillmentType,o.refund_status AS refundStatus,o.settlement_status AS settlementStatus,o.accepted,o.intervene,o.intervene_reason AS interveneReason,d.created_at AS createdAt,p.status AS mergedPaymentStatus FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE d.user_id=? AND (?='全部' OR o.fulfill_status=? OR p.status=?) ORDER BY d.created_at DESC", userId, filter, filter, filter);
+        long offset = (page - 1L) * ORDER_PAGE_SIZE;
+        // 待支付按支付单分页，已支付或已关闭按商户订单分页。多取一条判断是否还有下一页。
+        String condition = switch (filter) {
+            case "全部" -> "TRUE";
+            case "待支付", "未支付" -> "p.status='未支付'";
+            case "进行中" -> "p.status='支付成功' AND o.fulfill_status NOT IN ('已完成','已关闭')";
+            case "售后" -> "o.refund_status IS NOT NULL AND o.refund_status NOT IN ('','无售后')";
+            default -> "(o.fulfill_status=? OR p.status=?)";
+        };
+        var args = new ArrayList<Object>();
+        args.add(userId);
+        if (condition.contains("?")) {
+            args.add(filter);
+            args.add(filter);
+        }
+        args.add(ORDER_PAGE_SIZE + 1);
+        args.add(offset);
+        args.add(userId);
+        var rows = db.queryForList("""
+            WITH page_entries AS (
+                SELECT IF(p.status='未支付',d.payment_id,d.order_id) AS entry_id,
+                       p.status='未支付' AS pending, MAX(d.created_at) AS entry_time
+                FROM user_order_detail d JOIN business_order o ON o.id=d.order_id
+                JOIN payment_order p ON p.id=d.payment_id
+                WHERE d.user_id=? AND %s
+                GROUP BY entry_id,pending
+                ORDER BY pending DESC,entry_time DESC,entry_id DESC
+                LIMIT ? OFFSET ?
+            )
+            SELECT e.entry_id AS entryId,o.id,o.payment_id AS paymentId,o.merchant_id AS merchantId,
+                   o.merchant AS merchantName,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryFeeCents,
+                   o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,
+                   o.payment_status AS paymentStatus,o.fulfill_status AS fulfillStatus,o.fulfillment_type AS fulfillmentType,
+                   o.refund_status AS refundStatus,o.settlement_status AS settlementStatus,o.accepted,o.intervene,
+                   o.intervene_reason AS interveneReason,e.entry_time AS createdAt,p.status AS mergedPaymentStatus
+            FROM page_entries e
+            JOIN user_order_detail d ON d.user_id=? AND
+                ((e.pending AND d.payment_id=e.entry_id) OR (NOT e.pending AND d.order_id=e.entry_id))
+            JOIN business_order o ON o.id=d.order_id JOIN payment_order p ON p.id=d.payment_id
+            ORDER BY e.pending DESC,e.entry_time DESC,e.entry_id DESC,o.id DESC
+            """.formatted(condition), args.toArray());
+
+        Map<String, List<Map<String, Object>>> entries = new LinkedHashMap<>();
+        for (var row : rows) {
+            entries.computeIfAbsent(row.get("entryId").toString(), ignored -> new ArrayList<>()).add(row);
+        }
+        var pageRows = entries.values().stream().limit(ORDER_PAGE_SIZE).map(OrderService::listEntry).toList();
+        return Map.of("rows", pageRows, "page", page, "pageSize", ORDER_PAGE_SIZE,
+            "hasMore", entries.size() > ORDER_PAGE_SIZE);
+    }
+
+    private static Map<String, Object> listEntry(List<Map<String, Object>> orders) {
+        var entry = new LinkedHashMap<>(orders.getFirst());
+        entry.remove("entryId");
+        if (!"未支付".equals(entry.get("mergedPaymentStatus"))) return entry;
+        entry.put("id", entry.get("paymentId"));
+        entry.put("isPayment", true);
+        if (orders.size() > 1) {
+            entry.put("merchantName", "合并支付 · " + orders.size() + " 家商户");
+            entry.put("items", String.join("、", orders.stream().map(row -> (String) row.get("items")).toList()));
+            for (String amount : List.of("foodCents", "deliveryFeeCents", "paidCents")) {
+                entry.put(amount, orders.stream().mapToLong(row -> ((Number) row.get(amount)).longValue()).sum());
+            }
+        }
+        return entry;
     }
 
     public Map<String, Object> detail(long userId, String orderId) {

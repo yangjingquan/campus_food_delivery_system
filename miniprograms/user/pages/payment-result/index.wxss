@@ -1,3 +1,32 @@
-.result-order { margin-bottom: 11px; }
-.result-order .orderstate { max-width: none; margin-top: 8px; text-align: left; }
-.result-order .kv { margin-top: 12px; }
+.result-order-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.result-order-head .h3 { min-width: 0; }
+.result-order-head .orderstate { margin-left: auto; color: #a84b21; overflow-wrap: anywhere; }
+.result-pickup { margin-top: 4px; }
+.result-order .kv { margin-top: 8px; }
+
+.result-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.result-order .result-actions { margin-top: 4px; }
+.payment-result-page button.result-action {
+  min-height: 44px;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+}
+.result-action text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.result-action-primary text { border-color: #a84b21; background: #a84b21; color: #fff; }

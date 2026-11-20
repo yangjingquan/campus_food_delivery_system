@@ -35,5 +35,11 @@
       <view class="muted">点餐后可以在这里查看进度。</view>
       <button class="btn" bindtap="goHome">去点餐</button>
     </view>
+    <view wx:if="{{loadingMore}}" class="small order-list-footer">正在加载更多订单…</view>
+    <view wx:elif="{{loadMoreError}}" class="small order-list-footer">
+      {{loadMoreError}}
+      <button class="link" bindtap="loadMore">重试</button>
+    </view>
+    <view wx:elif="{{visible.length && !hasMore}}" class="small order-list-footer">没有更多订单</view>
   </block>
 </view>

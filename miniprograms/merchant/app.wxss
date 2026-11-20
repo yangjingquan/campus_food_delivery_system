@@ -113,6 +113,8 @@ textarea.field { height: 64px; }
 .page-header > .btn { flex: 0 0 auto; }
 .work-card .hint { margin-top: 1px; }
 .work-card .deadline { color: var(--warn); }
+.work-card .order-details:last-child { margin-left: auto; }
+.work-card .accept-actions { justify-content: flex-end; }
 .orders-screen .hero { min-height: 83px; align-items: flex-start; }
 .orders-screen .hero .btn { margin-top: 2px; }
 .product-line { justify-content: flex-start; }

@@ -1,3 +1,6 @@
 .local/
 .env
 .env.tmp.*
+merchant-api/src/test/*
+user-api/src/test/*
+rider-api/src/test/

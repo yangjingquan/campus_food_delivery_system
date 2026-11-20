@@ -3,70 +3,65 @@ const { money, time } = require('../../utils/display');
 
 Page({
   data: {
-    rows: [], unpaidRows: [], visible: [], filter: '全部',
-    filters: ['全部', '待支付', '进行中', '已完成', '已关闭', '售后'], loading: true, loadError: ''
+    visible: [], filter: '全部', page: 0, hasMore: false,
+    filters: ['全部', '待支付', '进行中', '已完成', '已关闭', '售后'],
+    loading: true, loadError: '', loadingMore: false, loadMoreError: ''
   },
 
   onShow() {
     this.getTabBar?.()?.refresh('pages/orders/index');
     this.load();
   },
-  onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
+  onPullDownRefresh() { return this.load().finally(() => wx.stopPullDownRefresh()); },
+  onReachBottom() { return this.loadMore(); },
 
-  async load() {
-    this.setData({ loading: true, loadError: '' });
+  load() {
+    // 切换筛选或重新加载后，旧请求即使晚返回也不能追加到当前列表。
+    const version = this.listVersion = (this.listVersion || 0) + 1;
+    this.setData({
+      visible: [], page: 0, hasMore: false,
+      loading: true, loadError: '', loadingMore: false, loadMoreError: ''
+    });
+    return this.loadPage(1, version);
+  },
+
+  loadMore() {
+    const { page, hasMore, loading, loadError, loadingMore } = this.data;
+    if (!hasMore || loading || loadError || loadingMore) return;
+    this.setData({ loadingMore: true, loadMoreError: '' });
+    return this.loadPage(page + 1, this.listVersion);
+  },
+
+  async loadPage(page, version) {
+    const status = encodeURIComponent(this.data.filter);
     try {
       await getApp().ensureLogin();
-      const { data } = await api.get('/orders');
+      if (version !== this.listVersion) return;
+      const { data } = await api.get(`/orders?status=${status}&page=${page}`);
+      if (version !== this.listVersion) return;
       const rows = (data.rows || []).map(row => ({
         ...row, amountText: money(row.paidCents), displayItems: row.items,
-        displayStatus: row.fulfillStatus,
+        displayStatus: row.isPayment ? '待支付' : row.fulfillStatus,
         note: row.refundStatus && row.refundStatus !== '无售后' ? '售后：' + row.refundStatus : time(row.createdAt)
       }));
-
-      // 未支付拆单按支付单归组。付款确认后，每家商户的订单分别显示。
-      const pending = new Map();
-      for (const row of rows) {
-        if (row.mergedPaymentStatus !== '未支付') continue;
-        if (!pending.has(row.paymentId)) {
-          pending.set(row.paymentId, {
-            id: row.paymentId, isPayment: true, fulfillmentType: row.fulfillmentType, names: [], items: [], amountCents: 0, note: time(row.createdAt)
-          });
-        }
-        const group = pending.get(row.paymentId);
-        group.names.push(row.merchantName);
-        group.items.push(row.displayItems);
-        group.amountCents += row.paidCents;
-      }
-      const unpaidRows = [...pending.values()].map(group => ({
-        ...group, merchantName: group.names.length > 1 ? `合并支付 · ${group.names.length} 家商户` : group.names[0],
-        displayItems: group.items.filter(Boolean).join('、'), displayStatus: '待支付',
-        amountText: money(group.amountCents)
-      }));
-      this.setData({ rows, unpaidRows, loading: false }, () => this.applyFilter());
+      const visible = new Map((page === 1 ? [] : this.data.visible).map(row => [row.id, row]));
+      for (const row of rows) visible.set(row.id, row);
+      this.setData({ visible: [...visible.values()], page, hasMore: data.hasMore === true });
     } catch (error) {
-      this.setData({ loading: false, loadError: error.message });
+      if (version === this.listVersion) {
+        this.setData(page === 1 ? { loadError: error.message } : { loadMoreError: error.message });
+      }
+    } finally {
+      if (version === this.listVersion) this.setData({ loading: false, loadingMore: false });
     }
   },
 
   chooseFilter(event) {
-    this.setData({ filter: event.currentTarget.dataset.value }, () => this.applyFilter());
-  },
-
-  applyFilter() {
-    const { rows, unpaidRows, filter } = this.data;
-    const orders = rows.filter(row => row.mergedPaymentStatus !== '未支付');
-    const visible = orders.filter(row => {
-      if (filter === '全部') return true;
-      if (filter === '进行中') {
-        return row.mergedPaymentStatus === '支付成功' && !['已完成', '已关闭'].includes(row.fulfillStatus);
-      }
-      if (filter === '售后') return row.refundStatus && row.refundStatus !== '无售后';
-      return row.fulfillStatus === filter;
-    });
-    this.setData({
-      visible: filter === '待支付' ? unpaidRows : filter === '全部' ? [...unpaidRows, ...visible] : visible
-    });
+    const filter = event.currentTarget.dataset.value;
+    if (filter === this.data.filter) return;
+    this.setData({ filter });
+    wx.pageScrollTo({ scrollTop: 0, duration: 0 });
+    return this.load();
   },
 
   openOrder(event) { wx.navigateTo({ url: `/pages/order-detail/index?id=${event.currentTarget.dataset.id}` }); },

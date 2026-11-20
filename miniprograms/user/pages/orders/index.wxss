@@ -36,3 +36,4 @@
   font-weight: 650;
 }
 .order-link text { padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.order-list-footer { padding: 12px 0; text-align: center; }
