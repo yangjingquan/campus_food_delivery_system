@@ -81,9 +81,10 @@ Page({
   },
   copy() {
     const { ticket, store, fee, paid, lines } = this.data;
+    const pickup = ticket.pickupNumber ? ['#' + ticket.pickupNumber] : [];
     const items = lines.map(item => item.name + '  ' + item.unitPrice + ' × ' + item.quantity + '  ' + item.amount);
     wx.setClipboardData({
-      data: [store.name, '订单号 ' + ticket.id, '名称  单价  数量  金额', ...items,
+      data: [store.name, ...pickup, '订单号 ' + ticket.id, '名称  单价  数量  金额', ...items,
         '----------------', '配送费 ' + fee, '总金额 ' + paid,
         '送货地址 ' + ticket.address, '下单时间 ' + ticket.createdTime, '领取码 ' + ticket.code].join('\n')
     });

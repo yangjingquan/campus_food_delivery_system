@@ -7,6 +7,7 @@
     <view class="card receipt">
       <view class="receipt-heading">
         <view class="receipt-store">{{store.name}}</view>
+        <view wx:if="{{ticket.pickupNumber}}" class="receipt-pickup-number">#{{ticket.pickupNumber}}</view>
         <image wx:if="{{ticket.orderQrImage}}" class="ticket-qr" src="{{ticket.orderQrImage}}" mode="aspectFit" aria-label="订单号二维码" />
         <view class="hint mono" selectable>{{ticket.id}}</view>
       </view>

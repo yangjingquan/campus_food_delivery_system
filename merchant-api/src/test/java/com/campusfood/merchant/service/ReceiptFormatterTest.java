@@ -22,11 +22,14 @@ class ReceiptFormatterTest {
 
     @Test
     void printsAllRequiredFieldsInOrderAndEscapesPrinterTags() {
-        String value = formatter.format(ticket("宫保鸡丁套餐"));
-        assertTrue(value.startsWith("<C><B><L1>校园餐厅＜B＞测试＜/B＞</L1></B></C>"));
+        var order = new java.util.LinkedHashMap<>(ticket("宫保鸡丁套餐"));
+        order.put("pickupNumber", 12L);
+        String value = formatter.format(order);
+        assertTrue(value.startsWith("<C><B><L1>校园餐厅＜B＞测试＜/B＞</L1></B></C><BR>"
+                + "<C><B>#12</B></C><BR><QRCODE>202611190001</QRCODE>"));
         List<String> expected = List.of("<QRCODE>202611190001</QRCODE>", "名称", "宫保鸡丁套餐",
-                "12.50", "2", "25.00", "--------------------------------", "配送费：¥3.00",
-                "总金额：¥28.00", "送货地址：一号楼 101＜CUT＞", "下单时间：2026-11-19 10:03:04");
+                "12.50", "2", "25.00", "--------------------------------", "配送费：3.00元",
+                "总金额：28.00元", "送货地址：一号楼 101＜CUT＞", "下单时间：2026-11-19 10:03:04");
         int previous = -1;
         for (String field : expected) {
             int index = value.indexOf(field, previous + 1);
@@ -35,6 +38,19 @@ class ReceiptFormatterTest {
         }
         assertEquals(1, value.split("<QRCODE>", -1).length - 1);
         assertFalse(value.contains("<CUT>"));
+    }
+
+    @Test
+    void printsCurrencyAsChineseUnitForThermalPrinterCompatibility() {
+        var order = new java.util.LinkedHashMap<>(ticket("鸡排"));
+        order.put("deliveryCents", 400L);
+        order.put("paidCents", 1700L);
+        String value = formatter.format(order);
+        assertFalse(value.contains("#null"));
+        assertTrue(value.contains("配送费：4.00元<BR>"));
+        assertTrue(value.contains("<B>总金额：17.00元</B><BR>"));
+        assertFalse(value.contains("¥"));
+        assertFalse(value.contains("￥"));
     }
 
     @Test

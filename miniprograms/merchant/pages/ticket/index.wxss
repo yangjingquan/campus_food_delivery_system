@@ -4,6 +4,7 @@
 .pickup-code { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-top: 7px; color: var(--muted); }
 .pickup-code .mono { min-width: 0; color: var(--ink); text-align: right; font-weight: 700; overflow-wrap: anywhere; }
 .receipt-store { font-size: 23px; font-weight: 750; overflow-wrap: anywhere; }
+.receipt-pickup-number { font-size: 18px; font-weight: 750; }
 .receipt-table { display: grid; grid-template-columns: minmax(0, 1fr) 64px 32px 70px; gap: 5px; padding: 4px 0; font-size: 12px; font-variant-numeric: tabular-nums; }
 .receipt-table > text { min-width: 0; overflow-wrap: anywhere; }
 .receipt-table > text:not(:first-child) { text-align: right; }

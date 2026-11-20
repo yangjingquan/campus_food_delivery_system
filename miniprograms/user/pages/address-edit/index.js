@@ -45,6 +45,20 @@ Page({
   chooseLocation() {
     if (this.data.choosingLocation || this.data.saving) return;
     this.setData({ choosingLocation: true, error: '', locationPermissionDenied: false });
+    if (typeof wx.requirePrivacyAuthorize !== 'function') {
+      this.openLocationPicker();
+      return;
+    }
+    wx.requirePrivacyAuthorize({
+      success: () => this.openLocationPicker(),
+      fail: error => {
+        this.handleLocationError(error, true);
+        this.setData({ choosingLocation: false });
+      }
+    });
+  },
+
+  openLocationPicker() {
     const position = hasCoordinates(this.data)
       ? { latitude: Number(this.data.latitude), longitude: Number(this.data.longitude) } : {};
     wx.chooseLocation({
@@ -60,19 +74,32 @@ Page({
           building: this.data.building.trim() || (result.name || '').slice(0, 80), error: ''
         });
       },
-      fail: error => {
-        const message = error.errMsg || '';
-        if (/cancel/i.test(message)) return;
-        const denied = /auth deny|auth denied|authorize|permission/i.test(message) && !/privacy/i.test(message);
-        this.setData({
-          locationPermissionDenied: denied,
-          error: denied ? '位置权限未开启，请在设置中允许位置访问后重试。'
-            : /privacy/i.test(message) ? '位置隐私授权未完成，请同意相关隐私授权后重试。'
-              : '暂时无法选择位置，请检查网络和系统定位服务后重试。'
-        });
-      },
+      fail: error => this.handleLocationError(error),
       complete: () => this.setData({ choosingLocation: false })
     });
+  },
+
+  handleLocationError({ errMsg = '', errno }, checkingPrivacy = false) {
+    if (/cancel/i.test(errMsg)) return;
+    console.warn('[收餐地址地图选点]', errno, errMsg);
+    if (Number(errno) === 112 || /scope is not declared in the privacy agreement/i.test(errMsg)) {
+      this.setData({ error: '小程序尚未开通地图选点，请联系平台客服。' });
+      return;
+    }
+    if (Number(errno) === 104 || /privacy.*(not authoriz|denied|deny|disagree|reject)/i.test(errMsg)
+      || (checkingPrivacy && /auth deny|auth denied|disagree|reject/i.test(errMsg))) {
+      this.setData({ error: '地图选点需要隐私授权。请再次点击地图选点并同意隐私保护指引。' });
+      return;
+    }
+    if (checkingPrivacy) {
+      this.setData({ error: '暂时无法确认隐私授权，请稍后重试。' });
+      return;
+    }
+    if (/auth deny|auth denied|authorize|permission/i.test(errMsg) && !/privacy/i.test(errMsg)) {
+      this.setData({ locationPermissionDenied: true, error: '位置权限未开启，请在设置中允许位置访问后重试。' });
+      return;
+    }
+    this.setData({ error: '暂时无法选择位置，请检查网络和系统定位服务后重试。' });
   },
 
   openLocationSettings() {

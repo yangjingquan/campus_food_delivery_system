@@ -12,7 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class RiderOrders {
     private static final String WAITING = "已到暂存点 / 待领取";
     private static final String OWNED = """
-        SELECT o.id,o.merchant,o.items,o.id AS code,o.fulfill_status AS status,
+        SELECT o.id,o.merchant,o.pickup_number AS pickupNumber,o.items,o.id AS code,o.fulfill_status AS status,
                d.building,d.room,o.delivery_cents AS feeCents,d.rider_commission_cents AS commissionCents,
                o.delivery_cents-d.rider_commission_cents AS dueCents,o.paid_at AS paidAt,d.arrived_at AS arrivedAt,
                d.picked_up_at AS pickedUpAt,o.completed_at AS completedAt,o.closed_at AS closedAt,

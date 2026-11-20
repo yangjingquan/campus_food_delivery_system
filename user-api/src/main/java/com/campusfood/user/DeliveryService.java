@@ -4,6 +4,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class DeliveryService {
+    private static final ZoneId CAMPUS_ZONE = ZoneId.of("Asia/Shanghai");
     private final JdbcTemplate db;
     private final DeliveryBatches batches;
     @Value("${app.internal-api-key:}") private String internalApiKey;
@@ -202,7 +205,7 @@ public class DeliveryService {
         if (!valid) throw new ResponseStatusException(HttpStatus.CONFLICT, "订单当前状态不允许此配送流转");
         long now = System.currentTimeMillis();
         if ("商户出餐中".equals(next)) {
-            db.update("UPDATE business_order SET fulfill_status=?,accepted=TRUE WHERE id=?", next, orderId);
+            acceptWithPickupNumber(orderId, current.get("merchant_id").toString(), now);
         } else if ("配送中".equals(next)) {
             String rider = text(body, "riderName");
             if (rider.isBlank() || rider.length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "骑手名称无效");
@@ -221,6 +224,21 @@ public class DeliveryService {
         }
         db.update("INSERT INTO order_note(order_id,actor,note) VALUES(?,?,?)", orderId, text(body, "actor").isBlank() ? "履约服务" : text(body, "actor"), previous + " → " + next);
         return Map.of("orderId", orderId, "previousStatus", previous, "status", next, "updatedAt", now);
+    }
+
+    private void acceptWithPickupNumber(String orderId, String merchantId, long acceptedAt) {
+        var date = Instant.ofEpochMilli(acceptedAt).atZone(CAMPUS_ZONE).toLocalDate();
+        // 计数行锁随接单事务持有，确保同店并发接单不重号，接单回滚时计数也回滚。
+        db.update("""
+            INSERT INTO merchant_daily_pickup_sequence (merchant_id,pickup_date,last_number) VALUES (?,?,1)
+            ON DUPLICATE KEY UPDATE last_number=last_number+1
+            """, merchantId, date);
+        Long number = db.queryForObject("""
+            SELECT last_number FROM merchant_daily_pickup_sequence WHERE merchant_id=? AND pickup_date=?
+            """, Long.class, merchantId, date);
+        db.update("""
+            UPDATE business_order SET fulfill_status='商户出餐中',accepted=TRUE,pickup_date=?,pickup_number=? WHERE id=?
+            """, date, number, orderId);
     }
 
     @Transactional
@@ -257,7 +275,7 @@ public class DeliveryService {
     }
 
     private Map<String, Object> orderForUpdate(String orderId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT id,fulfill_status FROM business_order WHERE id=? FOR UPDATE", orderId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT id,merchant_id,fulfill_status FROM business_order WHERE id=? FOR UPDATE", orderId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
         return rows.get(0);
     }

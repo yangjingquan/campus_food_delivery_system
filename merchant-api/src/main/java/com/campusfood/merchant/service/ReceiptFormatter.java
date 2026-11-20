@@ -18,8 +18,11 @@ public class ReceiptFormatter {
 
     public String format(Map<String, Object> ticket) {
         StringBuilder receipt = new StringBuilder("<C><B><L1>")
-                .append(text(ticket.get("merchantName"))).append("</L1></B></C><BR>")
-                .append("<QRCODE>").append(text(ticket.get("id"))).append("</QRCODE><BR>");
+                .append(text(ticket.get("merchantName"))).append("</L1></B></C><BR>");
+        if (ticket.get("pickupNumber") instanceof Number number) {
+            receipt.append("<C><B>#").append(number.longValue()).append("</B></C><BR>");
+        }
+        receipt.append("<QRCODE>").append(text(ticket.get("id"))).append("</QRCODE><BR>");
         receipt.append(column("名称", 12)).append(column("单价", 7))
                 .append(column("数量", 5)).append("金额<BR>");
         for (Map<String, Object> item : lines(ticket)) {
@@ -29,9 +32,10 @@ public class ReceiptFormatter {
                     .append(column(item.get("quantity").toString(), 5))
                     .append(money(item.get("amountCents"))).append("<BR>");
         }
+        // 使用中文单位，避免部分热敏打印机将半角人民币符号打印为异常字形。
         receipt.append("--------------------------------<BR>")
-                .append("配送费：¥").append(money(ticket.get("deliveryCents"))).append("<BR>")
-                .append("<B>总金额：¥").append(money(ticket.get("paidCents"))).append("</B><BR>")
+                .append("配送费：").append(money(ticket.get("deliveryCents"))).append("元<BR>")
+                .append("<B>总金额：").append(money(ticket.get("paidCents"))).append("元</B><BR>")
                 .append("送货地址：").append(text(ticket.get("address"))).append("<BR>")
                 .append("下单时间：").append(time(ticket.get("createdAt"))).append("<BR><BR>");
         String content = receipt.toString();

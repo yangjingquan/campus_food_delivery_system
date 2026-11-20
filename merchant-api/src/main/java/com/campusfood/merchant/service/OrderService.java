@@ -104,7 +104,8 @@ public class OrderService {
         }
         var ticket = new LinkedHashMap<>(order);
         ticket.putAll(db.queryForMap("""
-            SELECT m.name AS merchantName,CONCAT(d.building,' ',d.room) AS address,d.created_at AS createdAt
+            SELECT m.name AS merchantName,o.pickup_number AS pickupNumber,
+                CONCAT(d.building,' ',d.room) AS address,d.created_at AS createdAt
             FROM user_order_detail d JOIN business_order o ON o.id=d.order_id
             JOIN merchant m ON m.id=o.merchant_id WHERE d.order_id=? AND o.merchant_id=?
             """, id, merchant));

@@ -11,7 +11,7 @@ function editor(overrides = {}) {
   const wx = { getStorageSync() {}, setStorageSync() {}, navigateBack() {}, ...overrides };
   const api = { post: async (url, body) => { calls.push(body); return { data: { ...body, id: 'saved' } }; } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../pages/address-edit/index.js'), 'utf8'), {
-    Page: value => { definition = value; }, wx,
+    Page: value => { definition = value; }, wx, console: { warn() {} },
     require: id => id.endsWith('/api') ? api : { hasCoordinates }
   });
   const page = { ...definition, data: { ...definition.data }, setData(value) { Object.assign(this.data, value); } };
@@ -59,6 +59,45 @@ test('取消重新选点保留原坐标，拒绝授权时给出设置入口', ()
   options.fail({ errMsg: 'chooseLocation:fail auth deny' });
   options.complete();
   assert.equal(page.data.locationPermissionDenied, true);
+});
+
+test('隐私授权拒绝后可以重试，同意后才调用地图选点', () => {
+  let authorization;
+  let picker;
+  let authorizationCount = 0;
+  const { page } = editor({
+    requirePrivacyAuthorize: options => { authorization = options; authorizationCount++; },
+    chooseLocation: options => { picker = options; }
+  });
+  page.chooseLocation();
+  page.chooseLocation();
+  assert.equal(authorizationCount, 1);
+  assert.equal(picker, undefined);
+  authorization.fail({ errno: 104, errMsg: 'requirePrivacyAuthorize:fail privacy permission is not authorized' });
+  assert.equal(page.data.choosingLocation, false);
+  assert.equal(page.data.locationPermissionDenied, false);
+  assert.match(page.data.error, /同意隐私保护指引/);
+
+  page.chooseLocation();
+  authorization.success();
+  picker.success({ latitude: 41.8, longitude: 123.4 });
+  picker.complete();
+  assert.equal(page.data.hasLocation, true);
+  assert.equal(page.data.choosingLocation, false);
+  assert.equal(page.data.error, '');
+});
+
+test('平台缺少地图选点隐私声明时不引导用户修改位置权限', () => {
+  const { page } = editor({
+    chooseLocation: options => {
+      options.fail({ errno: 112, errMsg: 'chooseLocation:fail api scope is not declared in the privacy agreement' });
+      options.complete();
+    }
+  });
+  page.chooseLocation();
+  assert.match(page.data.error, /尚未开通地图选点/);
+  assert.equal(page.data.locationPermissionDenied, false);
+  assert.equal(page.data.choosingLocation, false);
 });
 
 test('旧地址缺少位置时禁止直接保存', async () => {
