@@ -17,6 +17,13 @@
         <view class="tile-heading"><image class="icon" src="/assets/ui/printer.svg" mode="aspectFit" aria-hidden="true" /><text>打印设备与订阅消息</text></view><text class="tile-link">查看 ›</text>
       </button>
     </view>
+    <view wx:if="{{store.auditStatus === '已通过'}}" class="card">
+      <view class="row">
+        <view class="flex"><view class="section">店铺点餐码</view><view class="hint">顾客微信扫码进入本店菜单</view></view>
+        <button class="btn plain" bindtap="orderingCode" loading="{{codeLoading}}" disabled="{{codeLoading}}" hover-class="pressed">查看点餐码</button>
+      </view>
+      <view wx:if="{{codeError}}" class="notice error">{{codeError}}</view>
+    </view>
     <view wx:if="{{store.auditStatus === '已通过'}}" class="card row business-card">
       <view class="flex"><view class="business-status"><text class="status-dot {{store.businessStatus === '营业中' ? '' : 'closed'}}"></text><text class="section">{{store.businessStatus}}</text></view><view class="hint">店铺营业状态</view></view>
       <button class="btn plain" bindtap="business" disabled="{{saving}}" hover-class="pressed">{{store.businessStatus === '营业中' ? '打烊' : '开始营业'}}</button>

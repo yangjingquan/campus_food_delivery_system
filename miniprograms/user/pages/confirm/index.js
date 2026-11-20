@@ -11,7 +11,9 @@ Page({
   },
 
   onLoad(query) {
-    this.merchantScope = query.merchantIds === undefined
+    const pickup = query.fulfillmentType === 'pickup';
+    this.setData({ pickup });
+    this.merchantScope = pickup ? [query.merchantId].filter(Boolean) : query.merchantIds === undefined
       ? query.merchantId
       : query.merchantIds.split(',').filter(Boolean).map(id => decodeURIComponent(id));
   },
@@ -23,20 +25,23 @@ Page({
     try {
       this.user = await getApp().ensureLogin();
       const [{ data: addresses }, { data: catalog }, config] = await Promise.all([
-        api.get('/addresses'), api.get('/catalog', { auth: false }), getApp().getConfig(true)
+        this.data.pickup ? { data: {} } : api.get('/addresses'),
+        api.get('/catalog', { auth: false }), getApp().getConfig(true)
       ]);
       const stored = wx.getStorageSync('selectedAddress');
       const rows = addresses.rows || [];
       const address = rows.find(item => item.id === stored?.id) || rows.find(item => item.isDefault) || rows[0] || null;
       if (address) wx.setStorageSync('selectedAddress', address);
 
+      const mode = this.data.pickup ? 'pickup' : 'delivery';
+      const fee = this.data.pickup ? 0 : config.deliveryFeeCents;
       const latest = new Map();
       const merchantMinimums = new Map();
       for (const merchant of catalog.merchants || []) {
-        merchantMinimums.set(merchant.id, merchant.minimumOrderCents || 0);
+        merchantMinimums.set(merchant.id, this.data.pickup ? 0 : (merchant.minimumOrderCents || 0));
         for (const product of merchant.products) latest.set(product.id, { product, merchant });
       }
-      this.items = cart.read(this.merchantScope).map(item => {
+      this.items = cart.read(this.merchantScope, mode).map(item => {
         const entry = latest.get(item.productId);
         const unavailable = !entry || !entry.merchant.open || entry.product.availableStock < item.quantity;
         return {
@@ -46,9 +51,9 @@ Page({
           photoPath: entry?.product.photoPath ?? item.photoPath
         };
       });
-      const totals = cart.totals(this.items, config.deliveryFeeCents);
+      const totals = cart.totals(this.items, fee);
       const groups = cart.groups(this.items).map(group => {
-        const amounts = cart.totals(group.items, config.deliveryFeeCents);
+        const amounts = cart.totals(group.items, fee);
         const minimum = merchantMinimums.get(group.merchantId) || 0;
         const shortfall = minimum - amounts.foodCents;
         return {
@@ -64,7 +69,9 @@ Page({
         };
       });
       this.setData({
-        groups, totals, address, addressNeedsLocation: !!address && !hasCoordinates(address), config, loading: false,
+        groups, totals, address,
+        pickupAddress: this.data.pickup ? latest.get(this.items[0]?.productId)?.merchant.address || '' : '',
+        addressNeedsLocation: !!address && !hasCoordinates(address), config, loading: false,
         unavailable: this.items.some(item => item.unavailable),
         belowMinimum: groups.some(group => group.shortfallText),
         paymentEnabled: ['mock', 'wechat'].includes(config.paymentMode),
@@ -87,45 +94,48 @@ Page({
   completeAddress() {
     if (this.data.address) wx.navigateTo({ url: `/pages/address-edit/index?id=${encodeURIComponent(this.data.address.id)}` });
   },
-  openCart() { return openCart(); },
+  openCart() { return this.data.pickup ? wx.navigateBack() : openCart(); },
 
   async submit() {
     if (this.data.submitting || this.data.loading || this.data.unavailable || this.data.belowMinimum || !this.data.paymentEnabled) return;
-    if (!this.data.address) return this.chooseAddress();
-    if (!hasCoordinates(this.data.address)) return this.completeAddress();
+    const { pickup, address } = this.data;
+    if (!pickup && !address) return this.chooseAddress();
+    if (!pickup && !hasCoordinates(address)) return this.completeAddress();
     const items = this.items.map(({ productId, quantity }) => ({ productId, quantity }));
     if (!items.length) return;
     this.setData({ submitting: true, submitError: '' });
 
-    const addressId = this.data.address.id;
+    const fulfillment = pickup ? { fulfillmentType: 'pickup' } : { addressId: address.id };
     const expectedTotalCents = this.data.totals.totalCents;
-    const fingerprint = JSON.stringify([this.user.id, addressId, expectedTotalCents, items]);
-    let attempt = wx.getStorageSync('checkoutAttempt');
-    // 请求超时后使用原请求编号重试，避免同一篮餐品生成两笔待付款订单。
+    const fingerprint = JSON.stringify([this.user.id, pickup ? 'pickup' : address.id, expectedTotalCents, items]);
+    const attemptKey = pickup ? 'pickupCheckoutAttempt' : 'checkoutAttempt';
+    let attempt = wx.getStorageSync(attemptKey);
+    // 两种取餐方式独立保存重试编号，切换方式不会丢失尚未确认的请求。
     if (attempt?.fingerprint !== fingerprint) {
       attempt = { fingerprint, requestKey: `mini_${Date.now()}_${Math.random().toString(36).slice(2, 10)}` };
-      wx.setStorageSync('checkoutAttempt', attempt);
+      wx.setStorageSync(attemptKey, attempt);
     }
 
     try {
-      const { data } = await api.post('/checkout', { addressId, requestKey: attempt.requestKey, expectedTotalCents, items });
+      const { data } = await api.post('/checkout', { ...fulfillment, requestKey: attempt.requestKey, expectedTotalCents, items });
       const payment = data.payment;
       if (payment.status === '已关闭') {
-        wx.removeStorageSync('checkoutAttempt');
+        wx.removeStorageSync(attemptKey);
         this.setData({ submitError: '上一笔支付单已关闭，请重新提交。' });
         return;
       }
-      wx.setStorageSync('checkoutAttempt', { ...attempt, paymentId: payment.id });
+      wx.setStorageSync(attemptKey, { ...attempt, paymentId: payment.id });
       wx.setStorageSync('cartPayment:' + payment.id, {
         userId: this.user.id,
+        fulfillmentType: pickup ? 'pickup' : 'delivery',
         items: this.items.map(({ productId, quantity, lineKey }) => ({ productId, quantity, lineKey: lineKey || '' }))
       });
       const page = payment.status === '支付成功' ? 'payment-result' : 'payment';
-      wx.navigateTo({ url: `/pages/${page}/index?id=${encodeURIComponent(payment.id)}` });
+      wx.navigateTo({ url: `/pages/${page}/index?id=${encodeURIComponent(payment.id)}${pickup && page === 'payment' ? '&autoPay=1' : ''}` });
     } catch (error) {
       this.setData({ submitError: error.message || '提交结果暂未确认，请重试' });
       if (error.statusCode === 409) {
-        wx.removeStorageSync('checkoutAttempt');
+        wx.removeStorageSync(attemptKey);
       }
     } finally {
       this.setData({ submitting: false });

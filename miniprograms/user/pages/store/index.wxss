@@ -11,3 +11,5 @@
 .store-page .product-pricing .price { font-size: 18px; line-height: 1.3; }
 .store-page .minimum-shortfall { color: #a84b21; }
 .store-actions.two-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 10px; }
+.fulfillment-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.store-page .fulfillment-switch button.selected { border-color: #a84b21; color: #a84b21; background: #fff0e7; }

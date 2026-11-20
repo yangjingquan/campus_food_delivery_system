@@ -40,11 +40,10 @@ Page({
   status(event) {
     const { action } = event.currentTarget.dataset;
     ui.action(this, async () => {
-      const accept = action === 'accept';
-      if (!await ui.confirm(accept ? '确认接单' : '确认到点', accept ? '接单后请开始出餐。' : '确认餐品已送达暂存点。')) return;
+      if (!await ui.confirm(...ui.fulfillmentConfirmation(action))) return;
       await api.request(ui.orderPath(this.id) + '/status', { action }, 'POST');
       await this.refresh();
-      if (accept) wx.showToast({ title: '接单成功，小票已排队', icon: 'none' });
+      if (action === 'accept') wx.showToast({ title: '接单成功，小票已排队', icon: 'none' });
     });
   },
 

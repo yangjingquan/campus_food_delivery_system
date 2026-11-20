@@ -37,6 +37,8 @@ Page({
       const delivery = order && order.delivery;
       const ticket = {
         ...response, printing,
+        pickup: response.fulfillmentType === 'pickup',
+        pickupCode: response.pickupCode || (response.pickupNumber ? '#' + response.pickupNumber : ''),
         merchantName: response.merchantName || (profile && profile.store && profile.store.name) || '商户小票',
         address: response.address || (delivery && [delivery.building, delivery.room].filter(Boolean).join(' ')) || '当前接口未提供',
         createdTime: response.createdTime || (order && order.createdAt && ui.date(order.createdAt)) || '当前接口未提供'
@@ -76,12 +78,14 @@ Page({
   },
   copy() {
     const { ticket, store, fee, paid, lines } = this.data;
-    const pickup = ticket.pickupNumber ? ['#' + ticket.pickupNumber] : [];
+    const pickupCode = ticket.pickupCode ? [ticket.pickupCode] : [];
     const items = lines.map(item => item.name + '  ' + item.unitPrice + ' × ' + item.quantity + '  ' + item.amount);
     wx.setClipboardData({
-      data: [store.name, ...pickup, '订单号 ' + ticket.id, '名称  单价  数量  金额', ...items,
-        '----------------', '配送费 ' + fee, '总金额 ' + paid,
-        '送货地址 ' + ticket.address, '下单时间 ' + ticket.createdTime, '领取码 ' + ticket.code].join('\n')
+      data: [store.name, ...pickupCode, ...(ticket.pickup ? ['到店自取'] : []),
+        '订单号 ' + ticket.id, '名称  单价  数量  金额', ...items, '----------------',
+        ...(ticket.pickup ? [] : ['配送费 ' + fee]), '总金额 ' + paid,
+        (ticket.pickup ? '取餐地点 ' : '送货地址 ') + ticket.address, '下单时间 ' + ticket.createdTime,
+        ...(ticket.code ? ['领取码 ' + ticket.code] : [])].join('\n')
     });
   }
 });

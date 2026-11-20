@@ -72,6 +72,14 @@ public class MerchantController {
             .contentType(MediaType.parseMediaType(photo.mediaType())).body(photo.data());
     }
 
+    @GetMapping("/profile/ordering-code")
+    public ResponseEntity<byte[]> orderingCode(@RequestHeader(value = AUTH, required = false) String auth) {
+        var image = domain.orderingCode(store(auth));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .contentType(MediaType.parseMediaType((String) image.get("mediaType")))
+                .body(java.util.Base64.getDecoder().decode((String) image.get("content")));
+    }
+
     @PutMapping("/profile/business-status")
     public ResponseEntity<Void> businessStatus(@RequestHeader(value = AUTH, required = false) String auth, @RequestBody Map<String, Object> body) {
         stores.businessStatus(store(auth), body);

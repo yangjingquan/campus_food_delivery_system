@@ -1,6 +1,7 @@
 package com.campusfood.user;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -60,6 +61,7 @@ class OrderServiceTest {
             when(rs.getString(9)).thenReturn("营业中");
             when(rs.getLong(10)).thenReturn(minimums.getOrDefault(productId, 0L));
             when(rs.getLong(11)).thenReturn(secondMerchant ? 36L : 10L);
+            when(rs.getString(12)).thenReturn("商户取餐地点");
             return List.of(mapper.mapRow(rs, 0));
         }).when(db).query(anyString(), any(RowMapper.class), any(Object[].class));
     }
@@ -139,10 +141,40 @@ class OrderServiceTest {
         verify(db, never()).update(anyString(), any(Object[].class));
     }
 
+    @Test
+    void pickupSkipsAddressFeeAndDeliveryMinimumButSnapshotsMerchantCommission() {
+        minimums.put("P1", 3000L);
+        var response = service().checkout(8L, Map.of("fulfillmentType", "pickup", "requestKey", "pickup_key_001",
+                "items", List.of(Map.of("productId", "P1", "quantity", 1))));
+        assertEquals(2000L, response.get("totalCents"));
+        assertEquals(0L, response.get("deliveryFeeCents"));
+        verify(addresses, never()).require(org.mockito.ArgumentMatchers.anyLong(), anyString());
+        var values = org.mockito.ArgumentCaptor.forClass(Object[].class);
+        verify(db).update(contains("INSERT INTO user_order_detail"), values.capture());
+        assertNull(values.getValue()[3]);
+        assertEquals(BigDecimal.TEN, values.getValue()[9]);
+        assertNull(values.getValue()[10]);
+        assertNull(values.getValue()[11]);
+        assertEquals("商户取餐地点", values.getValue()[12]);
+    }
+
+    @Test
+    void pickupRejectsMixedStoresBeforeReservingStock() {
+        var error = assertThrows(ResponseStatusException.class, () -> service().checkout(8L, Map.of(
+                "fulfillmentType", "pickup", "requestKey", "pickup_key_002",
+                "items", List.of(Map.of("productId", "P1", "quantity", 1), Map.of("productId", "P2", "quantity", 1)))));
+        assertEquals(400, error.getStatusCode().value());
+        verify(db, never()).update(anyString(), any(Object[].class));
+    }
+
     private Map<String, Object> checkout(List<Map<String, Object>> items, String requestKey) {
+        return service().checkout(8L, Map.of("addressId", "ADDR-1", "requestKey", requestKey, "items", items));
+    }
+
+    private OrderService service() {
         OrderService service = new OrderService(db, addresses);
         ReflectionTestUtils.setField(service, "paymentMode", "mock");
         ReflectionTestUtils.setField(service, "unpaidTimeoutMinutes", 30);
-        return service.checkout(8L, Map.of("addressId", "ADDR-1", "requestKey", requestKey, "items", items));
+        return service;
     }
 }

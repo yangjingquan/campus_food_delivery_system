@@ -61,6 +61,7 @@ App({
     wx.removeStorageSync('userToken');
     wx.removeStorageSync('selectedAddress');
     wx.removeStorageSync('checkoutAttempt');
+    wx.removeStorageSync('pickupCheckoutAttempt');
     this.globalData.user = null;
   }
 });

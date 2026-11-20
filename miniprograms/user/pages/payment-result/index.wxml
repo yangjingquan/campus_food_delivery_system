@@ -6,13 +6,14 @@
         <image src="/assets/check.svg" aria-hidden="true"/>
       </view>
       <view class="h2">{{payment.status === '未支付' && payment.mode === 'wechat' ? '待确认付款结果' : payment.status}}</view>
-      <view class="muted">{{payment.status === '支付成功' ? '可分别查看各商户的配送进度。' : payment.status === '已关闭' ? '此支付单已结束。' : '付款后请刷新支付结果。'}}</view>
+      <view class="muted">{{payment.status === '支付成功' ? (pickup ? '可在订单详情查看自取进度和取餐号。' : '可分别查看各商户的配送进度。') : payment.status === '已关闭' ? '此支付单已结束。' : '付款后请刷新支付结果。'}}</view>
     </view>
     <view wx:if="{{syncError}}" class="hint orange">{{syncError}}</view>
     <block wx:if="{{payment.status === '支付成功'}}">
       <view wx:for="{{orders}}" wx:key="id" class="result-order">
         <view class="card">
           <view class="h3">{{item.merchantName || item.merchant}}</view>
+          <view wx:if="{{item.pickupCode}}" class="small">取餐号 {{item.pickupCode}}</view>
           <view class="orderstate">{{item.status}}</view>
           <view class="kv"><text class="label">商户订单号</text><text>{{item.id}}</text></view>
           <view class="kv"><text class="label">订单实付</text><text>{{item.amountText}}</text></view>

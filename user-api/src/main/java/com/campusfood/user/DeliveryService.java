@@ -29,9 +29,12 @@ public class DeliveryService {
     }
 
     public Map<String, Object> userLocation(long userId, String orderId) {
-        List<Map<String, Object>> orders = db.queryForList("SELECT o.fulfill_status AS status,d.user_id FROM business_order o JOIN user_order_detail d ON d.order_id=o.id WHERE o.id=?", orderId);
+        List<Map<String, Object>> orders = db.queryForList("SELECT o.fulfill_status AS status,o.fulfillment_type,d.user_id FROM business_order o JOIN user_order_detail d ON d.order_id=o.id WHERE o.id=?", orderId);
         if (orders.isEmpty() || ((Number) orders.get(0).get("user_id")).longValue() != userId) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
-        String status = orders.get(0).get("status").toString();
+        if ("pickup".equals(orders.getFirst().get("fulfillment_type"))) {
+            return Map.of("state", "ended", "available", false, "message", "到店自取订单没有配送位置");
+        }
+        String status = orders.getFirst().get("status").toString();
         if (!"配送中".equals(status)) return Map.of("state", terminal(status) ? "ended" : "waiting", "available", false, "message", terminal(status) ? "订单已结束，位置共享已关闭" : "骑手领取后将开始位置共享");
         List<Map<String, Object>> locations = db.queryForList("SELECT latitude,longitude,accuracy_m AS accuracyM,rider_name AS riderName,captured_at AS capturedAt FROM delivery_location WHERE order_id=?", orderId);
         if (locations.isEmpty()) return Map.of("state", "waiting", "available", false, "message", "骑手已领取，正在等待首次定位");
@@ -57,15 +60,22 @@ public class DeliveryService {
     @Transactional
     public Map<String, Object> merchantStatus(String merchant, String orderId, String action) {
         var orders = db.queryForList("""
-            SELECT o.fulfill_status,o.paid_at,o.pending_refund,o.refund_status
+            SELECT o.fulfill_status,o.fulfillment_type,o.paid_at,o.pending_refund,o.refund_status
             FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
             WHERE o.id=? AND o.merchant_id=? AND o.paid_at>0 FOR UPDATE
             """, orderId, merchant);
         if (orders.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
         Map<String, Object> order = orders.getFirst();
+        boolean pickup = "pickup".equals(order.get("fulfillment_type"));
+        if ((pickup && "arrive".equals(action))
+                || (!pickup && List.of("ready", "collect").contains(action))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该操作不适用于当前取餐方式");
+        }
         String next = switch (action) {
             case "accept" -> "商户出餐中";
             case "arrive" -> "已到暂存点 / 待领取";
+            case "ready" -> "待自取";
+            case "collect" -> "已完成";
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知履约操作");
         };
         if (next.equals(order.get("fulfill_status"))) return Map.of("orderId", orderId, "status", next);
@@ -109,7 +119,7 @@ public class DeliveryService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "二维码对应多个订单，请联系运营核对");
         }
         var orders = db.queryForList("""
-            SELECT o.id,o.fulfill_status,o.pending_refund,o.locking,o.refund_status,d.pickup_rider_id,
+            SELECT o.id,o.fulfill_status,o.fulfillment_type,o.pending_refund,o.locking,o.refund_status,d.pickup_rider_id,
                 o.delivery_cents,d.operations_rule_id
             FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
             WHERE o.id=? FOR UPDATE
@@ -117,6 +127,9 @@ public class DeliveryService {
         if (orders.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "配送订单不存在");
         Map<String, Object> order = orders.getFirst();
         String id = order.get("id").toString();
+        if ("pickup".equals(order.get("fulfillment_type"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "到店自取订单无需骑手领取");
+        }
         if ("已关闭".equals(order.get("fulfill_status"))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单已关闭");
         }
@@ -195,17 +208,19 @@ public class DeliveryService {
         Map<String, Object> current = orderForUpdate(orderId);
         String previous = current.get("fulfill_status").toString();
         String next = text(body, "status");
+        boolean pickup = "pickup".equals(current.get("fulfillment_type"));
         boolean valid = switch (previous) {
             case "待商户接单" -> "商户出餐中".equals(next);
-            case "商户出餐中" -> "已到暂存点 / 待领取".equals(next);
-            case "已到暂存点 / 待领取" -> "配送中".equals(next);
-            case "配送中" -> "已完成".equals(next);
+            case "商户出餐中" -> (pickup ? "待自取" : "已到暂存点 / 待领取").equals(next);
+            case "待自取" -> pickup && "已完成".equals(next);
+            case "已到暂存点 / 待领取" -> !pickup && "配送中".equals(next);
+            case "配送中" -> !pickup && "已完成".equals(next);
             default -> false;
         };
         if (!valid) throw new ResponseStatusException(HttpStatus.CONFLICT, "订单当前状态不允许此配送流转");
         long now = System.currentTimeMillis();
         if ("商户出餐中".equals(next)) {
-            acceptWithPickupNumber(orderId, current.get("merchant_id").toString(), now);
+            acceptWithPickupNumber(orderId, current.get("merchant_id").toString(), pickup ? "pickup" : "delivery", now);
         } else if ("配送中".equals(next)) {
             String rider = text(body, "riderName");
             if (rider.isBlank() || rider.length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "骑手名称无效");
@@ -220,22 +235,22 @@ public class DeliveryService {
             db.update("DELETE FROM delivery_location WHERE order_id=?", orderId);
         } else {
             db.update("UPDATE business_order SET fulfill_status=? WHERE id=?", next, orderId);
-            batches.recordArrival(orderId, now);
+            if (!pickup) batches.recordArrival(orderId, now);
         }
         db.update("INSERT INTO order_note(order_id,actor,note) VALUES(?,?,?)", orderId, text(body, "actor").isBlank() ? "履约服务" : text(body, "actor"), previous + " → " + next);
         return Map.of("orderId", orderId, "previousStatus", previous, "status", next, "updatedAt", now);
     }
 
-    private void acceptWithPickupNumber(String orderId, String merchantId, long acceptedAt) {
+    private void acceptWithPickupNumber(String orderId, String merchantId, String fulfillmentType, long acceptedAt) {
         var date = Instant.ofEpochMilli(acceptedAt).atZone(CAMPUS_ZONE).toLocalDate();
         // 计数行锁随接单事务持有，确保同店并发接单不重号，接单回滚时计数也回滚。
         db.update("""
-            INSERT INTO merchant_daily_pickup_sequence (merchant_id,pickup_date,last_number) VALUES (?,?,1)
+            INSERT INTO merchant_daily_pickup_sequence (merchant_id,pickup_date,fulfillment_type,last_number) VALUES (?,?,?,1)
             ON DUPLICATE KEY UPDATE last_number=last_number+1
-            """, merchantId, date);
+            """, merchantId, date, fulfillmentType);
         Long number = db.queryForObject("""
-            SELECT last_number FROM merchant_daily_pickup_sequence WHERE merchant_id=? AND pickup_date=?
-            """, Long.class, merchantId, date);
+            SELECT last_number FROM merchant_daily_pickup_sequence WHERE merchant_id=? AND pickup_date=? AND fulfillment_type=?
+            """, Long.class, merchantId, date, fulfillmentType);
         db.update("""
             UPDATE business_order SET fulfill_status='商户出餐中',accepted=TRUE,pickup_date=?,pickup_number=? WHERE id=?
             """, date, number, orderId);
@@ -275,7 +290,7 @@ public class DeliveryService {
     }
 
     private Map<String, Object> orderForUpdate(String orderId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT id,merchant_id,fulfill_status FROM business_order WHERE id=? FOR UPDATE", orderId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT id,merchant_id,fulfill_status,fulfillment_type FROM business_order WHERE id=? FOR UPDATE", orderId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
         return rows.get(0);
     }

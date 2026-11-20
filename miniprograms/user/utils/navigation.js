@@ -9,14 +9,15 @@ function openCart() {
   return wx.navigateTo({ url: '/pages/cart/index' });
 }
 
-function openCheckout(merchantScope) {
-  if (openingCheckout || !cart.read(merchantScope).length) return;
+function openCheckout(merchantScope, mode = 'delivery') {
+  if (openingCheckout || !cart.read(merchantScope, mode).length) return;
   let scope = '';
   if (Array.isArray(merchantScope)) {
     scope = '?merchantIds=' + merchantScope.map(id => encodeURIComponent(id)).join(',');
   } else if (merchantScope) {
     scope = '?merchantId=' + encodeURIComponent(merchantScope);
   }
+  if (mode === 'pickup') scope += '&fulfillmentType=pickup';
   openingCheckout = true;
   return wx.navigateTo({
     url: '/pages/confirm/index' + scope,

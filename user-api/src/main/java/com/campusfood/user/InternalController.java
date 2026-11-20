@@ -14,7 +14,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class InternalController {
     private final DeliveryService delivery;
     private final RefundService refunds;
-    public InternalController(DeliveryService delivery, RefundService refunds) { this.delivery = delivery; this.refunds = refunds; }
+    private final StoreOrderingCode orderingCodes;
+
+    public InternalController(DeliveryService delivery, RefundService refunds, StoreOrderingCode orderingCodes) {
+        this.delivery = delivery;
+        this.refunds = refunds;
+        this.orderingCodes = orderingCodes;
+    }
+
+    @GetMapping("/merchants/{merchant}/ordering-code")
+    public Map<String, String> orderingCode(@PathVariable String merchant, HttpServletRequest request) {
+        delivery.requireInternal(request);
+        return orderingCodes.image(merchant);
+    }
 
     @PostMapping("/merchants/{merchant}/orders/{orderId}/status")
     public Map<String, Object> merchantStatus(@PathVariable String merchant, @PathVariable String orderId,

@@ -13,6 +13,7 @@
         <view class="h3 order-name">{{item.merchantName}}</view>
         <view class="orderstate">{{item.displayStatus}}</view>
       </view>
+      <view wx:if="{{item.fulfillmentType === 'pickup'}}" class="small order-note">到店自取</view>
       <view class="muted order-summary">{{item.displayItems}}</view>
       <view wx:if="{{!item.isPayment && item.note}}" class="small order-note">{{item.note}}</view>
       <view class="order-footer">

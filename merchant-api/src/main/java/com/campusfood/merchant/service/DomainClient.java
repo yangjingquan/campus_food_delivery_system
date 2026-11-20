@@ -40,6 +40,10 @@ public class DomainClient {
             .defaultHeader("X-Internal-Key", key).build();
     }
 
+    public Map<String, Object> orderingCode(String merchant) {
+        return call(user.get().uri("/internal/v1/merchants/{merchant}/ordering-code", merchant));
+    }
+
     public Map<String, Object> orderAction(String merchant, String order, String action) {
         return call(user.post().uri("/internal/v1/merchants/{merchant}/orders/{order}/status", merchant, order)
             .body(Map.of("action", action)));

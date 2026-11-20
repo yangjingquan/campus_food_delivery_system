@@ -4,13 +4,17 @@ const { money } = require('../../utils/display');
 Page({
   data: { payment: null, orders: [], loading: true, loadError: '', paying: false, remaining: '', expired: false },
 
-  onLoad(query) { this.paymentId = query.id; },
+  onLoad(query) {
+    this.paymentId = query.id;
+    this.autoPay = query.autoPay === '1';
+  },
   onShow() {
+    this.visible = true;
     this.load();
     this.timer = setInterval(() => this.updateCountdown(), 1000);
   },
-  onHide() { clearInterval(this.timer); },
-  onUnload() { clearInterval(this.timer); },
+  onHide() { this.visible = false; clearInterval(this.timer); },
+  onUnload() { this.onHide(); },
 
   async load() {
     this.setData({ loading: true, loadError: '' });
@@ -21,11 +25,16 @@ Page({
         ...row, amountText: money(row.amountCents), foodText: money(row.foodCents), feeText: money(row.deliveryFeeCents)
       }));
       this.setData({
-        payment: data, orders, amountText: money(data.amountCents), foodText: money(data.foodCents),
+        payment: data, orders, pickup: orders[0]?.fulfillmentType === 'pickup', amountText: money(data.amountCents), foodText: money(data.foodCents),
         feeText: money(data.deliveryFeeCents), loading: false
       });
       wx.setNavigationBarTitle({ title: orders.length > 1 ? '合并支付单' : '订单支付' });
       this.updateCountdown();
+      // 只在自取确认页明确点击「提交并支付」后自动唤起一次。
+      if (this.autoPay && this.visible && this.data.pickup) {
+        this.autoPay = false;
+        await this.pay();
+      }
     } catch (error) {
       this.setData({ loading: false, loadError: error.message });
     }

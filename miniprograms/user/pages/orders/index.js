@@ -30,7 +30,7 @@ Page({
         if (row.mergedPaymentStatus !== '未支付') continue;
         if (!pending.has(row.paymentId)) {
           pending.set(row.paymentId, {
-            id: row.paymentId, isPayment: true, names: [], items: [], amountCents: 0, note: time(row.createdAt)
+            id: row.paymentId, isPayment: true, fulfillmentType: row.fulfillmentType, names: [], items: [], amountCents: 0, note: time(row.createdAt)
           });
         }
         const group = pending.get(row.paymentId);

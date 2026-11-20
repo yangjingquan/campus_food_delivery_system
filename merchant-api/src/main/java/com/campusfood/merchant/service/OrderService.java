@@ -18,7 +18,9 @@ public class OrderService {
         SELECT o.id,o.payment_id AS paymentId,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryCents,
                o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,
                o.fulfill_status AS status,o.payment_status AS paymentStatus,o.refund_status AS refundStatus,
-               o.settlement_status AS settlementStatus,o.accepted,o.pending_refund AS pendingRefund,o.intervene,
+               o.settlement_status AS settlementStatus,o.fulfillment_type AS fulfillmentType,
+               o.pickup_number AS pickupNumber,
+               CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) AS pickupCode,o.accepted,o.pending_refund AS pendingRefund,o.intervene,
                o.intervene_reason AS interveneReason,o.paid_at AS paidAt,d.arrived_at AS arrivedAt,
                d.batch_alert_at AS batchAlertAt,o.completed_at AS completedAt,o.closed_at AS closedAt,
                o.paid_at+(SELECT accept_timeout FROM operations_config ORDER BY id DESC LIMIT 1)*60000 AS acceptDeadlineAt
@@ -45,9 +47,10 @@ public class OrderService {
         String term = "%" + keyword.trim() + "%";
         int offset = Math.min(100_000, Math.max(0, page)) * 30;
         var rows = db.queryForList(BASE + """
-            AND (?='' OR o.fulfill_status=?) AND (o.id LIKE ? OR o.items LIKE ?)
+            AND (?='' OR o.fulfill_status=?)
+            AND (o.id LIKE ? OR o.items LIKE ? OR CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) LIKE ?)
             ORDER BY o.paid_at DESC,o.id DESC LIMIT 31 OFFSET ?
-            """, merchant, status, status, term, term, offset);
+            """, merchant, status, status, term, term, term, offset);
         var counts = db.queryForMap("""
             SELECT COUNT(CASE WHEN o.fulfill_status='待商户接单' AND o.pending_refund=FALSE
                           AND o.refund_status NOT IN ('退款失败','平台介入')
@@ -61,7 +64,7 @@ public class OrderService {
     public Map<String, Object> detail(String merchant, String id) {
         var result = new LinkedHashMap<>(owned(merchant, id));
         result.put("delivery", db.queryForMap("""
-            SELECT receiver_name AS receiverName,phone,building,room FROM user_order_detail WHERE order_id=?
+            SELECT receiver_name AS receiverName,phone,building,room,pickup_address AS pickupAddress FROM user_order_detail WHERE order_id=?
             """, id));
         result.put("lines", lines(id));
         result.put("aftersales", db.queryForList(REFUNDS + " AND o.id=? ORDER BY r.created_at DESC", merchant, id));
@@ -82,17 +85,19 @@ public class OrderService {
         if (!Boolean.TRUE.equals(order.get("accepted")) || "已关闭".equals(order.get("status"))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "接单后且订单未关闭时可查看小票");
         }
-        byte[] bytes = new byte[16];
-        random.nextBytes(bytes);
-        String candidate = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        // 补打复用同一随机码。二维码不包含订单号、地址或联系电话。
-        db.update("INSERT INTO merchant_pickup_ticket(order_id,token) VALUES(?,?) ON DUPLICATE KEY UPDATE order_id=order_id",
-            id, candidate);
-        String code = db.queryForObject("SELECT token FROM merchant_pickup_ticket WHERE order_id=?", String.class, id);
         var ticket = receipt(merchant, id);
-        ticket.put("code", code);
-        ticket.put("qrImage", TicketQr.image(code));
-        ticket.put("orderQrImage", TicketQr.image(id));
+        if (!"pickup".equals(order.get("fulfillmentType"))) {
+            byte[] bytes = new byte[16];
+            random.nextBytes(bytes);
+            String candidate = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+            // 外卖补打复用原骑手领取码。自取单没有骑手领取码。
+            db.update("INSERT INTO merchant_pickup_ticket(order_id,token) VALUES(?,?) ON DUPLICATE KEY UPDATE order_id=order_id",
+                id, candidate);
+            String code = db.queryForObject("SELECT token FROM merchant_pickup_ticket WHERE order_id=?", String.class, id);
+            ticket.put("code", code);
+            ticket.put("qrImage", TicketQr.image(code));
+            ticket.put("orderQrImage", TicketQr.image(id));
+        }
         ticket.put("createdTime", ReceiptFormatter.time(ticket.remove("createdAt")));
         return ticket;
     }
@@ -104,8 +109,9 @@ public class OrderService {
         }
         var ticket = new LinkedHashMap<>(order);
         ticket.putAll(db.queryForMap("""
-            SELECT m.name AS merchantName,o.pickup_number AS pickupNumber,
-                CONCAT(d.building,' ',d.room) AS address,d.created_at AS createdAt
+            SELECT m.name AS merchantName,
+                IF(o.fulfillment_type='pickup',d.pickup_address,CONCAT(d.building,' ',d.room)) AS address,
+                d.created_at AS createdAt
             FROM user_order_detail d JOIN business_order o ON o.id=d.order_id
             JOIN merchant m ON m.id=o.merchant_id WHERE d.order_id=? AND o.merchant_id=?
             """, id, merchant));

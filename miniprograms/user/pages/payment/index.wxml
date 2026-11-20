@@ -12,10 +12,10 @@
       <view class="row payment-total"><text class="small">{{orders.length > 1 ? '合并应付金额' : '订单应付金额'}}</text><text class="price">{{amountText}}</text></view>
       <view wx:for="{{orders}}" wx:key="id" class="split">
         <view class="row"><view class="h3">{{item.merchantName || item.merchant}}</view><text>{{item.amountText}}</text></view>
-        <view class="small">餐品 {{item.foodText}} · 配送 {{item.feeText}}</view>
+        <view class="small">餐品 {{item.foodText}} · {{pickup ? '到店自取' : '配送 ' + item.feeText}}</view>
       </view>
       <view class="split">
-        <view class="kv"><text class="label">配送费合计</text><text>{{feeText}}</text></view>
+        <view wx:if="{{!pickup}}" class="kv"><text class="label">配送费合计</text><text>{{feeText}}</text></view>
         <view class="kv"><text class="label">支付记录单号</text><text>{{payment.id}}</text></view>
       </view>
     </view>

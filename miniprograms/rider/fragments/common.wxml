@@ -72,7 +72,7 @@
       <view class="shop flex-fill">
         <template is="icon" data="{{name: 'shop', size: 'icon-small'}}"/>
         <text>{{order.merchant}}</text>
-        <text wx:if="{{order.pickupNumber}}" class="order-pickup-number">#{{order.pickupNumber}}</text>
+        <text wx:if="{{order.pickupNumber}}" class="order-pickup-number">#W{{order.pickupNumber}}</text>
       </view>
       <template is="chip" data="{{label: order.status, tone: order.status === '配送中' ? '' : 'gray'}}"/>
     </view>

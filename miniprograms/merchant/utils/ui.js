@@ -60,4 +60,14 @@ async function action(page, work) {
   }
 }
 
-module.exports = { money, date, cents, access, confirm, go, onboarding, action, orderPath };
+function fulfillmentConfirmation(action) {
+  const messages = {
+    accept: ['确认接单', '接单后请开始出餐。'],
+    arrive: ['确认送达暂存点', '请确认餐品已放置在暂存点，骑手可以领取。'],
+    ready: ['确认餐品已备好', '顾客将在订单中看到待自取状态。'],
+    collect: ['确认已取餐', '请核对取餐号，确认顾客已领取餐品。']
+  };
+  return messages[action];
+}
+
+module.exports = { fulfillmentConfirmation, money, date, cents, access, confirm, go, onboarding, action, orderPath };

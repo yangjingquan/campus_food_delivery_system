@@ -19,10 +19,13 @@ public class ReceiptFormatter {
     public String format(Map<String, Object> ticket) {
         StringBuilder receipt = new StringBuilder("<C><B><L1>")
                 .append(text(ticket.get("merchantName"))).append("</L1></B></C><BR>");
+        boolean pickup = "pickup".equals(ticket.get("fulfillmentType"));
         if (ticket.get("pickupNumber") instanceof Number number) {
-            receipt.append("<C><B><L1>#").append(number.longValue()).append("</L1></B></C><BR>");
+            receipt.append("<C><B><L1>#").append(pickup ? 'Z' : 'W').append(number.longValue())
+                    .append("</L1></B></C><BR>");
         }
-        receipt.append("<QRCODE>").append(text(ticket.get("id"))).append("</QRCODE><BR>");
+        if (pickup) receipt.append("<C>到店自取</C><BR>");
+        else receipt.append("<QRCODE>").append(text(ticket.get("id"))).append("</QRCODE><BR>");
         receipt.append(column("名称", 12)).append(column("单价", 7))
                 .append(column("数量", 5)).append("金额<BR>");
         for (Map<String, Object> item : lines(ticket)) {
@@ -33,10 +36,10 @@ public class ReceiptFormatter {
                     .append(money(item.get("amountCents"))).append("<BR>");
         }
         // 使用中文单位，避免部分热敏打印机将半角人民币符号打印为异常字形。
-        receipt.append("--------------------------------<BR>")
-                .append("<R>配送费：").append(money(ticket.get("deliveryCents"))).append("元</R><BR>")
-                .append("<R><B>总金额：").append(money(ticket.get("paidCents"))).append("元</B></R><BR>")
-                .append("送货地址：").append(text(ticket.get("address"))).append("<BR>")
+        receipt.append("--------------------------------<BR>");
+        if (!pickup) receipt.append("<R>配送费：").append(money(ticket.get("deliveryCents"))).append("元</R><BR>");
+        receipt.append("<R><B>总金额：").append(money(ticket.get("paidCents"))).append("元</B></R><BR>")
+                .append(pickup ? "取餐地点：" : "送货地址：").append(text(ticket.get("address"))).append("<BR>")
                 .append("下单时间：").append(time(ticket.get("createdAt"))).append("<BR><BR>");
         String content = receipt.toString();
         if (content.getBytes(StandardCharsets.UTF_8).length > 5000) {

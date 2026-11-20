@@ -26,6 +26,18 @@ Page({
     }
   },
   shop() { ui.go('/pages/onboarding/index?edit=1'); },
+  async orderingCode() {
+    if (this.data.codeLoading) return;
+    this.setData({ codeLoading: true, codeError: '' });
+    try {
+      const image = await api.photo('/profile/ordering-code');
+      wx.previewImage({ current: image, urls: [image] });
+    } catch (error) {
+      this.setData({ codeError: '点餐码暂不可用，请确认用户端小程序已发布后重试。' });
+    } finally {
+      this.setData({ codeLoading: false });
+    }
+  },
   devices() { ui.go('/pages/devices/index'); },
   inputMinimumOrder(event) { this.setData({ minimumOrder: event.detail.value, minimumOrderError: '' }); },
   async saveMinimumOrder() {

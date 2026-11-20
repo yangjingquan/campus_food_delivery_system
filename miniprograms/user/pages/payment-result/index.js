@@ -29,7 +29,7 @@ Page({
         }
       }
       const orders = (payment.merchantOrders || []).map(item => ({ ...item, amountText: money(item.amountCents) }));
-      this.setData({ payment, orders, amountText: money(payment.amountCents), syncError });
+      this.setData({ payment, orders, pickup: orders[0]?.fulfillmentType === 'pickup', amountText: money(payment.amountCents), syncError });
       if (payment.status === '支付成功') this.removePaidItems(user.id);
       if (this.visible && payment.mode === 'wechat' && payment.status === '未支付' && (this.checks || 0) < 3) {
         this.checks = (this.checks || 0) + 1;
@@ -49,15 +49,16 @@ Page({
     if (snapshot?.userId !== userId) return;
     // 只减去该笔支付对应的数量，保留付款前后新加入的餐品。
     const paid = new Map(snapshot.items.map(item => [item.productId, item]));
-    const remaining = cart.read().map(item => {
+    const remaining = cart.read(null, snapshot.fulfillmentType).map(item => {
       const purchased = paid.get(item.productId);
       if (!purchased || (purchased.lineKey || '') !== (item.lineKey || '')) return item;
       return { ...item, quantity: Math.max(0, item.quantity - purchased.quantity) };
     });
-    cart.save(remaining.filter(item => item.quantity > 0));
+    cart.save(remaining.filter(item => item.quantity > 0), snapshot.fulfillmentType);
     wx.removeStorageSync(key);
-    if (wx.getStorageSync('checkoutAttempt')?.paymentId === this.paymentId) {
-      wx.removeStorageSync('checkoutAttempt');
+    const attemptKey = snapshot.fulfillmentType === 'pickup' ? 'pickupCheckoutAttempt' : 'checkoutAttempt';
+    if (wx.getStorageSync(attemptKey)?.paymentId === this.paymentId) {
+      wx.removeStorageSync(attemptKey);
     }
   },
 

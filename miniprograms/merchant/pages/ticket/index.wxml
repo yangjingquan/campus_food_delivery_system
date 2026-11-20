@@ -7,7 +7,8 @@
     <view class="card receipt">
       <view class="receipt-heading">
         <view class="receipt-store">{{store.name}}</view>
-        <view wx:if="{{ticket.pickupNumber}}" class="receipt-pickup-number">#{{ticket.pickupNumber}}</view>
+        <view wx:if="{{ticket.pickupCode}}" class="receipt-pickup-number">{{ticket.pickupCode}}</view>
+        <view wx:if="{{ticket.pickup}}" class="hint">到店自取</view>
         <image wx:if="{{ticket.orderQrImage}}" class="ticket-qr" src="{{ticket.orderQrImage}}" mode="aspectFit" aria-label="订单号二维码" />
         <view class="hint mono" selectable>{{ticket.id}}</view>
       </view>
@@ -17,9 +18,9 @@
           <text>{{item.name}}</text><text>{{item.unitPrice}}</text><text>{{item.quantity}}</text><text>{{item.amount}}</text>
         </view>
       </view>
-      <view class="kv"><text>配送费</text><text>{{fee}}</text></view>
+      <view wx:if="{{!ticket.pickup}}" class="kv"><text>配送费</text><text>{{fee}}</text></view>
       <view class="kv"><text>总金额</text><text class="price">{{paid}}</text></view>
-      <view class="kv"><text>送货地址</text><text>{{ticket.address}}</text></view>
+      <view class="kv"><text>{{ticket.pickup ? '取餐地点' : '送货地址'}}</text><text>{{ticket.address}}</text></view>
       <view class="kv"><text>下单时间</text><text>{{ticket.createdTime}}</text></view>
     </view>
     <view class="card">
@@ -29,7 +30,7 @@
       <button class="btn plain separator" bindtap="refresh" hover-class="pressed">刷新打印状态</button>
       <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
     </view>
-    <view class="card">
+    <view wx:if="{{!ticket.pickup}}" class="card">
       <view class="section">骑手领取码</view>
       <image wx:if="{{ticket.qrImage}}" class="ticket-qr" src="{{ticket.qrImage}}" mode="aspectFit" aria-label="订单领取二维码" />
       <view class="pickup-code"><text>订单领取码</text><text class="mono" selectable>{{ticket.code}}</text></view>

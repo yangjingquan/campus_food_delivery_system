@@ -106,6 +106,14 @@ class DeliveryPickupTest {
     }
 
     @Test
+    void riderCannotClaimStorePickupOrder() {
+        resolves(ORDER);
+        order.put("fulfillment_type", "pickup");
+        assertEquals("到店自取订单无需骑手领取", rejected().getReason());
+        verify(service, never()).updateStatus(anyString(), any());
+    }
+
+    @Test
     void unapprovedRiderCannotClaimByOrderNumber() {
         when(db.queryForList(anyString(), eq(String.class), eq(RIDER))).thenReturn(List.of());
         assertEquals(HttpStatus.FORBIDDEN, rejected().getStatusCode());

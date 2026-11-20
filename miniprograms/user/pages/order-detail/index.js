@@ -4,6 +4,7 @@ const { availability } = require('../../utils/aftersale');
 
 const stages = ['待商户接单', '商户出餐中', '已到暂存点 / 待领取', '配送中', '已完成'];
 const steps = ['待接单', '出餐中', '已到点', '配送中', '已完成'];
+const pickupStages = ['待商户接单', '商户出餐中', '待自取', '已完成'];
 const statusNotes = {
   待支付: '付款确认后，商户将收到订单。',
   待商户接单: '订单已付款，等待商户接单。',
@@ -25,11 +26,16 @@ Page({
     try {
       await getApp().ensureLogin();
       const { data } = await api.get(`/orders/${this.orderId}`);
+      const pickup = data.fulfillmentType === 'pickup';
       const items = (data.items || []).map(item => ({ ...item, amountText: money(item.amountCents) }));
       const aftersales = (data.aftersales || []).map(item => ({ ...item, amountText: money(item.amountCents) }));
       this.setData({
-        order: data, items, aftersales, stepIndex: stages.indexOf(data.fulfillStatus), loading: false,
-        statusNote: statusNotes[data.fulfillStatus] || '', paidAtText: time(data.paidAt),
+        order: data, items, aftersales, pickup, loading: false,
+        steps: pickup ? ['待接单', '出餐中', '待自取', '已完成'] : steps,
+        stepIndex: (pickup ? pickupStages : stages).indexOf(data.fulfillStatus),
+        statusNote: pickup && data.fulfillStatus === '待自取' ? '餐品已备好，请凭取餐号到店领取。'
+          : pickup && data.fulfillStatus === '已完成' ? '商户已确认取餐。' : statusNotes[data.fulfillStatus] || '',
+        paidAtText: time(data.paidAt),
         refund: availability(data), amountText: money(data.paidCents), foodText: money(data.foodCents),
         feeText: money(data.deliveryFeeCents), refundedText: money(data.refundedCents)
       });

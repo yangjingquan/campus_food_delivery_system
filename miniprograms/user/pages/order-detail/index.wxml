@@ -8,13 +8,13 @@
     </view>
 
     <view wx:if="{{stepIndex >= 0}}" class="card">
-      <view class="h3">配送进度</view>
-      <view class="progress" aria-label="当前配送进度 {{order.fulfillStatus}}">
+      <view class="h3">{{pickup ? '自取进度' : '配送进度'}}</view>
+      <view class="progress" aria-label="当前进度 {{order.fulfillStatus}}">
         <view wx:for="{{steps}}" wx:key="*this" class="step {{index <= stepIndex ? 'done' : ''}} {{index === stepIndex ? 'current' : ''}}">
           <view class="step-dot"></view><text>{{item}}</text>
         </view>
       </view>
-      <view class="split">
+      <view wx:if="{{!pickup}}" class="split">
         <view class="small">{{order.locationAvailable ? '骑手已领取，可查看本订单的配送位置。' : order.fulfillStatus === '已完成' ? '订单已完成，位置共享已结束。' : '骑手尚未领取，暂不展示位置。'}}</view>
       </view>
     </view>
@@ -37,15 +37,17 @@
       </view>
       <view class="split">
         <view class="kv"><text class="label">餐品金额</text><text>{{foodText}}</text></view>
-        <view class="kv"><text class="label">固定配送费</text><text>{{feeText}}</text></view>
+        <view wx:if="{{!pickup}}" class="kv"><text class="label">固定配送费</text><text>{{feeText}}</text></view>
         <view class="kv"><text class="label">{{order.mergedPaymentStatus === '支付成功' ? '订单实付' : '订单金额'}}</text><text>{{amountText}}</text></view>
         <view wx:if="{{order.refundedCents}}" class="kv"><text class="label">累计已退</text><text>{{refundedText}}</text></view>
       </view>
     </view>
     <view class="card">
       <view class="h3">订单信息</view>
-      <view class="kv"><text class="label">收餐地址</text><text>{{order.building}} {{order.room}}</text></view>
-      <view class="kv"><text class="label">收餐人</text><text>{{order.receiverName}}　{{order.phone}}</text></view>
+      <view wx:if="{{pickup}}" class="kv"><text class="label">取餐地点</text><text>{{order.pickupAddress}}</text></view>
+      <view wx:if="{{order.pickupCode}}" class="kv"><text class="label">取餐号</text><text selectable>{{order.pickupCode}}</text></view>
+      <view wx:if="{{!pickup}}" class="kv"><text class="label">收餐地址</text><text>{{order.building}} {{order.room}}</text></view>
+      <view wx:if="{{!pickup}}" class="kv"><text class="label">收餐人</text><text>{{order.receiverName}}　{{order.phone}}</text></view>
       <view class="kv"><text class="label">订单号</text><text>{{order.id}}</text></view>
       <view class="kv"><text class="label">支付记录单号</text><text>{{order.paymentId}}</text></view>
       <view wx:if="{{paidAtText}}" class="kv"><text class="label">付款时间</text><text>{{paidAtText}}</text></view>

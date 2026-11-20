@@ -6,6 +6,7 @@ const filters = [
   { label: '待接单', status: '待商户接单' },
   { label: '出餐中', status: '商户出餐中' },
   { label: '待领取', status: '已到暂存点 / 待领取' },
+  { label: '待自取', status: '待自取' },
   { label: '配送中', status: '配送中' },
   { label: '已完成', status: '已完成' },
   { label: '已关闭', status: '已关闭' }
@@ -69,12 +70,10 @@ Page({
   update(event) {
     const { id, action } = event.currentTarget.dataset;
     ui.action(this, async () => {
-      const accept = action === 'accept';
-      if (!await ui.confirm(accept ? '确认接单' : '确认送达暂存点',
-        accept ? '接单后请开始出餐。' : '确认餐品已经放置在暂存点，骑手可领取。')) return;
+      if (!await ui.confirm(...ui.fulfillmentConfirmation(action))) return;
       await api.request(ui.orderPath(id) + '/status', { action }, 'POST');
       await this.load(0);
-      if (accept) wx.showToast({ title: '接单成功，小票已排队', icon: 'none' });
+      if (action === 'accept') wx.showToast({ title: '接单成功，小票已排队', icon: 'none' });
     });
   }
 });
