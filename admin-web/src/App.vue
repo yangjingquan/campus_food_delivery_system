@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Close } from '@element-plus/icons-vue'
 import { adminApi } from './api/admin'
+import { financePages } from './router'
 import { useAuthStore } from './stores/auth'
 
 const route = useRoute()
@@ -10,29 +12,80 @@ const router = useRouter()
 const auth = useAuthStore()
 const collapsed = ref(false)
 const showMobileNav = ref(false)
+const compactNav = computed(() => collapsed.value && !showMobileNav.value)
+const mobileNavButton = ref<HTMLButtonElement>()
+const mobileCloseButton = ref<HTMLButtonElement>()
+const mainContent = ref<HTMLElement>()
+const desktopViewport = window.matchMedia('(min-width: 761px)')
 const passwordOpen=ref(false)
 const passwordDraft=reactive({oldPassword:'',newPassword:'',confirm:''})
 
-const menuGroups = [
+type MenuEntry = { name: string; icon: string } | { id: string; title: string; icon: string; children: string[] }
+const menuGroups: { label: string; items: MenuEntry[] }[] = [
   {
     label: '运营工作台',
     items: [
-      { path: '/overview', title: '运营概览', icon: 'Grid' },
-      { path: '/merchants', title: '商户管理', icon: 'Shop' },
-      { path: '/products', title: '商户商品', icon: 'Tickets' },
-      { path: '/food-categories', title: '食品分类', icon: 'Grid' },
-      { path: '/riders', title: '骑手管理', icon: 'Bicycle' },
-      { path: '/orders', title: '订单管理', icon: 'Tickets', badge: 'intervene' },
-      { path: '/aftersales', title: '售后管理', icon: 'ChatDotRound' },
-      { path: '/finance', title: '财务对账与欠款', icon: 'Wallet' },
-      { path: '/withdrawals', title: '提现审核', icon: 'Money' },
-      { path: '/config', title: '运营配置', icon: 'Setting' },
+      { name: 'overview', icon: 'Grid' },
+      { id: 'merchant-nav', title: '商户管理', icon: 'Shop', children: ['merchants', 'products'] },
+      { name: 'food-categories', icon: 'Grid' },
+      { name: 'riders', icon: 'Bicycle' },
+      { id: 'order-nav', title: '订单管理', icon: 'Tickets', children: ['orders', 'aftersales'] },
+      { id: 'finance-nav', title: '财务对账', icon: 'Wallet', children: financePages.map(({ section }) => `finance-${section}`) },
+      { name: 'withdrawals', icon: 'Money' },
+      { name: 'config', icon: 'Setting' },
     ],
   },
-  { label: '系统设置', items: [{ path: '/wechat', title: '微信设置', icon: 'Connection' }, { path: '/administrators', title: '管理员与角色', icon: 'User' }] },
+  { label: '系统设置', items: [{ name: 'wechat', icon: 'Connection' }, { name: 'administrators', icon: 'User' }] },
 ]
-const menuPermission: Record<string, string> = { '/overview': 'overview.view', '/merchants': 'merchant.view', '/products': 'merchant.view', '/food-categories': 'food-category.view', '/riders': 'rider.view', '/orders': 'order.view', '/aftersales': 'refund.view', '/finance': 'finance.view', '/withdrawals': 'withdrawal.view', '/config': 'config.view', '/wechat': 'wechat.view', '/administrators': 'admin.manage' }
-const visibleMenuGroups = computed(() => menuGroups.map((group) => ({ ...group, items: group.items.filter((item) => auth.can(menuPermission[item.path])) })).filter((group) => group.items.length))
+function menuLink(name: string) {
+  const { meta } = router.resolve({ name })
+  return { name, title: String(meta.title), permission: String(meta.permission || '') }
+}
+const visibleMenuGroups = computed(() => menuGroups.map(group => ({
+  ...group,
+  items: group.items.map(item => 'children' in item
+    ? { ...item, children: item.children.map(menuLink).filter(link => auth.can(link.permission)) }
+    : { ...item, ...menuLink(item.name) },
+  ).filter(item => 'children' in item ? item.children.length : auth.can(item.permission)),
+})).filter(group => group.items.length))
+const activeParent = computed(() => visibleMenuGroups.value.flatMap(group => group.items).find(
+  item => 'children' in item && item.children.some(link => link.name === route.name),
+))
+const parentTitle = computed(() => activeParent.value?.title)
+const openDrawer = ref<string>()
+watch([() => route.name, activeParent], () => {
+  const parent = activeParent.value
+  if (parent && 'id' in parent) openDrawer.value = parent.id
+}, { immediate: true })
+function toggleDrawer(id: string) {
+  if (compactNav.value) {
+    collapsed.value = false
+    openDrawer.value = id
+  } else {
+    openDrawer.value = openDrawer.value === id ? undefined : id
+  }
+}
+async function openMobileNav() {
+  showMobileNav.value = true
+  await nextTick()
+  mobileCloseButton.value?.focus({ preventScroll: true })
+}
+async function closeMobileNav(focusPage = false) {
+  if (!showMobileNav.value) return
+  showMobileNav.value = false
+  await nextTick()
+  const destination = focusPage ? mainContent.value : mobileNavButton.value
+  destination?.focus({ preventScroll: true })
+}
+function onNavLinkClick(event: MouseEvent) {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  void closeMobileNav(true)
+}
+function closeMobileNavOnDesktop(event: MediaQueryListEvent) {
+  if (event.matches && showMobileNav.value) void closeMobileNav(true)
+}
+onMounted(() => desktopViewport.addEventListener('change', closeMobileNavOnDesktop))
+onUnmounted(() => desktopViewport.removeEventListener('change', closeMobileNavOnDesktop))
 const title = computed(() => String(route.meta.title || '运营概览'))
 const group = computed(() => route.meta.group ? String(route.meta.group) : '运营工作台')
 async function logout() {
@@ -57,36 +110,69 @@ async function changePassword() {
 
 <template>
   <div v-if="route.meta.public" class="public-shell"><RouterView /></div>
-  <div v-else class="app-frame" :class="{ 'nav-collapsed': collapsed, 'mobile-nav-open': showMobileNav }">
-    <div class="mobile-scrim" @click="showMobileNav = false"></div>
-    <aside class="sidebar">
+  <div v-else class="app-frame" :class="{ 'nav-collapsed': compactNav, 'mobile-nav-open': showMobileNav }">
+    <div class="mobile-scrim" aria-hidden="true" @click="closeMobileNav()"></div>
+    <aside id="admin-sidebar" class="sidebar" :role="showMobileNav ? 'dialog' : undefined"
+      :aria-modal="showMobileNav ? true : undefined" :aria-label="showMobileNav ? '后台导航' : undefined"
+      @keydown.esc="closeMobileNav()">
       <div class="brand-lockup">
         <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
         <div class="brand-wordmark"><strong>校园食递</strong><span>CAMPUS DELIVERY</span></div>
+        <button ref="mobileCloseButton" type="button" class="mobile-nav-close" aria-label="关闭导航" @click="closeMobileNav()">
+          <el-icon aria-hidden="true"><Close /></el-icon>
+        </button>
       </div>
-      <div class="nav-scroll">
+      <nav class="nav-scroll" aria-label="后台导航">
         <section v-for="navGroup in visibleMenuGroups" :key="navGroup.label" class="nav-group">
           <p class="nav-heading">{{ navGroup.label }}</p>
-          <el-menu :default-active="route.path" router class="side-menu" @select="showMobileNav = false">
-            <el-menu-item v-for="item in navGroup.items" :key="item.path" :index="item.path">
-              <el-icon><component :is="item.icon" /></el-icon>
-              <span>{{ item.title }}</span>
-            </el-menu-item>
-          </el-menu>
+          <ul class="side-nav">
+            <li v-for="item in navGroup.items" :key="'children' in item ? item.id : item.name">
+              <template v-if="'children' in item">
+                <button class="side-nav-row" :class="{ 'has-current': activeParent === item }" type="button"
+                  :aria-label="item.title" :title="compactNav ? item.title : undefined"
+                  :aria-expanded="!compactNav && openDrawer === item.id" :aria-controls="item.id" @click="toggleDrawer(item.id)">
+                  <el-icon class="side-nav-icon" aria-hidden="true"><component :is="item.icon" /></el-icon>
+                  <span class="side-nav-label">{{ item.title }}</span>
+                  <el-icon class="side-nav-chevron" aria-hidden="true"><ArrowRight /></el-icon>
+                </button>
+                <div :id="item.id" class="side-nav-disclosure" :class="{ 'is-open': !compactNav && openDrawer === item.id }"
+                  :inert="compactNav || openDrawer !== item.id">
+                  <div class="side-nav-disclosure-inner">
+                    <ul class="side-nav-children">
+                      <li v-for="child in item.children" :key="child.name">
+                        <RouterLink class="side-nav-row" :to="{ name: child.name }" @click="onNavLinkClick">{{ child.title }}</RouterLink>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </template>
+              <RouterLink v-else class="side-nav-row" :to="{ name: item.name }" :aria-label="item.title"
+                :title="compactNav ? item.title : undefined" @click="onNavLinkClick">
+                <el-icon class="side-nav-icon" aria-hidden="true"><component :is="item.icon" /></el-icon>
+                <span class="side-nav-label">{{ item.title }}</span>
+              </RouterLink>
+            </li>
+          </ul>
         </section>
-      </div>
+      </nav>
     </aside>
 
-    <section class="main-shell">
+    <section class="main-shell" :inert="showMobileNav">
       <header class="topbar">
         <div class="topbar-left">
-          <el-button class="mobile-menu-button" text circle :aria-label="showMobileNav ? '关闭导航' : '打开导航'" :aria-expanded="showMobileNav" @click="showMobileNav = !showMobileNav">
-            <el-icon><Menu /></el-icon>
-          </el-button>
-          <el-button class="collapse-button" text circle :aria-label="collapsed ? '展开导航' : '收起导航'" @click="collapsed = !collapsed">
+          <button ref="mobileNavButton" type="button" class="mobile-menu-button" aria-label="打开导航"
+            :aria-expanded="showMobileNav" aria-controls="admin-sidebar" @click="openMobileNav">
+            <el-icon aria-hidden="true"><Menu /></el-icon>
+          </button>
+          <el-button class="collapse-button" text circle :aria-label="collapsed ? '展开导航' : '收起导航'"
+            :aria-expanded="!collapsed" aria-controls="admin-sidebar" @click="collapsed = !collapsed">
             <el-icon><Fold v-if="!collapsed" /><Expand v-else /></el-icon>
           </el-button>
-          <div class="breadcrumb"><span>管理后台</span><el-icon><ArrowRight /></el-icon><strong>{{ group }}</strong><template v-if="title !== group"><el-icon><ArrowRight /></el-icon><strong>{{ title }}</strong></template></div>
+          <div class="breadcrumb">
+            <span class="breadcrumb-context">管理后台 <el-icon><ArrowRight /></el-icon> {{ group }} <el-icon><ArrowRight /></el-icon></span>
+            <template v-if="parentTitle"><strong>{{ parentTitle }}</strong><el-icon><ArrowRight /></el-icon></template>
+            <strong>{{ title }}</strong>
+          </div>
         </div>
         <div class="topbar-actions">
           <el-dropdown trigger="click" @command="handleCommand">
@@ -95,7 +181,7 @@ async function changePassword() {
           </el-dropdown>
         </div>
       </header>
-      <main class="page-content"><RouterView /></main>
+      <main ref="mainContent" class="page-content" tabindex="-1"><RouterView /></main>
     </section>
     <el-dialog v-model="passwordOpen" title="修改密码" width="min(460px,94vw)" @closed="passwordDraft.oldPassword='';passwordDraft.newPassword='';passwordDraft.confirm=''">
       <el-form label-position="top"><el-form-item label="原密码"><el-input v-model="passwordDraft.oldPassword" type="password" autocomplete="current-password" /></el-form-item><el-form-item label="新密码（至少 12 个字符）"><el-input v-model="passwordDraft.newPassword" type="password" autocomplete="new-password" /></el-form-item><el-form-item label="再次输入新密码"><el-input v-model="passwordDraft.confirm" type="password" autocomplete="new-password" /></el-form-item></el-form>

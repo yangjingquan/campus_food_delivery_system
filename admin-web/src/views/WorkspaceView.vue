@@ -6,29 +6,22 @@ import { Search } from '@element-plus/icons-vue'
 import { adminApi, type MerchantPrinter } from '../api/admin'
 import { useAuthStore } from '../stores/auth'
 import { money } from '../domain/rules'
+import type { FinanceSection } from '../router'
 import type { Order, SectionKey } from '../domain/types'
 
 type Row = Record<string, any>
 const route = useRoute()
 const auth = useAuthStore()
 const router = useRouter()
-const section = computed(() => String(route.name || 'orders') as SectionKey)
-const headings: Record<string, { title: string; description: string }> = {
-  merchants: { title: '商户管理', description: '审核入驻资料，查看营业状态与关联订单。' },
-  riders: { title: '骑手管理', description: '核验学生骑手资料，查看配送记录与审核历史。' },
-  orders: { title: '订单管理', description: '按商户拆单跟进履约进度，定位待管理员介入事项。' },
-  aftersales: { title: '售后管理', description: '查看退款记录与渠道状态。' },
-  finance: { title: '财务对账与欠款', description: '核对商户与骑手收入、退款调整、结算状态及欠款去向。' },
-  withdrawals: { title: '提现审核', description: '审核商户与骑手申请，跟进打款状态。' },
-}
-const heading = computed(() => headings[section.value] || headings.orders)
+const financeSection = computed(() => route.meta.financeSection as FinanceSection | undefined)
+const section = computed(() => financeSection.value ? 'finance' : String(route.name || 'orders') as SectionKey)
 const loading = ref(false)
 const rows = ref<Row[]>([])
 const relatedOrders = ref<Order[]>([])
 const keyword = ref('')
 const statusFilter = ref('')
-const activeFinanceTab = ref('accounts')
-const finance = ref<{ accounts: Row[]; ledger: Row[]; debts: Row[]; journal: Row[] }>({ accounts: [], ledger: [], debts: [], journal: [] })
+const finance = ref<Record<FinanceSection, Row[]>>({ accounts: [], ledger: [], debts: [], journal: [] })
+let loadRequest = 0
 const drawer = ref(false)
 const printerDialog = ref(false)
 const printerLoadingId = ref('')
@@ -47,7 +40,7 @@ const keyNames: Record<string, string> = {
   reason: '说明', type: '类型', amountCents: '金额', status: '处理状态', channelStatus: '渠道状态', createdAt: '创建时间', operator: '操作人', applicant: '申请主体', applicantType: '主体类型', time: '时间', subject: '账务主体', foodAmount: '餐品金额', deliveryAmount: '配送费', paidAmount: '实付金额', refundAmount: '退款金额', settlement: '结算状态', riderDue: '骑手应得', merchantBalance: '商户可扣余额', platformAdvance: '平台垫付', recovered: '已扣回', note: '说明',
 }
 
-const title = computed(() => heading.value.title)
+const title = computed(() => String(route.meta.title || '订单列表'))
 const columnSets: Record<string, Array<{ key: string; label: string; minWidth?: number }>> = {
   merchants: [
     { key: 'id', label: '商户编号', minWidth: 100 }, { key: 'name', label: '商户名称', minWidth: 140 },
@@ -82,16 +75,16 @@ const columnSets: Record<string, Array<{ key: string; label: string; minWidth?: 
 }
 const columns = computed(() => {
   if (section.value !== 'finance') return columnSets[section.value] || []
-  if (activeFinanceTab.value === 'accounts') return [
+  if (financeSection.value === 'accounts') return [
     { key: 'id', label: '主体编号' }, { key: 'name', label: '主体名称', minWidth: 160 }, { key: 'type', label: '主体类型' },
     { key: 'balanceCents', label: '可提现余额' }, { key: 'frozenCents', label: '冻结余额' }, { key: 'status', label: '账户状态' },
   ]
-  if (activeFinanceTab.value === 'ledger') return [
+  if (financeSection.value === 'ledger') return [
     { key: 'id', label: '流水编号', minWidth: 145 }, { key: 'orderId', label: '商户订单号' }, { key: 'subject', label: '账务主体' },
     { key: 'type', label: '流水类型' }, { key: 'foodAmount', label: '餐品金额' }, { key: 'deliveryAmount', label: '配送费' },
     { key: 'paidAmount', label: '用户实付' }, { key: 'refundAmount', label: '累计退款' }, { key: 'settlement', label: '结算状态' },
   ]
-  if (activeFinanceTab.value === 'journal') return [
+  if (financeSection.value === 'journal') return [
     { key: 'id', label: '流水号' }, { key: 'accountId', label: '账户编号' }, { key: 'name', label: '账户名称' },
     { key: 'eventType', label: '变动类型' }, { key: 'referenceId', label: '流水关联', minWidth: 180 }, { key: 'requestKey', label: '申请幂等键', minWidth: 160 }, { key: 'debtId', label: '欠款编号' },
     { key: 'availableDelta', label: '可用余额变动' }, { key: 'frozenDelta', label: '冻结余额变动' }, { key: 'time', label: '时间', minWidth: 160 },
@@ -103,9 +96,7 @@ const columns = computed(() => {
   ]
 })
 
-const currentRows = computed(() => section.value === 'finance'
-  ? activeFinanceTab.value === 'accounts' ? finance.value.accounts : activeFinanceTab.value === 'ledger' ? finance.value.ledger : activeFinanceTab.value === 'journal' ? finance.value.journal : finance.value.debts
-  : rows.value)
+const currentRows = computed(() => financeSection.value ? finance.value[financeSection.value] : rows.value)
 const statusFields: Record<string, string> = { merchants: 'auditStatus', riders: 'auditStatus', orders: 'fulfillStatus', aftersales: 'status', withdrawals: 'status' }
 const statusKey = computed(() => statusFields[section.value] || 'status')
 const statusOptions = computed(() => [...new Set(currentRows.value.map((row) => String(row[statusKey.value] ?? '')).filter(Boolean))])
@@ -115,26 +106,36 @@ const filteredRows = computed(() => currentRows.value.filter((row) => {
 }))
 
 async function load() {
+  const request = ++loadRequest
   loading.value = true
   try {
     if (section.value === 'finance') {
-      finance.value = await adminApi.workspace('finance') as typeof finance.value
+      const data = await adminApi.workspace<typeof finance.value>('finance')
+      if (request === loadRequest) finance.value = data
     } else {
-      const data = await adminApi.workspace<any>(section.value)
+      const data = await adminApi.workspace<{ rows?: Row[]; orders?: Order[] }>(section.value)
+      if (request !== loadRequest) return
       rows.value = data.rows || []
-      relatedOrders.value = data.orders || data.rows || []
+      relatedOrders.value = data.orders || (data.rows as Order[] | undefined) || []
     }
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '加载失败。') }
-  finally { loading.value = false }
+  } catch (error) {
+    if (request === loadRequest) ElMessage.error(error instanceof Error ? error.message : '加载失败。')
+  } finally {
+    if (request === loadRequest) loading.value = false
+  }
 }
 onMounted(() => { void load() })
-watch(section, () => {
+watch([section, financeSection], ([nextSection], [previousSection]) => {
+  drawer.value = false
   printerDialog.value = false
   printerForm.pkey = ''
   keyword.value = ''
   statusFilter.value = ''
-  activeFinanceTab.value = 'accounts'
-  load()
+  if (nextSection !== previousSection) {
+    rows.value = []
+    relatedOrders.value = []
+    void load()
+  }
 })
 
 async function openPrinter(row: Row) {
@@ -285,15 +286,14 @@ function runRowAction(row: Row) {
 
   <template v-if="section === 'finance'">
     <div class="panel-card workbench-panel">
-      <div class="panel-toolbar finance-tabs">
-        <el-tabs v-model="activeFinanceTab"><el-tab-pane label="商户 / 骑手余额" name="accounts" /><el-tab-pane label="订单账务" name="ledger" /><el-tab-pane label="账户流水" name="journal" /><el-tab-pane label="欠款与平台垫付" name="debts" /></el-tabs>
+      <div class="panel-toolbar finance-toolbar">
         <el-input v-model="keyword" clearable placeholder="搜索主体、订单或流水号" aria-label="搜索主体、订单或流水号" class="toolbar-search" :prefix-icon="Search" />
       </div>
-      <el-table :data="filteredRows" row-key="id" v-loading="loading" stripe class="data-table">
+      <el-table :key="financeSection" :data="filteredRows" row-key="id" v-loading="loading" stripe class="data-table">
         <el-table-column v-for="column in columns" :key="column.key" :prop="column.key" :label="column.label" :min-width="column.minWidth || 110" show-overflow-tooltip>
           <template #default="scope"><el-tag v-if="column.key === 'settlement' || column.key === 'status'" :type="statusType(String(scope.row[column.key]))" effect="light" round>{{ scope.row[column.key] }}</el-tag><span v-else>{{ displayValue(scope.row, column.key) }}</span></template>
         </el-table-column>
-        <el-table-column v-if="activeFinanceTab === 'debts'" label="操作" width="220" fixed="right"><template #default="scope"><el-button link type="primary" @click="openDetails(scope.row)">查看去向</el-button></template></el-table-column>
+        <el-table-column v-if="financeSection === 'debts'" label="操作" width="220" fixed="right"><template #default="scope"><el-button link type="primary" @click="openDetails(scope.row)">查看去向</el-button></template></el-table-column>
         <template #empty><el-empty description="没有符合条件的记录" /></template>
       </el-table>
     </div>
@@ -375,7 +375,7 @@ function runRowAction(row: Row) {
         <div class="detail-section"><h3>协调记录</h3><p v-for="note in activeRow.coordinationNotes || []" :key="note">{{ note }}</p><p v-if="!activeRow.coordinationNotes?.length" class="muted">暂无协调备注</p></div>
       </template>
       <template v-if="section === 'merchants'">
-        <div class="detail-section"><h3>本店订单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.merchant === activeRow?.name).slice(0, 4)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.fulfillStatus }}</strong><span>{{ money(linked.paidCents) }}</span></div><p v-if="!relatedOrders.some((order) => order.merchant === activeRow?.name)" class="muted">暂无关联订单</p><el-button link type="primary" @click="router.push('/orders')">进入订单管理</el-button></div>
+        <div class="detail-section"><h3>本店订单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.merchant === activeRow?.name).slice(0, 4)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.fulfillStatus }}</strong><span>{{ money(linked.paidCents) }}</span></div><p v-if="!relatedOrders.some((order) => order.merchant === activeRow?.name)" class="muted">暂无关联订单</p><el-button v-if="auth.can('order.view')" link type="primary" @click="router.push('/orders')">进入订单列表</el-button></div>
       </template>
       <template v-if="section === 'riders'">
         <div class="detail-section"><h3>配送记录</h3><div v-for="linked in relatedOrders.filter((order) => order.rider === activeRow?.name).slice(0, 5)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ linked.fulfillStatus }}</span></div><p v-if="!relatedOrders.some((order) => order.rider === activeRow?.name)" class="muted">暂无已分配的配送订单</p></div>
