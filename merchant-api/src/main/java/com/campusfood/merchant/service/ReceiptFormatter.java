@@ -20,7 +20,7 @@ public class ReceiptFormatter {
         StringBuilder receipt = new StringBuilder("<C><B><L1>")
                 .append(text(ticket.get("merchantName"))).append("</L1></B></C><BR>");
         if (ticket.get("pickupNumber") instanceof Number number) {
-            receipt.append("<C><B>#").append(number.longValue()).append("</B></C><BR>");
+            receipt.append("<C><B><L1>#").append(number.longValue()).append("</L1></B></C><BR>");
         }
         receipt.append("<QRCODE>").append(text(ticket.get("id"))).append("</QRCODE><BR>");
         receipt.append(column("名称", 12)).append(column("单价", 7))
@@ -34,8 +34,8 @@ public class ReceiptFormatter {
         }
         // 使用中文单位，避免部分热敏打印机将半角人民币符号打印为异常字形。
         receipt.append("--------------------------------<BR>")
-                .append("配送费：").append(money(ticket.get("deliveryCents"))).append("元<BR>")
-                .append("<B>总金额：").append(money(ticket.get("paidCents"))).append("元</B><BR>")
+                .append("<R>配送费：").append(money(ticket.get("deliveryCents"))).append("元</R><BR>")
+                .append("<R><B>总金额：").append(money(ticket.get("paidCents"))).append("元</B></R><BR>")
                 .append("送货地址：").append(text(ticket.get("address"))).append("<BR>")
                 .append("下单时间：").append(time(ticket.get("createdAt"))).append("<BR><BR>");
         String content = receipt.toString();
