@@ -10,7 +10,8 @@ Page({
   },
   onPullDownRefresh() { this.refresh().finally(() => wx.stopPullDownRefresh()); },
   onboarding: ui.onboarding,
-  async refresh() {
+  refresh() { return this.load(this.data.days); },
+  async load(days) {
     if (this.inFlight) return;
     this.inFlight = true;
     this.setData({ loading: true, error: '', blocked: '' });
@@ -18,8 +19,9 @@ Page({
       const access = await ui.access();
       this.setData(access);
       if (access.blocked) return;
-      const { sales, account, debtCents } = await api.request('/finance', { days: this.data.days });
+      const { sales, account, debtCents } = await api.request('/finance', { days });
       this.setData({
+        days,
         sales: {
           count: sales.paidOrders, paid: ui.money(sales.paidCents), food: ui.money(sales.foodCents),
           refunded: ui.money(sales.refundedCents), net: ui.money(sales.netCents)
@@ -34,9 +36,8 @@ Page({
     }
   },
   period(event) {
-    if (this.inFlight) return;
-    this.setData({ days: Number(event.currentTarget.dataset.days) });
-    this.refresh();
+    const days = Number(event.currentTarget.dataset.days);
+    if (days !== this.data.days) return this.load(days);
   },
   records(event) { ui.go('/pages/records/index?kind=' + event.currentTarget.dataset.kind); },
   withdraw() { ui.go('/pages/withdraw/index'); }
