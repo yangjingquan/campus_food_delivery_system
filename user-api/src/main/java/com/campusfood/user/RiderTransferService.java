@@ -35,6 +35,9 @@ class RiderTransferService {
     private static final String SUBMIT_BLOCKED = "审核通过，未发起转账：渠道准备失败，请检查签名材料及管理员服务";
     private static final String APPLICATION_TIME_INVALID = "审核通过，未发起转账：提现申请时间无效";
     private static final String MERCHANT_NAME_REQUIRED = "审核通过，未发起转账：该金额需核验收款人实名";
+    private static final String OUTCOME_UNKNOWN = "渠道结果待核实，继续查询原转账单";
+    private static final String BILL_NOT_FOUND = "微信查无原转账单，资金仍冻结，需核对首次提交结果";
+    private static final String SUBMIT_ERROR_PREFIX = "微信转账提交异常：";
     private static final long REAL_NAME_THRESHOLD = 200_000;
     private enum Party {
         RIDER("骑手", "rider_transfer_channel", "rider_identity i ON i.id=w.account_id",
@@ -170,14 +173,18 @@ class RiderTransferService {
                 // 超时或签名未通过时只查询原单。继续冻结，避免二次付款或误解冻。
                 int tracked = db.update("""
                     UPDATE %s SET checked_at=?,
-                        channel_state=IF(channel_state='SUBMITTING','UNKNOWN',channel_state)%s
+                        channel_state=IF(channel_state IN ('SUBMITTING','WAIT_USER_CONFIRM'),'UNKNOWN',channel_state)
                     WHERE withdrawal_id=?
-                    """.formatted(party.channel, forMerchant ? ",package_info=NULL" : ""),
+                    """.formatted(party.channel),
                     System.currentTimeMillis(), id);
-                if ("PREPARING".equals(order.get("channel_state"))) {
+                if (exception instanceof WechatPayClient.TransferResponseException response
+                        && (order.get("config_version") == null || "PREPARING".equals(order.get("channel_state")))) {
+                    processingReason(id, SUBMIT_ERROR_PREFIX + response.getMessage(), false);
+                    log.warn("WeChat transfer submission for {} returned {}", id, response.getMessage());
+                } else if ("PREPARING".equals(order.get("channel_state"))) {
                     pendingReason(id, SUBMIT_BLOCKED);
                 } else if (tracked > 0) {
-                    processingReason(id, "渠道结果待核实，继续查询原转账单");
+                    processingReason(id, OUTCOME_UNKNOWN, true);
                 } else {
                     int changed = pendingReason(id, SUBMIT_BLOCKED);
                     if (changed > 0) log.warn("Withdrawal transfer preparation failed for {} ({})", id,
@@ -249,6 +256,12 @@ class RiderTransferService {
         var credentials = config.transferPayment(((Number) order.get("config_version")).longValue(), party == Party.MERCHANT);
         String bill = billNumber(id);
         var result = wechat.queryTransfer(credentials, bill);
+        if ("NOT_FOUND".equals(result.path("code").asText())) {
+            db.update("UPDATE " + party.channel + " SET checked_at=?,channel_state='UNKNOWN' WHERE withdrawal_id=?",
+                System.currentTimeMillis(), id);
+            processingReason(id, BILL_NOT_FOUND, true);
+            return;
+        }
         // 查单的签名、商户、AppID、收款人及金额均须匹配原提现申请。
         if (bill.equals(result.path("out_bill_no").asText())
                 && (!credentials.merchant().equals(result.path("mch_id").asText())
@@ -264,7 +277,7 @@ class RiderTransferService {
         if (!bill.equals(result.path("out_bill_no").asText())) {
             db.update("UPDATE " + party.channel + " SET checked_at=?,channel_state='UNKNOWN',package_info=NULL WHERE withdrawal_id=?",
                 System.currentTimeMillis(), id);
-            processingReason(id, "渠道结果待核实，继续查询原转账单");
+            processingReason(id, OUTCOME_UNKNOWN, true);
             return;
         }
         String state = result.path("state").asText();
@@ -300,15 +313,16 @@ class RiderTransferService {
                 case "WAIT_USER_CONFIRM" -> "微信已受理，请" + party.label + "在小程序内确认收款";
                 case "CANCELING" -> "微信正在撤销转账，等待最终结果";
                 default -> "微信正在处理转账，等待渠道结果";
-            });
+            }, false);
         }
     }
 
-    private void processingReason(String id, String reason) {
+    private void processingReason(String id, String reason, boolean preserveSubmitError) {
         db.update("""
             UPDATE withdrawal_request SET reason=?
             WHERE id=? AND status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND NOT (reason <=> ?)
-            """, reason, id, reason);
+                AND (?=FALSE OR COALESCE(reason,'') NOT LIKE ?)
+            """, reason, id, reason, preserveSubmitError, SUBMIT_ERROR_PREFIX + "%");
     }
 
     private static String billNumber(String id) {

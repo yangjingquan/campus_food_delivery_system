@@ -28,6 +28,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Component
 class WechatPayClient {
+    private static final String TRANSFER_PATH = "/v3/fund-app/mch-transfer/transfer-bills";
     private final ObjectMapper json;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
 
@@ -67,11 +68,11 @@ class WechatPayClient {
     }
 
     JsonNode transfer(PaymentCredentials config, Map<String, Object> payload) {
-        return exchange(config, "POST", "/v3/fund-app/mch-transfer/transfer-bills", payload);
+        return exchange(config, "POST", TRANSFER_PATH, payload);
     }
 
     JsonNode queryTransfer(PaymentCredentials config, String bill) {
-        return exchange(config, "GET", "/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/" + bill, null);
+        return exchange(config, "GET", TRANSFER_PATH + "/out-bill-no/" + bill, null);
     }
 
     String encryptRecipient(PaymentCredentials config, String name) {
@@ -129,6 +130,14 @@ class WechatPayClient {
                 .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             var headers = response.headers();
+            int status = response.statusCode();
+            if (path.startsWith(TRANSFER_PATH) && (status < 200 || status >= 300)) {
+                String code = transferErrorCode(response.body());
+                if (!"GET".equals(method) || status != 404 || !"NOT_FOUND".equals(code)) {
+                    // 错误码仅用于排查。资金状态仍由验签且匹配原单的查询结果决定。
+                    throw new TransferResponseException(status, code);
+                }
+            }
             // 查单、关单和预支付均依赖渠道签名，超时或无法验证时保留原订单状态。
             verify(config, headers.firstValue("Wechatpay-Timestamp").orElse(""),
                 headers.firstValue("Wechatpay-Nonce").orElse(""), headers.firstValue("Wechatpay-Serial").orElse(""),
@@ -140,12 +149,30 @@ class WechatPayClient {
                     && java.util.Set.of("ORDER_NOT_EXIST", "RESOURCE_NOT_EXISTS", "NOT_FOUND").contains(result.path("code").asText())) {
                 return result;
             }
+        } catch (TransferResponseException error) {
+            throw error;
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
         } catch (Exception error) {
             throw WechatConfigurationService.paymentUnavailable();
         }
         throw WechatConfigurationService.paymentUnavailable();
+    }
+
+    private String transferErrorCode(String body) {
+        try {
+            JsonNode result = json.readTree(body);
+            String code = result == null ? "" : result.path("code").asText();
+            return code.matches("[A-Z][A-Z0-9_]{0,63}") ? code : "";
+        } catch (tools.jackson.core.JacksonException error) {
+            return "";
+        }
+    }
+
+    static final class TransferResponseException extends RuntimeException {
+        TransferResponseException(int status, String code) {
+            super("HTTP " + status + (code.isEmpty() ? "" : " / " + code));
+        }
     }
 
     private static void verify(PaymentCredentials config, String timestamp, String nonce, String serial,
