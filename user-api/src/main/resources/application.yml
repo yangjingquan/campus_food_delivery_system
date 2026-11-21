@@ -48,3 +48,6 @@ app:
     reports: '${RIDER_TRANSFER_SCENE_REPORTS:[]}'
     admin-url: ${RIDER_ADMIN_API_URL:http://localhost:8080}
     admin-key: ${INTERNAL_API_KEY:}
+  merchant-transfer:
+    scene: ${MERCHANT_TRANSFER_SCENE_ID:}
+    reports: '${MERCHANT_TRANSFER_SCENE_REPORTS:[]}'

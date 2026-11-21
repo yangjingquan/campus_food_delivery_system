@@ -34,34 +34,54 @@ class RiderTransferService {
     private static final String IDENTITY_REQUIRED = "审核通过，未发起转账：骑手微信身份缺失或 AppID 与配置不一致";
     private static final String SUBMIT_BLOCKED = "审核通过，未发起转账：渠道准备失败，请检查签名材料及管理员服务";
     private static final String APPLICATION_TIME_INVALID = "审核通过，未发起转账：提现申请时间无效";
-    private static final String ORDERS = """
-        SELECT w.id,w.amount_cents,w.status,w.created_at,r.name,i.app_id,i.openid,t.id AS transfer_id,
-               c.config_version,c.channel_state,c.checked_at
-        FROM withdrawal_request w
-        JOIN rider_identity i ON i.id=w.account_id
-        JOIN rider r ON r.id=i.id
-        LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
-        LEFT JOIN rider_transfer_channel c ON c.withdrawal_id=w.id
-        WHERE w.applicant_type='骑手'
-        """;
+    private static final String MERCHANT_NAME_REQUIRED = "审核通过，未发起转账：该金额需核验收款人实名";
+    private static final long REAL_NAME_THRESHOLD = 200_000;
+    private enum Party {
+        RIDER("骑手", "rider_transfer_channel", "rider_identity i ON i.id=w.account_id",
+            "i.openid", "r.name"),
+        MERCHANT("商户", "merchant_transfer_channel",
+            "merchant_identity i ON i.merchant_id=w.account_id", "i.open_id", "NULL");
+
+        final String label;
+        final String channel;
+        final String identity;
+        final String openId;
+        final String name;
+
+        Party(String label, String channel, String identity, String openId, String name) {
+            this.label = label;
+            this.channel = channel;
+            this.identity = identity;
+            this.openId = openId;
+            this.name = name;
+        }
+    }
+
+    private record Settings(String scene, List<Map<String, String>> reports) {
+        boolean ready() {
+            return !scene.isBlank() && scene.length() <= 36 && !reports.isEmpty();
+        }
+    }
 
     private final JdbcTemplate db;
     private final WechatConfigurationService config;
     private final WechatPayClient wechat;
     private final RestClient admin;
-    private final String scene;
-    private final List<Map<String, String>> reports;
+    private final Settings rider;
+    private final Settings merchant;
 
     RiderTransferService(JdbcTemplate db, WechatConfigurationService config, WechatPayClient wechat,
                          ObjectMapper json, @Value("${app.rider-transfer.scene:}") String scene,
                          @Value("${app.rider-transfer.reports:[]}") String reports,
                          @Value("${app.rider-transfer.admin-url:http://localhost:8080}") String adminUrl,
-                         @Value("${app.rider-transfer.admin-key:}") String adminKey) {
+                         @Value("${app.rider-transfer.admin-key:}") String adminKey,
+                         @Value("${app.merchant-transfer.scene:}") String merchantScene,
+                         @Value("${app.merchant-transfer.reports:[]}") String merchantReports) {
         this.db = db;
         this.config = config;
         this.wechat = wechat;
-        this.scene = scene.trim();
-        this.reports = readReports(json, reports);
+        this.rider = new Settings(scene.trim(), readReports(json, reports));
+        this.merchant = new Settings(merchantScene.trim(), readReports(json, merchantReports));
         var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3)).build());
         factory.setReadTimeout(Duration.ofSeconds(6));
@@ -71,92 +91,147 @@ class RiderTransferService {
 
     @Scheduled(fixedDelayString = "${app.rider-transfer.scan-ms:30000}", initialDelay = 30000)
     void scan() {
-        boolean sceneReady = !scene.isBlank() && scene.length() <= 36 && !reports.isEmpty();
-        var current = sceneReady ? config.currentRiderTransferConfiguration() : null;
+        scan(Party.RIDER, rider);
+    }
+
+    @Scheduled(fixedDelayString = "${app.rider-transfer.scan-ms:30000}", initialDelay = 30000)
+    void scanMerchant() {
+        scan(Party.MERCHANT, merchant);
+    }
+
+    private void scan(Party party, Settings settings) {
+        boolean forMerchant = party == Party.MERCHANT;
+        var current = settings.ready() ? config.currentTransferConfiguration(forMerchant) : null;
         if (current == null) {
-            String reason = sceneReady ? MATERIAL_REQUIRED : SCENE_REQUIRED;
+            String reason = settings.ready()
+                ? MATERIAL_REQUIRED.replace("骑手", party.label)
+                : SCENE_REQUIRED + "（" + party.label + "）";
             db.update("""
                 UPDATE withdrawal_request SET reason=?
-                WHERE applicant_type='骑手' AND status='PENDING_PAYOUT' AND NOT (reason <=> ?)
-                """, reason, reason);
-            if (db.queryForList("SELECT 1 FROM rider_transfer_channel LIMIT 1", Integer.class).isEmpty()) return;
+                WHERE applicant_type=? AND status='PENDING_PAYOUT' AND NOT (reason <=> ?)
+                """, reason, party.label, reason);
+            if (db.queryForList("SELECT 1 FROM " + party.channel + " LIMIT 1", Integer.class).isEmpty()) return;
         } else {
+            String reason = IDENTITY_REQUIRED.replace("骑手", party.label);
             db.update("""
                 UPDATE withdrawal_request w
-                LEFT JOIN rider_identity i ON i.id=w.account_id
+                LEFT JOIN %s
                 SET w.reason=?
-                WHERE w.applicant_type='骑手' AND w.status='PENDING_PAYOUT'
-                    AND (i.id IS NULL OR i.openid='' OR i.app_id<>?) AND NOT (w.reason <=> ?)
-                """, IDENTITY_REQUIRED, current.appId(), IDENTITY_REQUIRED);
+                WHERE w.applicant_type=? AND w.status='PENDING_PAYOUT'
+                    AND (i.id IS NULL OR %s='' OR i.app_id<>?) AND NOT (w.reason <=> ?)
+                """.formatted(party.identity, party.openId), reason, party.label, current.appId(), reason);
+            if (forMerchant) {
+                db.update("""
+                    UPDATE withdrawal_request SET reason=?
+                    WHERE applicant_type='商户' AND status='PENDING_PAYOUT' AND amount_cents>=?
+                        AND NOT (reason <=> ?)
+                    """, MERCHANT_NAME_REQUIRED, REAL_NAME_THRESHOLD, MERCHANT_NAME_REQUIRED);
+            }
         }
-        String scope = """
-            AND ((w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.config_version IS NOT NULL)
-                OR (w.status IN ('PENDING_PAYOUT','TRANSFERRING') AND c.config_version IS NULL AND i.app_id=? AND i.openid<>''))
-            """;
-        var orders = db.queryForList(ORDERS + scope + """
+        String newOrderScope = forMerchant
+            ? "(w.status='PENDING_PAYOUT' AND c.withdrawal_id IS NULL AND t.id IS NULL) OR "
+                + "(w.status IN ('PENDING_PAYOUT','TRANSFERRING') AND c.channel_state='PREPARING')"
+            : "w.status IN ('PENDING_PAYOUT','TRANSFERRING') AND c.withdrawal_id IS NULL";
+        String trackedScope = forMerchant ? "AND c.channel_state<>'PREPARING'" : "";
+        // SQL 标识符及连接条件全部来自固定枚举，业务值通过参数绑定。
+        var orders = db.queryForList("""
+            SELECT w.id,w.amount_cents,w.created_at,%s AS name,COALESCE(c.app_id,i.app_id) AS app_id,
+                   %s AS openid,c.config_version,c.channel_state
+            FROM withdrawal_request w
+            LEFT JOIN %s
+            %s
+            LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
+            LEFT JOIN %s c ON c.withdrawal_id=w.id
+            WHERE w.applicant_type=? AND (
+                (w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.withdrawal_id IS NOT NULL %s)
+                OR ((%s) AND i.app_id=? AND %s<>'' %s))
             AND (c.checked_at IS NULL OR c.checked_at<=?)
             ORDER BY CASE WHEN w.reason IN (?,?) AND c.checked_at IS NULL THEN 1 ELSE 0 END,
                 COALESCE(c.checked_at,0),w.created_at,w.id LIMIT 20
-            """, current == null ? null : current.appId(), System.currentTimeMillis() - 25_000, SUBMIT_BLOCKED,
-            APPLICATION_TIME_INVALID);
+            """.formatted(party.name, forMerchant ? "COALESCE(c.recipient_open_id,i.open_id)" : party.openId,
+                party.identity, forMerchant ? "" : "LEFT JOIN rider r ON r.id=i.id", party.channel, trackedScope,
+                newOrderScope, party.openId, forMerchant ? "AND w.amount_cents<" + REAL_NAME_THRESHOLD
+                    + " AND (c.withdrawal_id IS NULL OR (c.app_id=i.app_id AND c.recipient_open_id=i.open_id))"
+                    + " AND EXISTS (SELECT 1 FROM merchant m WHERE m.id=w.account_id AND m.audit_status='已通过')" : ""),
+            party.label, current == null ? null : current.appId(), System.currentTimeMillis() - 25_000,
+            SUBMIT_BLOCKED, APPLICATION_TIME_INVALID);
         for (var order : orders) {
             String id = order.get("id").toString();
             try {
-                if (order.get("config_version") == null) {
-                    initiate(order, id, current.version());
+                if (order.get("config_version") == null || "PREPARING".equals(order.get("channel_state"))) {
+                    long version = order.get("config_version") instanceof Number stored ? stored.longValue() : current.version();
+                    initiate(party, settings, order, id, version);
                 } else {
-                    query(order, id);
+                    query(party, order, id);
                 }
             } catch (DateTimeParseException exception) {
                 pendingReason(id, APPLICATION_TIME_INVALID);
             } catch (RuntimeException exception) {
                 // 超时或签名未通过时只查询原单。继续冻结，避免二次付款或误解冻。
                 int tracked = db.update("""
-                    UPDATE rider_transfer_channel SET checked_at=?,
-                        channel_state=IF(channel_state='SUBMITTING','UNKNOWN',channel_state)
+                    UPDATE %s SET checked_at=?,
+                        channel_state=IF(channel_state='SUBMITTING','UNKNOWN',channel_state)%s
                     WHERE withdrawal_id=?
-                    """, System.currentTimeMillis(), id);
-                if (tracked > 0) {
+                    """.formatted(party.channel, forMerchant ? ",package_info=NULL" : ""),
+                    System.currentTimeMillis(), id);
+                if ("PREPARING".equals(order.get("channel_state"))) {
+                    pendingReason(id, SUBMIT_BLOCKED);
+                } else if (tracked > 0) {
                     processingReason(id, "渠道结果待核实，继续查询原转账单");
                 } else {
                     int changed = pendingReason(id, SUBMIT_BLOCKED);
-                    if (changed > 0) log.warn("Rider transfer preparation failed for {} ({})", id,
+                    if (changed > 0) log.warn("Withdrawal transfer preparation failed for {} ({})", id,
                         exception.getClass().getSimpleName());
                 }
             }
         }
     }
 
-    private void initiate(Map<String, Object> order, String id, long version) {
+    private void initiate(Party party, Settings settings, Map<String, Object> order, String id, long version) {
+        boolean forMerchant = party == Party.MERCHANT;
         String appId = order.get("app_id").toString();
-        var payoutReports = reportsFor((String) order.get("created_at"));
-        var credentials = config.riderTransferPayment(version);
+        String openId = order.get("openid").toString();
+        var payoutReports = forMerchant ? settings.reports() : reportsFor((String) order.get("created_at"));
+        var credentials = config.transferPayment(version, forMerchant);
         String bill = billNumber(id);
         long amount = ((Number) order.get("amount_cents")).longValue();
         var payload = new LinkedHashMap<String, Object>(Map.of(
-            "appid", appId, "out_bill_no", bill, "transfer_scene_id", scene, "openid", order.get("openid"),
-            "transfer_amount", amount, "transfer_remark", "校园配送收益", "transfer_scene_report_infos", payoutReports
+            "appid", appId, "out_bill_no", bill, "transfer_scene_id", settings.scene(), "openid", openId,
+            "transfer_amount", amount, "transfer_remark", forMerchant ? "校园订单结算提现" : "校园配送收益",
+            "transfer_scene_report_infos", payoutReports
         ));
-        if (amount >= 200_000) {
+        if (amount >= REAL_NAME_THRESHOLD) {
             payload.put("user_name", wechat.encryptRecipient(credentials, order.get("name").toString()));
         }
+        if (forMerchant && order.get("config_version") == null && db.update("""
+            INSERT IGNORE INTO merchant_transfer_channel(withdrawal_id,config_version,app_id,merchant_no,
+                recipient_open_id,channel_state,checked_at)
+            VALUES(?,?,?,?,?,'PREPARING',?)
+            """, id, version, appId, credentials.merchant(), openId, System.currentTimeMillis()) != 1) {
+            return;
+        }
         admin.post().uri("/internal/v1/withdrawals/{id}/transfer/prepare", id).retrieve().toBodilessEntity();
-        // 先持久化同一申请的固定渠道单号和凭据版本，只有成功创建渠道记录的实例发送请求。
-        int claimed = db.update("""
-            INSERT IGNORE INTO rider_transfer_channel(withdrawal_id,config_version,app_id,merchant_no,checked_at)
-            VALUES(?,?,?,?,?)
-            """, id, version, appId, credentials.merchant(), System.currentTimeMillis());
+        // 持久化唯一渠道记录后提交一次。进入 SUBMITTING 后只查原单。
+        int claimed = forMerchant
+            ? db.update("""
+                UPDATE merchant_transfer_channel SET channel_state='SUBMITTING',checked_at=?
+                WHERE withdrawal_id=? AND channel_state='PREPARING'
+                """, System.currentTimeMillis(), id)
+            : db.update("""
+                INSERT IGNORE INTO rider_transfer_channel(withdrawal_id,config_version,app_id,merchant_no,checked_at)
+                VALUES(?,?,?,?,?)
+                """, id, version, appId, credentials.merchant(), System.currentTimeMillis());
         if (claimed == 1) {
-            apply(id, bill, wechat.riderTransfer(credentials, payload));
+            apply(party, id, bill, wechat.transfer(credentials, payload));
         }
     }
 
     /** 申请时间在管理员端已按北京时间入库，生成报备时只去掉秒。 */
     List<Map<String, String>> reportsFor(String createdAt) {
-        if (!COMMISSION_SCENE.equals(scene)) return reports;
+        if (!COMMISSION_SCENE.equals(rider.scene())) return rider.reports();
         String description = LocalDateTime.parse(createdAt == null ? "" : createdAt, APPLICATION_TIME)
             .format(REPORT_TIME) + "配送费提现";
-        return reports.stream()
+        return rider.reports().stream()
             .map(report -> COMPENSATION_DESCRIPTION.equals(report.get("info_type"))
                 ? Map.of("info_type", COMPENSATION_DESCRIPTION, "info_content", description)
                 : report)
@@ -170,10 +245,10 @@ class RiderTransferService {
             """, reason, id, reason);
     }
 
-    private void query(Map<String, Object> order, String id) {
-        var credentials = config.riderTransferPayment(((Number) order.get("config_version")).longValue());
+    private void query(Party party, Map<String, Object> order, String id) {
+        var credentials = config.transferPayment(((Number) order.get("config_version")).longValue(), party == Party.MERCHANT);
         String bill = billNumber(id);
-        var result = wechat.queryRiderTransfer(credentials, bill);
+        var result = wechat.queryTransfer(credentials, bill);
         // 查单的签名、商户、AppID、收款人及金额均须匹配原提现申请。
         if (bill.equals(result.path("out_bill_no").asText())
                 && (!credentials.merchant().equals(result.path("mch_id").asText())
@@ -182,12 +257,12 @@ class RiderTransferService {
                     || ((Number) order.get("amount_cents")).longValue() != result.path("transfer_amount").asLong(-1))) {
             throw WechatConfigurationService.paymentUnavailable();
         }
-        apply(id, bill, result);
+        apply(party, id, bill, result);
     }
 
-    private void apply(String id, String bill, JsonNode result) {
+    private void apply(Party party, String id, String bill, JsonNode result) {
         if (!bill.equals(result.path("out_bill_no").asText())) {
-            db.update("UPDATE rider_transfer_channel SET checked_at=?,channel_state='UNKNOWN' WHERE withdrawal_id=?",
+            db.update("UPDATE " + party.channel + " SET checked_at=?,channel_state='UNKNOWN',package_info=NULL WHERE withdrawal_id=?",
                 System.currentTimeMillis(), id);
             processingReason(id, "渠道结果待核实，继续查询原转账单");
             return;
@@ -202,11 +277,11 @@ class RiderTransferService {
             throw WechatConfigurationService.paymentUnavailable();
         }
         db.update("""
-            UPDATE rider_transfer_channel SET channel_state=?,checked_at=?,
+            UPDATE %s SET channel_state=?,checked_at=?,
                 package_info=CASE WHEN ? IN ('SUCCESS','FAIL','CANCELLED') THEN NULL
                     WHEN ?='' THEN package_info ELSE ? END
             WHERE withdrawal_id=?
-            """, state, System.currentTimeMillis(), state, packet, packet, id);
+            """.formatted(party.channel), state, System.currentTimeMillis(), state, packet, packet, id);
         if (List.of("SUCCESS", "FAIL", "CANCELLED").contains(state)) {
             String reference = result.path("transfer_bill_no").asText();
             if (reference.isBlank() || reference.length() > 128) {
@@ -222,7 +297,7 @@ class RiderTransferService {
                 .retrieve().toBodilessEntity();
         } else {
             processingReason(id, switch (state) {
-                case "WAIT_USER_CONFIRM" -> "微信已受理，请骑手在小程序内确认收款";
+                case "WAIT_USER_CONFIRM" -> "微信已受理，请" + party.label + "在小程序内确认收款";
                 case "CANCELING" -> "微信正在撤销转账，等待最终结果";
                 default -> "微信正在处理转账，等待渠道结果";
             });
@@ -254,7 +329,7 @@ class RiderTransferService {
         } catch (tools.jackson.core.JacksonException ignored) {
             // 报备配置错误只阻塞新转账，已有单据仍须查单。
         }
-        log.warn("RIDER_TRANSFER_SCENE_REPORTS must contain a JSON array of transfer scene reports");
+        log.warn("Withdrawal transfer reports must be a JSON array of scene report fields");
         return List.of();
     }
 }

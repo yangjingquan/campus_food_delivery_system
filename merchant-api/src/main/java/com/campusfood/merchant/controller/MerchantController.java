@@ -210,6 +210,14 @@ public class MerchantController {
         return domain.withdraw(store(auth), body);
     }
 
+    @GetMapping("/finance/withdrawals/{id}/confirmation")
+    public ResponseEntity<Map<String, Object>> withdrawalConfirmation(
+            @RequestHeader(value = AUTH, required = false) String auth, @PathVariable String id) {
+        var identity = sessions.require(auth);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+            .body(finance.withdrawalConfirmation(identity.approvedStore(), identity.id(), id));
+    }
+
     private String store(String auth) {
         return sessions.require(auth).approvedStore();
     }

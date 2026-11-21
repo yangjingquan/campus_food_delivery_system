@@ -5,8 +5,10 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class FinanceService {
@@ -57,11 +59,34 @@ public class FinanceService {
                 FROM account_journal WHERE account_id=? ORDER BY id DESC LIMIT 100
                 """;
             case "withdrawals" -> """
-                SELECT id,amount_cents AS amountCents,status_label AS status,created_at AS createdAt,reason
-                FROM withdrawal_request_display WHERE account_id=? AND applicant_type='商户' ORDER BY created_at DESC,id DESC LIMIT 100
+                SELECT w.id,w.amount_cents AS amountCents,w.created_at AS createdAt,w.reason,
+                       CASE WHEN w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM' THEN '待收款确认'
+                            WHEN w.status='TRANSFERRING' AND c.channel_state='UNKNOWN' THEN '结果待确认'
+                            ELSE w.status_label END AS status,
+                       (w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM'
+                            AND c.package_info IS NOT NULL AND c.checked_at>=
+                                UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3))*1000-120000) AS canConfirm
+                FROM withdrawal_request_display w
+                LEFT JOIN merchant_transfer_channel c ON c.withdrawal_id=w.id
+                WHERE w.account_id=? AND w.applicant_type='商户' ORDER BY w.created_at DESC,w.id DESC LIMIT 100
                 """;
             default -> throw Inputs.invalid("未知财务记录类型");
         };
         return db.queryForList(sql, merchant);
+    }
+
+    public Map<String, Object> withdrawalConfirmation(String merchant, long identityId, String withdrawalId) {
+        return db.queryForList("""
+            SELECT c.app_id AS appId,c.merchant_no AS mchId,c.package_info AS package
+            FROM merchant_transfer_channel c
+            JOIN withdrawal_request w ON w.id=c.withdrawal_id
+            JOIN merchant_identity i ON i.merchant_id=w.account_id
+                AND i.app_id=c.app_id AND i.open_id=c.recipient_open_id
+            WHERE w.id=? AND w.account_id=? AND i.id=? AND w.applicant_type='商户'
+                AND w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM'
+                AND c.package_info IS NOT NULL AND c.checked_at>=?
+            """, withdrawalId, merchant, identityId, System.currentTimeMillis() - 120_000L)
+            .stream().findFirst().orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.CONFLICT, "暂时无法确认收款，请刷新提现记录"));
     }
 }

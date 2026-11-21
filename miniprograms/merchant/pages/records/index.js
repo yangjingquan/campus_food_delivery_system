@@ -7,7 +7,7 @@ const events = {
 };
 
 Page({
-  data: { rows: [], loading: true },
+  data: { rows: [], loading: true, confirmingId: '' },
   onLoad(options) {
     this.kind = labels[options.kind] ? options.kind : 'withdrawals';
     this.setData({ kind: this.kind, title: labels[this.kind] });
@@ -36,6 +36,28 @@ Page({
       this.setData({ error: error.message });
     } finally {
       this.setData({ loading: false });
+    }
+  },
+  async confirmWithdrawal(event) {
+    const { id } = event.currentTarget.dataset;
+    if (this.data.confirmingId) return;
+    if (!wx.canIUse('requestMerchantTransfer')) {
+      wx.showToast({ title: '请更新微信后确认收款', icon: 'none' });
+      return;
+    }
+    this.setData({ confirmingId: id });
+    try {
+      const parameters = await api.request('/finance/withdrawals/' + encodeURIComponent(id) + '/confirmation');
+      await new Promise((resolve, reject) => wx.requestMerchantTransfer({
+        ...parameters, success: resolve,
+        fail: () => reject(new Error('未完成收款确认，请刷新查看')),
+      }));
+      wx.showToast({ title: '已确认，等待微信结果', icon: 'none' });
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: 'none' });
+    } finally {
+      this.setData({ confirmingId: '' });
+      await this.refresh();
     }
   },
   order(event) { ui.go('/pages/order/index?id=' + encodeURIComponent(event.currentTarget.dataset.id)); }

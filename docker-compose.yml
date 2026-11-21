@@ -95,6 +95,8 @@ services:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
       RIDER_TRANSFER_SCENE_ID: ${RIDER_TRANSFER_SCENE_ID:-}
       RIDER_TRANSFER_SCENE_REPORTS: ${RIDER_TRANSFER_SCENE_REPORTS:-[]}
+      MERCHANT_TRANSFER_SCENE_ID: ${MERCHANT_TRANSFER_SCENE_ID:-}
+      MERCHANT_TRANSFER_SCENE_REPORTS: ${MERCHANT_TRANSFER_SCENE_REPORTS:-[]}
       WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
     volumes:
       - ./.local/wechat-master.key:/run/secrets/wechat-master.key:ro

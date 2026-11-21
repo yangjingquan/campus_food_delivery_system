@@ -66,11 +66,11 @@ class WechatPayClient {
         return exchange(config, "GET", "/v3/refund/domestic/refunds/" + refundId, null);
     }
 
-    JsonNode riderTransfer(PaymentCredentials config, Map<String, Object> payload) {
+    JsonNode transfer(PaymentCredentials config, Map<String, Object> payload) {
         return exchange(config, "POST", "/v3/fund-app/mch-transfer/transfer-bills", payload);
     }
 
-    JsonNode queryRiderTransfer(PaymentCredentials config, String bill) {
+    JsonNode queryTransfer(PaymentCredentials config, String bill) {
         return exchange(config, "GET", "/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/" + bill, null);
     }
 

@@ -97,29 +97,30 @@ public class WechatConfigurationService {
             paymentSecret(row, "wechat_public_secret_id", "wechat_public"));
     }
 
-    record RiderTransferConfiguration(long version, String appId) {}
+    record TransferConfiguration(long version, String appId) {}
 
-    RiderTransferConfiguration currentRiderTransferConfiguration() {
+    TransferConfiguration currentTransferConfiguration(boolean merchant) {
+        String appColumn = merchant ? "merchant_app_id" : "rider_app_id";
         return db.query("""
-                SELECT id, rider_app_id, merchant_no, serial_no, public_key_id,
+                SELECT id, %s AS transfer_app_id, merchant_no, serial_no, public_key_id,
                     merchant_private_secret_id, wechat_public_secret_id
                 FROM wechat_config ORDER BY id DESC LIMIT 1
-                """, rs -> {
+                """.formatted(appColumn), rs -> {
             if (!rs.next()) return null;
-            for (String column : List.of("rider_app_id", "merchant_no", "serial_no", "public_key_id")) {
+            for (String column : List.of("transfer_app_id", "merchant_no", "serial_no", "public_key_id")) {
                 if (Objects.toString(rs.getString(column), "").isBlank()) return null;
             }
             if (rs.getObject("merchant_private_secret_id") == null || rs.getObject("wechat_public_secret_id") == null) {
                 return null;
             }
-            return new RiderTransferConfiguration(rs.getLong("id"), rs.getString("rider_app_id"));
+            return new TransferConfiguration(rs.getLong("id"), rs.getString("transfer_app_id"));
         });
     }
 
-    /** 商家转账使用骑手 AppID，并通过签名查单，无须用户端支付回调配置。 */
-    PaymentCredentials riderTransferPayment(long version) {
+    /** 商家转账使用收款方所在小程序的 AppID，并通过签名查单，无须用户端支付回调配置。 */
+    PaymentCredentials transferPayment(long version, boolean merchant) {
         Map<String, Object> row = db.queryForMap("SELECT * FROM wechat_config WHERE id=?", version);
-        return new PaymentCredentials(version, required(row, "rider_app_id"), required(row, "merchant_no"),
+        return new PaymentCredentials(version, required(row, merchant ? "merchant_app_id" : "rider_app_id"), required(row, "merchant_no"),
             required(row, "serial_no"), required(row, "public_key_id"), "", "",
             paymentSecret(row, "merchant_private_secret_id", "merchant_private"),
             paymentSecret(row, "wechat_public_secret_id", "wechat_public"));

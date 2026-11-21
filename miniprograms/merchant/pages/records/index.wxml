@@ -11,6 +11,10 @@
         <view class="hint">{{item.time}}</view>
         <view class="kv"><text>申请编号</text><text class="mono" selectable>{{item.id}}</text></view>
         <view wx:if="{{item.reason}}" class="notice">{{item.reason}}</view>
+        <button wx:if="{{item.canConfirm}}" class="btn primary separator" data-id="{{item.id}}"
+          disabled="{{!!confirmingId}}" loading="{{confirmingId === item.id}}" bindtap="confirmWithdrawal">
+          确认收款
+        </button>
       </block>
       <block wx:elif="{{kind === 'settlements'}}">
         <view class="row summary"><text class="section">订单结算</text><text class="badge {{item.status === '待入账' ? 'warn' : ''}}">{{item.status}}</text></view>
