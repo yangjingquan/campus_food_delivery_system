@@ -1,5 +1,8 @@
 package com.campusfood.admin.dao;
 
+import com.campusfood.admin.entity.WithdrawalStates.Intent;
+import com.campusfood.admin.entity.WithdrawalStates.Request;
+import com.campusfood.admin.entity.WithdrawalStates.Transfer;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -7,18 +10,21 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface WithdrawalDao {
     int insertIntentIfAbsent(@Param("requestKey") String requestKey, @Param("accountId") String accountId,
-                             @Param("requestedCents") long requestedCents);
+                             @Param("requestedCents") long requestedCents, @Param("status") Intent status);
 
     int insertWithdrawal(@Param("id") String id, @Param("applicant") Object applicant,
                          @Param("applicantType") Object applicantType, @Param("amount") long amount,
-                         @Param("status") String status, @Param("createdAt") String createdAt,
+                         @Param("status") Request status, @Param("createdAt") String createdAt,
                          @Param("accountId") String accountId, @Param("requestKey") String requestKey);
 
     int insertReviewAudit(@Param("actor") String actor, @Param("action") String action,
                           @Param("targetId") Object targetId, @Param("beforeState") String beforeState,
                           @Param("afterState") String afterState, @Param("reason") String reason);
 
-    int insertTransfer(@Param("transferId") String transferId, @Param("withdrawalId") String withdrawalId);
+    boolean hasReviewHistory(@Param("id") String id);
+
+    int insertTransfer(@Param("transferId") String transferId, @Param("withdrawalId") String withdrawalId,
+                       @Param("status") Transfer status);
 
     int insertChannelAudit(@Param("withdrawalId") String withdrawalId, @Param("afterState") String afterState,
                            @Param("reason") String reason);

@@ -29,6 +29,12 @@ The environment must set `APP_DB_PASSWORD`, `NACOS_DB_PASSWORD`, `REDIS_CFD_PASS
 
 Each Jenkins job builds only its own image, then runs `docker compose up` for only that service. Jenkins serializes image builds, and deployments serialize through a host lock. A failed health check attempts to restore the previous image tag. Image rollback cannot reverse a Flyway schema migration; database changes remain forward-only and need a compatible expand/migrate/contract plan.
 
+### Withdrawal status enum migration
+
+Admin Flyway migration `V20` converts the withdrawal request, idempotency, and transfer records from legacy labels to MySQL enums. User Flyway migration `V11` constrains the WeChat transfer states to their existing codes.
+
+Build the four API images from the same revision before applying the migration. Use a coordinated maintenance window for `admin-api`, `user-api`, `merchant-api` and `rider-api` because they share the affected schema. Pause those services and take a database backup. Start the updated `admin-api` first, verify `V20`, then start the updated `user-api` and verify `V11` before starting the merchant and rider APIs. The single-service Jenkins rollback only switches the image tag. After these migrations the old images require a matching pre-migration schema, so keep the APIs paused if you need to investigate a failed migration.
+
 ## Enable the merchant API route
 
 1. Run the `campus-food-merchant-api` and `campus-food-gateway` Jenkins jobs from a revision that includes the merchant service and the gateway's `/api/merchant/**` route.

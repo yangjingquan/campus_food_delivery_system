@@ -9,7 +9,7 @@ public class WithdrawalTransfer {
     @TableId
     private String id;
     private String withdrawalId;
-    private String status;
+    private WithdrawalStates.Transfer status;
     private String channelReference;
     private String reason;
 
@@ -21,7 +21,7 @@ public class WithdrawalTransfer {
         return withdrawalId;
     }
 
-    public String getStatus() {
+    public WithdrawalStates.Transfer getStatus() {
         return status;
     }
 

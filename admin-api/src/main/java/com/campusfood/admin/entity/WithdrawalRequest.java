@@ -10,7 +10,7 @@ public class WithdrawalRequest {
     private String id;
     private String accountId;
     private Long amountCents;
-    private String status;
+    private WithdrawalStates.Request status;
     private String reason;
 
     public String getId() {
@@ -25,7 +25,7 @@ public class WithdrawalRequest {
         return amountCents;
     }
 
-    public String getStatus() {
+    public WithdrawalStates.Request getStatus() {
         return status;
     }
 

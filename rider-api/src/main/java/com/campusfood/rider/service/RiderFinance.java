@@ -11,11 +11,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class RiderFinance {
     private static final String WITHDRAWALS = """
         SELECT w.id,w.amount_cents AS amountCents,
-               CASE WHEN w.status='打款中' AND c.channel_state='WAIT_USER_CONFIRM' THEN '待收款确认'
-                    WHEN w.status='打款中' AND c.channel_state='UNKNOWN' THEN '结果待确认'
-                    ELSE w.status END AS status,w.created_at AS createdAt,w.reason,
-               t.status AS transferStatus,t.reason AS transferReason
-        FROM withdrawal_request w LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
+               CASE WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='WAIT_USER_CONFIRM' THEN '待收款确认'
+                    WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='UNKNOWN' THEN '结果待确认'
+                    ELSE w.status_label END AS status,w.created_at AS createdAt,w.reason,
+               CASE t.status WHEN 'PROCESSING' THEN '处理中' WHEN 'UNKNOWN' THEN '未知'
+                    WHEN 'SUCCEEDED' THEN '成功' WHEN 'FAILED' THEN '失败' END AS transferStatus,t.reason AS transferReason
+        FROM withdrawal_request_display w LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
         LEFT JOIN rider_transfer_channel c ON c.withdrawal_id=w.id
         WHERE w.account_id=? AND w.applicant_type='骑手'
         """;
@@ -46,7 +47,7 @@ public class RiderFinance {
             """, rider).stream().findFirst().orElse(Map.of("availableCents", 0, "frozenCents", 0)));
         totals.put("paidOutCents", db.queryForObject("""
             SELECT COALESCE(SUM(amount_cents),0) FROM withdrawal_request
-            WHERE account_id=? AND applicant_type='骑手' AND status='打款成功'
+            WHERE account_id=? AND applicant_type='骑手' AND status='PAID'
             """, Long.class, rider));
         return totals;
     }
@@ -72,7 +73,7 @@ public class RiderFinance {
                 SELECT c.app_id AS appId,c.merchant_no AS mchId,c.package_info AS package
                 FROM rider_transfer_channel c JOIN withdrawal_request w ON w.id=c.withdrawal_id
                 JOIN rider_identity i ON i.id=w.account_id AND i.app_id=c.app_id
-                WHERE w.id=? AND w.account_id=? AND w.status='打款中'
+                WHERE w.id=? AND w.account_id=? AND w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION')
                   AND c.channel_state='WAIT_USER_CONFIRM' AND c.package_info IS NOT NULL AND c.checked_at>=?
                 """, id, rider, System.currentTimeMillis() - 120_000L);
             parameters.stream().findFirst().ifPresent(value -> result.put("confirmation", value));

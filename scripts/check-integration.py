@@ -193,7 +193,7 @@ try:
     guarded=check(200,call('POST','/internal/v1/withdrawals',{'accountId':'RERR','requestKey':'test-guarded-001','amountCents':1000},internal=True),'guarded withdrawal')
     sql("UPDATE finance_account SET frozen_cents=0 WHERE id='RERR'")
     check(409,action('withdrawal.review',{'id':guarded['withdrawalId'],'decision':'reject','reason':'测试冻结余额不足'},token),'insufficient frozen balance')
-    assert sql("SELECT status FROM withdrawal_request WHERE id='"+guarded['withdrawalId']+"'")=='待审核'
+    assert sql("SELECT status FROM withdrawal_request WHERE id='"+guarded['withdrawalId']+"'")=='PENDING_REVIEW'
     assert sql("SELECT balance_cents FROM finance_account WHERE id='RERR'")=='0'
     sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('RIDEMP','幂等并发测试','骑手',6000,'正常')")
     idem_payload={'accountId':'RIDEMP','requestKey':'test-idempotent-concurrent','amountCents':5000}
@@ -202,6 +202,9 @@ try:
     assert all(item['status']=='已受理' for item in retries) and len({item['withdrawalId'] for item in retries})==1,retries
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='RIDEMP'")=='1000,5000'
     assert sql("SELECT COUNT(*) FROM withdrawal_request WHERE account_id='RIDEMP'")=='1'
+    pending_rows=check(200,call('GET','/api/admin/v1/workspace?section=withdrawals',token=finance),'reviewable pending withdrawal')['rows']
+    pending_row=next(row for row in pending_rows if row['id']==retries[0]['withdrawalId'])
+    assert pending_row['status']=='待审核' and pending_row['reviewable']==1
     check(409,call('POST','/internal/v1/withdrawals',{'accountId':'RIDEMP','requestKey':'test-idempotent-concurrent','amountCents':1000},internal=True),'idempotency payload conflict')
     def withdraw(n):return call('POST','/internal/v1/withdrawals',{'accountId':'RTEST','requestKey':'test-rider-00'+str(n),'amountCents':8000},internal=True)[1]
     with concurrent.futures.ThreadPoolExecutor(2) as pool: outcomes=list(pool.map(withdraw,[1,2]))
@@ -209,14 +212,29 @@ try:
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='RTEST'")=='2000,8000'
     riderwid=next(x['withdrawalId'] for x in outcomes if x['status']=='已受理')
     check(200,action('withdrawal.review',{'id':riderwid,'decision':'approve'},finance),'finance review')
+    assert sql("SELECT status FROM withdrawal_request WHERE id='"+riderwid+"'")=='PENDING_PAYOUT'
+    assert sql("SELECT status FROM withdrawal_intent WHERE withdrawal_id='"+riderwid+"'")=='ACCEPTED'
+    withdrawals=check(200,call('GET','/api/admin/v1/workspace?section=withdrawals',token=finance),'withdrawal labels')['rows']
+    assert next(row for row in withdrawals if row['id']==riderwid)['status']=='待打款'
+    sql("UPDATE withdrawal_request SET status='PENDING_REVIEW' WHERE id='"+riderwid+"'")
+    withdrawals=check(200,call('GET','/api/admin/v1/workspace?section=withdrawals',token=finance),'manually reset withdrawal')['rows']
+    reset_row=next(row for row in withdrawals if row['id']==riderwid)
+    assert reset_row['status']=='待审核' and reset_row['reviewable']==0
+    check(409,action('withdrawal.review',{'id':riderwid,'decision':'approve'},finance),'already approved cannot be approved again')
+    check(409,action('withdrawal.review',{'id':riderwid,'decision':'reject','reason':'测试'},finance),'already approved cannot be rejected after a manual reset')
+    assert sql("SELECT frozen_cents FROM finance_account WHERE id='RTEST'")=='8000'
+    sql("UPDATE withdrawal_request SET status='PENDING_PAYOUT' WHERE id='"+riderwid+"'")
     path='/internal/v1/withdrawals/'+riderwid+'/transfer/'
     prepared=check(200,call('POST',path+'prepare',{},internal=True),'prepare')
     again=check(200,call('POST',path+'prepare',{},internal=True),'prepare replay')
     assert prepared['transferId']==again['transferId']
+    assert sql("SELECT status FROM withdrawal_transfer WHERE withdrawal_id='"+riderwid+"'")=='PROCESSING'
     check(200,call('POST',path+'result',{'outcome':'unknown','reason':'网络超时'},internal=True),'unknown')
+    assert sql("SELECT status FROM withdrawal_transfer WHERE withdrawal_id='"+riderwid+"'")=='UNKNOWN'
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='RTEST'")=='2000,8000'
     failed={'outcome':'failure','channelReference':'verified-test-channel-1','reason':'渠道明确失败'}
     check(200,call('POST',path+'result',failed,internal=True),'failure')
+    assert sql("SELECT status FROM withdrawal_request WHERE id='"+riderwid+"'")=='PAYOUT_FAILED'
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='RTEST'")=='10000,0'
     check(200,call('POST',path+'result',failed,internal=True),'failure replay')
     check(409,call('POST',path+'result',{'outcome':'success','channelReference':'verified-test-channel-1'},internal=True),'terminal conflict')
@@ -227,6 +245,7 @@ try:
     success={'outcome':'success','channelReference':'verified-test-channel-2'}
     check(200,call('POST',secondpath+'result',success,internal=True),'success result')
     check(200,call('POST',secondpath+'result',success,internal=True),'success replay')
+    assert sql("SELECT CONCAT(w.status,',',t.status) FROM withdrawal_request w JOIN withdrawal_transfer t ON t.withdrawal_id=w.id WHERE w.id='"+second['withdrawalId']+"'")=='PAID,SUCCEEDED'
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='RTEST'")=='2000,0'
     wx=check(200,call('GET','/api/admin/v1/workspace?section=wechat',token=token),'wechat read')['config']
     assert wx['enabled'] is True

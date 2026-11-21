@@ -3,6 +3,7 @@ package com.campusfood.admin.dao;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.campusfood.admin.entity.WithdrawalRequest;
+import com.campusfood.admin.entity.WithdrawalStates.Request;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
@@ -13,12 +14,12 @@ import java.util.Map;
 public interface WithdrawalRequestMapper extends BaseMapper<WithdrawalRequest> {
     default Integer countPending() {
         return Math.toIntExact(selectCount(Wrappers.<WithdrawalRequest>lambdaQuery()
-                .eq(WithdrawalRequest::getStatus, "待审核")));
+                .eq(WithdrawalRequest::getStatus, Request.PENDING_REVIEW)));
     }
 
     default boolean hasInFlight(String accountId) {
         return exists(Wrappers.<WithdrawalRequest>lambdaQuery().eq(WithdrawalRequest::getAccountId, accountId)
-                .in(WithdrawalRequest::getStatus, "待审核", "待打款", "打款中", "待收款确认"));
+                .in(WithdrawalRequest::getStatus, Request.PENDING_REVIEW, Request.PENDING_PAYOUT, Request.TRANSFERRING, Request.AWAITING_CONFIRMATION));
     }
 
     default List<Map<String, Object>> lockWithdrawal(String id) {
@@ -34,14 +35,14 @@ public interface WithdrawalRequestMapper extends BaseMapper<WithdrawalRequest> {
                 .eq(WithdrawalRequest::getId, id).last("FOR UPDATE"));
     }
 
-    default int updateStatus(String status, String reason, String id) {
+    default int updateStatus(Request status, String reason, String id) {
         return update(null, Wrappers.<WithdrawalRequest>lambdaUpdate()
                 .set(WithdrawalRequest::getStatus, status).set(WithdrawalRequest::getReason, reason)
                 .eq(WithdrawalRequest::getId, id));
     }
 
     default int markTransferring(String id) {
-        return updateStatus("打款中", "等待渠道结果", id);
+        return updateStatus(Request.TRANSFERRING, "等待渠道结果", id);
     }
 
     default int markUnknown(String id) {

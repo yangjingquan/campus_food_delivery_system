@@ -4,7 +4,7 @@
     <!-- 依赖幂等键唯一约束，重复申请不再插入新的意图记录。 -->
     <insert id="insertIntentIfAbsent">
         INSERT IGNORE INTO withdrawal_intent(request_key,account_id,requested_cents,status) VALUES(#{requestKey},
-        #{accountId},#{requestedCents},'处理中')
+        #{accountId},#{requestedCents},#{status})
     </insert>
 
     <insert id="insertWithdrawal">
@@ -18,8 +18,13 @@
         #{action},#{targetId},#{beforeState},#{afterState},#{reason})
     </insert>
 
+    <select id="hasReviewHistory" resultType="boolean">
+        SELECT EXISTS (SELECT 1 FROM admin_audit_log
+        WHERE action_name='withdrawal.review' AND target_id=#{id})
+    </select>
+
     <insert id="insertTransfer">
-        INSERT INTO withdrawal_transfer(id,withdrawal_id,status) VALUES(#{transferId},#{withdrawalId},'处理中')
+        INSERT INTO withdrawal_transfer(id,withdrawal_id,status) VALUES(#{transferId},#{withdrawalId},#{status})
     </insert>
 
     <insert id="insertChannelAudit">

@@ -97,6 +97,34 @@ public class WechatConfigurationService {
             paymentSecret(row, "wechat_public_secret_id", "wechat_public"));
     }
 
+    record RiderTransferConfiguration(long version, String appId) {}
+
+    RiderTransferConfiguration currentRiderTransferConfiguration() {
+        return db.query("""
+                SELECT id, rider_app_id, merchant_no, serial_no, public_key_id,
+                    merchant_private_secret_id, wechat_public_secret_id
+                FROM wechat_config ORDER BY id DESC LIMIT 1
+                """, rs -> {
+            if (!rs.next()) return null;
+            for (String column : List.of("rider_app_id", "merchant_no", "serial_no", "public_key_id")) {
+                if (Objects.toString(rs.getString(column), "").isBlank()) return null;
+            }
+            if (rs.getObject("merchant_private_secret_id") == null || rs.getObject("wechat_public_secret_id") == null) {
+                return null;
+            }
+            return new RiderTransferConfiguration(rs.getLong("id"), rs.getString("rider_app_id"));
+        });
+    }
+
+    /** 商家转账使用骑手 AppID，并通过签名查单，无须用户端支付回调配置。 */
+    PaymentCredentials riderTransferPayment(long version) {
+        Map<String, Object> row = db.queryForMap("SELECT * FROM wechat_config WHERE id=?", version);
+        return new PaymentCredentials(version, required(row, "rider_app_id"), required(row, "merchant_no"),
+            required(row, "serial_no"), required(row, "public_key_id"), "", "",
+            paymentSecret(row, "merchant_private_secret_id", "merchant_private"),
+            paymentSecret(row, "wechat_public_secret_id", "wechat_public"));
+    }
+
     private String paymentSecret(Map<String, Object> config, String field, String purpose) {
         List<Map<String, Object>> rows = db.queryForList(
             "SELECT purpose,nonce,ciphertext,key_fingerprint FROM wechat_secret WHERE id=?", config.get(field));

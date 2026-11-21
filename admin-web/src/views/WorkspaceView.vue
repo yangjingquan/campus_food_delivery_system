@@ -99,6 +99,29 @@ const columns = computed(() => {
 })
 
 const currentRows = computed(() => financeSection.value ? finance.value[financeSection.value] : rows.value)
+const withdrawalStatusLabels: Record<string, string> = {
+  PENDING_REVIEW: '待审核',
+  REVIEW_REJECTED: '审核拒绝',
+  PENDING_PAYOUT: '待打款',
+  TRANSFERRING: '打款中',
+  AWAITING_CONFIRMATION: '待收款确认',
+  PAID: '打款成功',
+  PAYOUT_FAILED: '打款失败',
+}
+
+function withdrawalDisplayRow(row: Row): Row {
+  const status = withdrawalStatusLabels[row.status] ?? row.status
+  const reviewable = Number(row.reviewable) === 1
+  if (status === '待审核' && row.reviewable != null && Number(row.reviewable) === 0) {
+    return { ...row, status, reviewable, reason: '已有审核或转账记录，请核对原记录' }
+  }
+  return { ...row, status, reviewable }
+}
+
+function canReviewWithdrawal(row: Row) {
+  return auth.can('withdrawal.review') && row.status === '待审核' && row.reviewable === true
+}
+
 const statusFields: Record<string, string> = { merchants: 'auditStatus', riders: 'auditStatus', orders: 'fulfillStatus', aftersales: 'status', withdrawals: 'status' }
 const statusKey = computed(() => statusFields[section.value] || 'status')
 const statusOptions = computed(() => [...new Set(currentRows.value.map((row) => String(row[statusKey.value] ?? '')).filter(Boolean))])
@@ -119,7 +142,8 @@ async function load() {
     } else {
       const data = await adminApi.workspace<{ rows?: Row[]; orders?: Order[] }>(section.value)
       if (request !== loadRequest) return
-      rows.value = data.rows || []
+      const fetchedRows = data.rows || []
+      rows.value = section.value === 'withdrawals' ? fetchedRows.map(withdrawalDisplayRow) : fetchedRows
       relatedOrders.value = data.orders || (data.rows as Order[] | undefined) || []
     }
   } catch (error) {
@@ -258,13 +282,14 @@ async function coordinate(row: Order) {
 }
 function coordinateFromDrawer() { if (activeRow.value) coordinate(activeRow.value as unknown as Order) }
 async function reviewWithdrawal(row: Row, decision: 'approve' | 'reject') {
+  if (!canReviewWithdrawal(row)) return
   let reason = ''
   try {
     if (decision === 'reject') {
       const response = await ElMessageBox.prompt('拒绝申请后立即解冻申请金额。', `拒绝提现 ${row.id}`, { inputPlaceholder: '填写原因', inputValidator: (value) => !!value.trim() || '原因必填', confirmButtonText: '确认拒绝', cancelButtonText: '取消' })
       reason = response.value
     } else {
-      await ElMessageBox.confirm('审核通过后进入待打款，实际转账需等待微信渠道接入。', `审核提现 ${row.id}`, { confirmButtonText: '确认通过', cancelButtonText: '取消' })
+      await ElMessageBox.confirm('审核通过后进入待打款，资金继续冻结，等待渠道处理。', `审核提现 ${row.id}`, { confirmButtonText: '确认通过', cancelButtonText: '取消' })
     }
     await adminApi.action('withdrawal.review', { id: row.id, decision, reason })
     ElMessage.success(decision === 'approve' ? '审核通过，等待渠道打款。' : '已拒绝并解冻资金。')
@@ -340,7 +365,13 @@ function runRowAction(row: Row) {
           </template>
           <template v-else-if="section === 'orders'"><el-button link type="primary" @click="handlePrimary(scope.row)">订单详情</el-button><el-button v-if="scope.row.intervene && auth.can('order.coordinate')" link type="warning" @click="coordinate(scope.row as unknown as Order)">记录协调</el-button></template>
           <template v-else-if="section === 'aftersales'"><el-button link type="primary" @click="openDetails(scope.row)">详情</el-button></template>
-          <template v-else-if="section === 'withdrawals'"><el-button link type="primary" @click="openDetails(scope.row)">详情</el-button><template v-if="scope.row.status === '待审核' && auth.can('withdrawal.review')"><el-button link type="success" @click="reviewWithdrawal(scope.row, 'approve')">通过</el-button><el-button link type="danger" @click="reviewWithdrawal(scope.row, 'reject')">拒绝</el-button></template></template>
+          <template v-else-if="section === 'withdrawals'">
+            <el-button link type="primary" @click="openDetails(scope.row)">详情</el-button>
+            <template v-if="canReviewWithdrawal(scope.row)">
+              <el-button link type="success" @click="reviewWithdrawal(scope.row, 'approve')">通过</el-button>
+              <el-button link type="danger" @click="reviewWithdrawal(scope.row, 'reject')">拒绝</el-button>
+            </template>
+          </template>
         </template>
       </el-table-column>
       <template #empty><el-empty description="没有符合条件的记录" /></template>
@@ -381,7 +412,7 @@ function runRowAction(row: Row) {
         <p v-else class="muted">{{ photoError || (activeRow.hasPhoto ? '正在加载照片…' : '暂无学生证照片') }}</p>
       </div>
       <div class="detail-grid">
-        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot','hasPhoto'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow[key], key) }}</strong></div></template>
+        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot','hasPhoto','reviewable'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow[key], key) }}</strong></div></template>
       </div>
       <template v-if="section === 'orders'">
         <div class="detail-section"><h3>合并支付单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.paymentId === activeRow?.paymentId)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ linked.fulfillStatus }} · {{ money(linked.paidCents) }}</span></div></div>

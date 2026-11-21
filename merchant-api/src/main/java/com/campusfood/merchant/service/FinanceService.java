@@ -57,8 +57,8 @@ public class FinanceService {
                 FROM account_journal WHERE account_id=? ORDER BY id DESC LIMIT 100
                 """;
             case "withdrawals" -> """
-                SELECT id,amount_cents AS amountCents,status,created_at AS createdAt,reason
-                FROM withdrawal_request WHERE account_id=? AND applicant_type='商户' ORDER BY created_at DESC,id DESC LIMIT 100
+                SELECT id,amount_cents AS amountCents,status_label AS status,created_at AS createdAt,reason
+                FROM withdrawal_request_display WHERE account_id=? AND applicant_type='商户' ORDER BY created_at DESC,id DESC LIMIT 100
                 """;
             default -> throw Inputs.invalid("未知财务记录类型");
         };

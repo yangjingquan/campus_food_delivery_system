@@ -91,6 +91,13 @@ services:
       USER_PAYMENT_MODE: ${USER_PAYMENT_MODE:-mock}
       USER_API_INTERNAL_KEY: ${INTERNAL_API_KEY:-}
       USER_LOCATION_EXPIRY_SECONDS: ${USER_LOCATION_EXPIRY_SECONDS:-60}
+      RIDER_ADMIN_API_URL: http://admin-api:8080
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      RIDER_TRANSFER_SCENE_ID: ${RIDER_TRANSFER_SCENE_ID:-}
+      RIDER_TRANSFER_SCENE_REPORTS: ${RIDER_TRANSFER_SCENE_REPORTS:-[]}
+      WECHAT_MASTER_KEY_FILE: /run/secrets/wechat-master.key
+    volumes:
+      - ./.local/wechat-master.key:/run/secrets/wechat-master.key:ro
     depends_on:
       admin-api:
         condition: service_healthy

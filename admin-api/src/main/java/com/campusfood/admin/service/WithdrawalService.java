@@ -11,6 +11,9 @@ import com.campusfood.admin.dao.FinanceDebtMapper;
 import com.campusfood.admin.dao.WithdrawalIntentMapper;
 import com.campusfood.admin.dao.WithdrawalRequestMapper;
 import com.campusfood.admin.dao.WithdrawalTransferMapper;
+import com.campusfood.admin.entity.WithdrawalStates.Intent;
+import com.campusfood.admin.entity.WithdrawalStates.Request;
+import com.campusfood.admin.entity.WithdrawalStates.Transfer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -57,7 +60,7 @@ public class WithdrawalService {
         if (!key.matches("[A-Za-z0-9_-]{8,100}") || account.isEmpty() || account.length() > 64)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效账户或幂等键");
         // 先占用幂等键；重复请求读取原结果，不重复变更余额。
-        int createdIntent = db.insertIntentIfAbsent(key, account, requested);
+        int createdIntent = db.insertIntentIfAbsent(key, account, requested, Intent.PROCESSING);
         if (createdIntent == 0) {
             var old = intents.lockIntent(key);
             if (!account.equals(old.get("account_id")) ||
@@ -97,7 +100,7 @@ public class WithdrawalService {
         // 抵扣后余额不足仍保留本次已扣回的结果，并返回剩余可用余额。
         if (requested > available) {
             intents.markInsufficient(recovered, available, key);
-            return Map.of("status", "余额不足", "recoveredCents", recovered, "availableCents", available);
+            return Map.of("status", Intent.INSUFFICIENT_FUNDS.label(), "recoveredCents", recovered, "availableCents", available);
         }
         String id = "W" + UUID.randomUUID().toString().replace("-", "");
         // 申请受理时立即冻结提现金额，审核拒绝或明确失败时再解冻。
@@ -105,15 +108,15 @@ public class WithdrawalService {
         journal(account, "withdraw_freeze", id, -requested, requested);
         String created = LocalDateTime.now(ZoneId.of("Asia/Shanghai")).format(
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        db.insertWithdrawal(id, a.get("name"), a.get("type"), requested, "待审核", created, account, key);
+        db.insertWithdrawal(id, a.get("name"), a.get("type"), requested, Request.PENDING_REVIEW, created, account, key);
         intents.markAccepted(recovered, available - requested, id, key);
-        return Map.of("status", "已受理", "withdrawalId", id, "recoveredCents", recovered, "availableCents",
+        return Map.of("status", Intent.ACCEPTED.label(), "withdrawalId", id, "recoveredCents", recovered, "availableCents",
                 available - requested);
     }
 
     private Map<String, Object> result(Map<String, Object> old) {
         Map<String, Object> r = new LinkedHashMap<>();
-        r.put("status", old.get("status"));
+        r.put("status", Intent.valueOf(old.get("status").toString()).label());
         r.put("withdrawalId", old.get("withdrawal_id"));
         r.put("recoveredCents", old.get("recovered_cents"));
         r.put("availableCents", old.get("available_after"));
@@ -126,23 +129,26 @@ public class WithdrawalService {
         if (!List.of("approve", "reject").contains(decision) || (decision.equals("reject") && reason.isEmpty()) ||
                 reason.length() > 500) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审核决定或原因无效");
         var rows = requests.lockWithdrawal(id);
-        if (rows.isEmpty() || !"待审核".equals(rows.get(0).get("status")))
+        if (rows.isEmpty() || !Request.PENDING_REVIEW.name().equals(rows.get(0).get("status")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "申请不存在或已处理");
+        // 申请行锁已持有，即使有人手工重置状态也不能再次决策或解冻。
+        if (db.hasReviewHistory(id) || !transfers.findTransfer(id).isEmpty())
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该申请已有审核或转账记录，请先核对原记录");
         var row = rows.get(0);
         String account = Objects.toString(row.get("account_id"), "");
         long amount = ((Number) row.get("amount_cents")).longValue();
         if (account.isEmpty())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "历史申请缺少关联账户，需人工核对");
         accounts.lockAccount(account);
-        String next = decision.equals("reject") ? "审核拒绝" : "待打款";
+        Request next = decision.equals("reject") ? Request.REVIEW_REJECTED : Request.PENDING_PAYOUT;
         if (decision.equals("reject")) {
             int updated = accounts.unfreezeFunds(amount, amount, account, amount);
             if (updated != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "冻结余额不足，需人工核对");
             journal(account, "withdraw_unfreeze", id, amount, -amount);
         }
         requests.updateStatus(next, decision.equals("approve") ? "审核通过，等待渠道发起" : reason, id);
-        db.insertReviewAudit(actor, "withdrawal.review", id, "待审核", next, reason);
-        return Map.of("ok", true, "status", next);
+        db.insertReviewAudit(actor, "withdrawal.review", id, Request.PENDING_REVIEW.label(), next.label(), reason);
+        return Map.of("ok", true, "status", next.label());
     }
 
     @Transactional
@@ -151,13 +157,14 @@ public class WithdrawalService {
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "提现申请不存在");
         // 重试使用已有转账单号，避免重复创建渠道请求。
         var prior = transfers.findTransfer(id);
-        if (!prior.isEmpty()) return Map.of("transferId", prior.get(0).get("id"), "status", prior.get(0).get("status"));
-        if (!"待打款".equals(rows.get(0).get("status")))
+        if (!prior.isEmpty()) return Map.of("transferId", prior.get(0).get("id"),
+                "status", Transfer.valueOf(prior.get(0).get("status").toString()).label());
+        if (!Request.PENDING_PAYOUT.name().equals(rows.get(0).get("status")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "提现申请不在待打款状态");
         String transferId = "T" + UUID.randomUUID().toString().replace("-", "");
-        db.insertTransfer(transferId, id);
+        db.insertTransfer(transferId, id, Transfer.PROCESSING);
         requests.markTransferring(id);
-        return Map.of("transferId", transferId, "status", "处理中");
+        return Map.of("transferId", transferId, "status", Transfer.PROCESSING.label());
     }
 
     @Transactional
@@ -173,21 +180,26 @@ public class WithdrawalService {
         var transferRows = transfers.lockTransfer(id);
         if (transferRows.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "未找到原转账记录");
         var tr = transferRows.get(0);
-        String previous = tr.get("status").toString();
+        Transfer previous = Transfer.valueOf(tr.get("status").toString());
+        Transfer expected = switch (outcome) {
+            case "success" -> Transfer.SUCCEEDED;
+            case "failure" -> Transfer.FAILED;
+            default -> Transfer.UNKNOWN;
+        };
         // 已终结的渠道结果只允许相同凭据的幂等重放。
-        if (List.of("成功", "失败").contains(previous)) {
-            String expected = outcome.equals("success") ? "成功" : outcome.equals("failure") ? "失败" : "未知";
-            if (previous.equals(expected) && channel.equals(Objects.toString(tr.get("channel_reference"), "")))
-                return Map.of("ok", true, "status", previous.equals("成功") ? "打款成功" : "打款失败");
+        if (previous.terminal()) {
+            if (previous == expected && channel.equals(Objects.toString(tr.get("channel_reference"), "")))
+                return Map.of("ok", true, "status", (previous == Transfer.SUCCEEDED ? Request.PAID : Request.PAYOUT_FAILED).label());
             throw new ResponseStatusException(HttpStatus.CONFLICT, "渠道结果已终结，不能覆盖");
         }
-        if (!"打款中".equals(rows.get(0).get("status")))
+        Request requestStatus = Request.valueOf(rows.get(0).get("status").toString());
+        if (requestStatus != Request.TRANSFERRING && requestStatus != Request.AWAITING_CONFIRMATION)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "提现申请不在打款中");
         // 未知结果不代表失败：继续冻结，等待查询原转账单。
         if (outcome.equals("unknown")) {
             transfers.markUnknown(reason, id);
             requests.markUnknown(id);
-            return Map.of("ok", true, "status", "未知");
+            return Map.of("ok", true, "status", Transfer.UNKNOWN.label());
         }
         String account = Objects.toString(rows.get(0).get("account_id"), "");
         long amount = ((Number) rows.get(0).get("amount_cents")).longValue();
@@ -198,15 +210,15 @@ public class WithdrawalService {
         if (changed != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "冻结余额不足，需人工核对");
         journal(account, outcome.equals("failure") ? "transfer_failed_unfreeze" : "transfer_success", id,
                 outcome.equals("failure") ? amount : 0, -amount);
-        String next = outcome.equals("failure") ? "打款失败" : "打款成功";
+        Request next = outcome.equals("failure") ? Request.PAYOUT_FAILED : Request.PAID;
         try {
-            transfers.finalizeTransfer(outcome.equals("failure") ? "失败" : "成功", channel, reason, id);
+            transfers.finalizeTransfer(expected, channel, reason, id);
         } catch (org.springframework.dao.DuplicateKeyException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "渠道凭据已用于其他转账");
         }
         requests.updateStatus(next, reason, id);
-        db.insertChannelAudit(id, next, reason);
-        return Map.of("ok", true, "status", next);
+        db.insertChannelAudit(id, next.label(), reason);
+        return Map.of("ok", true, "status", next.label());
     }
 
     private void journal(String account, String type, String ref, long available, long frozen) {

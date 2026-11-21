@@ -12,7 +12,7 @@ public class WithdrawalIntent {
     private Long requestedCents;
     private Long recoveredCents;
     private Long availableAfter;
-    private String status;
+    private WithdrawalStates.Intent status;
     private String withdrawalId;
 
     public String getRequestKey() {
@@ -35,7 +35,7 @@ public class WithdrawalIntent {
         return availableAfter;
     }
 
-    public String getStatus() {
+    public WithdrawalStates.Intent getStatus() {
         return status;
     }
 

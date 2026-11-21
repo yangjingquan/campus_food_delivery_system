@@ -28,8 +28,14 @@
     </select>
 
     <select id="listWithdrawals" resultType="map">
-        SELECT id,applicant,applicant_type AS applicantType,amount_cents AS amountCents,status,
-        created_at AS createdAt,reason FROM withdrawal_request ORDER BY created_at DESC
+        SELECT w.id,w.applicant,w.applicant_type AS applicantType,w.amount_cents AS amountCents,
+        w.status_label AS status,w.created_at AS createdAt,w.reason,
+        CASE WHEN w.status='PENDING_REVIEW'
+            AND NOT EXISTS (SELECT 1 FROM admin_audit_log a
+              WHERE a.action_name='withdrawal.review' AND a.target_id=w.id)
+            AND NOT EXISTS (SELECT 1 FROM withdrawal_transfer t WHERE t.withdrawal_id=w.id)
+            THEN 1 ELSE 0 END AS reviewable
+        FROM withdrawal_request_display w ORDER BY w.created_at DESC
     </select>
 
     <select id="listAccounts" resultType="map">

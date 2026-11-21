@@ -3,6 +3,7 @@ package com.campusfood.admin.dao;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.campusfood.admin.entity.WithdrawalTransfer;
+import com.campusfood.admin.entity.WithdrawalStates.Transfer;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
@@ -25,11 +26,11 @@ public interface WithdrawalTransferMapper extends BaseMapper<WithdrawalTransfer>
 
     default int markUnknown(String reason, String id) {
         return update(null, Wrappers.<WithdrawalTransfer>lambdaUpdate()
-                .set(WithdrawalTransfer::getStatus, "未知").set(WithdrawalTransfer::getReason, reason)
+                .set(WithdrawalTransfer::getStatus, Transfer.UNKNOWN).set(WithdrawalTransfer::getReason, reason)
                 .eq(WithdrawalTransfer::getWithdrawalId, id));
     }
 
-    default int finalizeTransfer(String status, String channelReference, String reason, String id) {
+    default int finalizeTransfer(Transfer status, String channelReference, String reason, String id) {
         return update(null, Wrappers.<WithdrawalTransfer>lambdaUpdate()
                 .set(WithdrawalTransfer::getStatus, status).set(WithdrawalTransfer::getChannelReference, channelReference)
                 .set(WithdrawalTransfer::getReason, reason).eq(WithdrawalTransfer::getWithdrawalId, id));
