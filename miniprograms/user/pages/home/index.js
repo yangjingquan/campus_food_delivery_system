@@ -1,5 +1,6 @@
 const api = require('../../utils/api');
 const display = require('../../utils/display');
+const { openBannerLink } = require('../../utils/banner-link');
 
 const { showDialog, dialogEvents } = require('../../utils/dialog');
 
@@ -8,14 +9,46 @@ Page({
   data: {
     merchants: [], config: {}, keyword: '', category: '全部',
     categories: ['全部'], loading: true, loadError: '',
-    addressLabel: '添加收餐地址'
+    addressLabel: '添加收餐地址', banners: [], currentBanner: 0
   },
 
   onShow() {
     this.getTabBar?.()?.refresh('pages/home/index');
     const address = wx.getStorageSync('selectedAddress');
     this.setData({ addressLabel: address ? `${address.building} · ${address.room}` : '添加收餐地址' });
+    this.loadBanners();
     this.load();
+  },
+
+  async loadBanners() {
+    const version = this.bannerRequest = (this.bannerRequest || 0) + 1;
+    try {
+      const { data } = await api.get('/home-banners', { auth: false });
+      if (version !== this.bannerRequest) return;
+      const banners = (data.rows || []).map(item => ({ ...item, image: api.baseUrl + item.imagePath }));
+      this.setData({ banners, currentBanner: 0 });
+    } catch (_) {
+      // 轮播读取失败时保留当前横幅，首页仍可搜索和点餐。
+    }
+  },
+
+  bannerChanged(event) {
+    if (event.detail.current !== this.data.currentBanner) {
+      this.setData({ currentBanner: event.detail.current });
+    }
+  },
+
+  bannerImageError(event) {
+    const { id, image } = event.currentTarget.dataset;
+    const banners = this.data.banners.filter(item => String(item.id) !== String(id) || item.image !== image);
+    if (banners.length === this.data.banners.length) return;
+    this.setData({ banners, currentBanner: Math.min(this.data.currentBanner, Math.max(0, banners.length - 1)) });
+  },
+
+  openBanner(event) {
+    const id = String(event.currentTarget.dataset.id);
+    const banner = this.data.banners.find(item => String(item.id) === id);
+    if (banner) openBannerLink(banner);
   },
 
   async load() {

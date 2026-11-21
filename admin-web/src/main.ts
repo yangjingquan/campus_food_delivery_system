@@ -6,7 +6,7 @@ import {
 } from 'element-plus'
 import {
   ArrowDown, ArrowRight, Avatar, Bicycle, ChatDotRound, CircleCheckFilled, Clock, Connection,
-  Expand, Fold, Grid, Hide, InfoFilled, Lock, Menu, Money, Plus, Search, Setting, Shop, Tickets,
+  Expand, Fold, Grid, Hide, InfoFilled, Lock, Menu, Money, Picture, Plus, Search, Setting, Shop, Tickets,
   User, View, Wallet, WarningFilled,
 } from '@element-plus/icons-vue'
 import 'element-plus/dist/index.css'
@@ -21,7 +21,7 @@ const components = {
   ElForm, ElFormItem, ElIcon, ElInput, ElInputNumber, ElMenu, ElMenuItem, ElOption, ElPagination,
   ElRadioButton, ElRadioGroup, ElSelect, ElSwitch, ElTable, ElTableColumn, ElTabPane, ElTabs, ElTag, ElTimeSelect,
   ArrowDown, ArrowRight, Avatar, Bicycle, ChatDotRound, CircleCheckFilled, Clock, Connection,
-  Expand, Fold, Grid, Hide, InfoFilled, Lock, Menu, Money, Plus, Search, Setting, Shop, Tickets,
+  Expand, Fold, Grid, Hide, InfoFilled, Lock, Menu, Money, Picture, Plus, Search, Setting, Shop, Tickets,
   User, View, Wallet, WarningFilled,
 }
 for (const [name, component] of Object.entries(components)) app.component(name, component as Component)

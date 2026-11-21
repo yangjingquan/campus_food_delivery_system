@@ -13,7 +13,8 @@
     "pages/aftersale/index",
     "pages/addresses/index",
     "pages/address-edit/index",
-    "pages/mine/index"
+    "pages/mine/index",
+    "pages/webview/index"
   ],
   "window": {
     "navigationBarTitleText": "寝食记",

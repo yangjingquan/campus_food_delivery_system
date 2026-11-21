@@ -7,6 +7,14 @@ export interface FoodCategory {
   productCount: number
 }
 
+export interface HomeBanner {
+  id: number
+  name: string
+  linkType: 'page' | 'external'
+  linkUrl: string
+  sortOrder: number
+}
+
 export interface MerchantPrinter {
   sn: string
   pkeySet: boolean
@@ -87,6 +95,20 @@ export const adminApi = {
   },
   deleteFoodCategory(id: number) {
     return unwrap<void>(http.delete(`/food-categories/${id}`))
+  },
+  homeBanners() {
+    return unwrap<HomeBanner[]>(http.get('/home-banners'))
+  },
+  homeBannerImage(id: number) {
+    return unwrap<Blob>(http.get(`/home-banners/${id}/image`, { responseType: 'blob' }))
+  },
+  saveHomeBanner(body: FormData, id?: number) {
+    return unwrap<void>(id === undefined
+      ? http.postForm('/home-banners', body)
+      : http.putForm(`/home-banners/${id}`, body))
+  },
+  deleteHomeBanner(id: number) {
+    return unwrap<void>(http.delete(`/home-banners/${id}`))
   },
   action<T = unknown>(type: string, payload: Record<string, unknown>) {
     return unwrap<T>(http.post('/actions', { type, payload }))

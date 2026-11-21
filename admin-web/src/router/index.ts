@@ -10,6 +10,7 @@ const WechatView = () => import('../views/WechatView.vue')
 const AdminUsersView = () => import('../views/AdminUsersView.vue')
 const ProductCatalogView = () => import('../views/ProductCatalogView.vue')
 const FoodCategoriesView = () => import('../views/FoodCategoriesView.vue')
+const HomeBannersView = () => import('../views/HomeBannersView.vue')
 
 export const financePages = [
   { section: 'accounts', title: '商户 / 骑手余额' },
@@ -40,6 +41,7 @@ export const router = createRouter({
     })),
     { path: '/withdrawals', name: 'withdrawals', component: WorkspaceView, meta: { title: '提现审核', permission: 'withdrawal.view' } },
     { path: '/config', name: 'config', component: ConfigView, meta: { title: '运营配置', permission: 'config.view' } },
+    { path: '/home-banners', name: 'home-banners', component: HomeBannersView, meta: { title: '首页轮播图', permission: 'home-banner.view' } },
     { path: '/wechat', name: 'wechat', component: WechatView, meta: { title: '微信设置', group: '系统设置', permission: 'wechat.view' } },
     { path: '/administrators', name: 'administrators', component: AdminUsersView, meta: { title: '管理员与角色', group: '系统设置', permission: 'admin.manage' } },
     { path: '/', redirect: '/overview' },

@@ -32,6 +32,7 @@ const menuGroups: { label: string; items: MenuEntry[] }[] = [
       { id: 'order-nav', title: '订单管理', icon: 'Tickets', children: ['orders', 'aftersales'] },
       { id: 'finance-nav', title: '财务对账', icon: 'Wallet', children: financePages.map(({ section }) => `finance-${section}`) },
       { name: 'withdrawals', icon: 'Money' },
+      { name: 'home-banners', icon: 'Picture' },
       { name: 'config', icon: 'Setting' },
     ],
   },

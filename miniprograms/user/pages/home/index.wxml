@@ -11,7 +11,17 @@
     <text>{{addressLabel}} ›</text>
   </button>
 
-  <view class="hero">
+  <swiper wx:if="{{banners.length}}" class="hero-carousel" current="{{currentBanner}}"
+    autoplay="{{banners.length > 1}}" circular="{{banners.length > 1}}" indicator-dots="{{banners.length > 1}}"
+    indicator-color="rgba(0,0,0,.24)" indicator-active-color="#fff" interval="5000" duration="300" bindchange="bannerChanged">
+    <swiper-item wx:for="{{banners}}" wx:key="id">
+      <button class="hero-slide" data-id="{{item.id}}" bindtap="openBanner" aria-label="{{item.name}}">
+        <image class="hero-slide-image" src="{{item.image}}" mode="aspectFill" data-id="{{item.id}}"
+          data-image="{{item.image}}" binderror="bannerImageError" aria-hidden="true"/>
+      </button>
+    </swiper-item>
+  </swiper>
+  <view wx:else class="hero">
     <view class="hero-copy">
       <view class="h1"><view>下课了，</view><view>好好吃顿饭。</view></view>
       <view class="hero-sub">校外好味道 · 骑手分批送至寝室</view>
