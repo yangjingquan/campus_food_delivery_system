@@ -15,9 +15,9 @@
           <view class="step-dot"></view><text>{{item}}</text>
         </view>
       </view>
-      <view wx:if="{{!pickup && !order.locationAvailable}}" class="split">
-        <view class="small">{{order.fulfillStatus === 'COMPLETED' ? '订单已完成，位置共享已结束。' : '骑手尚未领取，暂不展示位置。'}}</view>
-        <button wx:if="{{order.deliveryPhotoAvailable}}" class="btn outline small-btn delivery-photo-link"
+      <view wx:if="{{!pickup && !order.locationAvailable}}" class="split delivery-progress-footer">
+        <view class="small delivery-position-note">{{order.fulfillStatus === 'COMPLETED' ? '订单已完成，位置共享已结束。' : '骑手尚未领取，暂不展示位置。'}}</view>
+        <button wx:if="{{order.deliveryPhotoAvailable}}" class="btn small-btn delivery-photo-link"
           loading="{{photoLoading}}" disabled="{{photoLoading}}" bindtap="previewDeliveryPhoto">查看送达照片</button>
       </view>
     </view>
