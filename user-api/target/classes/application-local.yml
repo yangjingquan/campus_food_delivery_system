@@ -1,7 +1,0 @@
-app:
-  wechat:
-    mock-login: true
-  payment:
-    mode: ${USER_PAYMENT_MODE:mock}
-  demo-catalog:
-    enabled: true

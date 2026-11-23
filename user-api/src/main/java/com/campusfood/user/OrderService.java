@@ -426,6 +426,10 @@ public class OrderService {
         result.put("items", db.queryForList("SELECT product_id AS productId,name_snapshot AS name,price_cents AS priceCents,quantity,amount_cents AS amountCents FROM user_order_item WHERE order_id=? ORDER BY id", orderId));
         result.put("aftersales", db.queryForList("SELECT r.id,r.reason,r.type,r.amount_cents AS amountCents,r.delivery_refund_cents AS deliveryRefundCents,r.status,r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,COALESCE(x.description,'') AS description FROM refund_record r LEFT JOIN user_refund_detail x ON x.refund_id=r.id WHERE r.order_id=? ORDER BY r.created_at DESC", orderId));
         result.put("locationAvailable", Fulfillment.DELIVERING.is(result.get("fulfillStatus")));
+        result.put("deliveryPhotoAvailable", "delivery".equals(result.get("fulfillmentType"))
+            && Fulfillment.COMPLETED.is(result.get("fulfillStatus"))
+            && Boolean.TRUE.equals(db.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM rider_delivery_proof WHERE order_id=?)", Boolean.class, orderId)));
         return result;
     }
 

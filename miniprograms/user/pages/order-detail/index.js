@@ -16,10 +16,16 @@ const statusNotes = {
 };
 
 Page({
-  data: { order: null, items: [], steps, stepIndex: -1, aftersales: [], loading: true, loadError: '' },
+  data: { order: null, items: [], steps, stepIndex: -1, aftersales: [], loading: true, loadError: '', photoLoading: false },
 
   onLoad(query) { this.orderId = query.id; },
-  onShow() { this.load(); },
+  onShow() {
+    this.refreshedAfterDelivery = false;
+    this.setData({ photoLoading: false });
+    this.load();
+  },
+  onHide() { this.photoRequest = null; },
+  onUnload() { this.onHide(); },
 
   async load() {
     this.setData({ loading: true, loadError: '' });
@@ -27,10 +33,12 @@ Page({
       await getApp().ensureLogin();
       const { data } = await api.get(`/orders/${this.orderId}`);
       const pickup = data.fulfillmentType === 'pickup';
+      const phone = String(data.phone ?? '').trim().match(/^(\d{3})[\d*]{4}(\d{4})$/);
       const items = (data.items || []).map(item => ({ ...item, amountText: money(item.amountCents) }));
       const aftersales = (data.aftersales || []).map(item => ({ ...item, amountText: money(item.amountCents) }));
       this.setData({
-        order: data, items, aftersales, pickup, loading: false,
+        order: { ...data, phone: phone ? `${phone[1]}****${phone[2]}` : '' },
+        items, aftersales, pickup, loading: false,
         steps: pickup ? ['待接单', '出餐中', '待自取', '已完成'] : steps,
         stepIndex: (pickup ? pickupStages : stages).indexOf(data.fulfillStatus),
         statusNote: pickup && data.fulfillStatus === 'AWAITING_PICKUP' ? '餐品已备好，请凭取餐号到店领取。'
@@ -44,7 +52,37 @@ Page({
     }
   },
 
-  map() { wx.navigateTo({ url: `/pages/map/index?id=${this.orderId}` }); },
+  refreshAfterDelivery() {
+    if (this.refreshedAfterDelivery) return;
+    this.refreshedAfterDelivery = true;
+    return this.load();
+  },
+
+  async previewDeliveryPhoto() {
+    const { order } = this.data;
+    if (!order?.deliveryPhotoAvailable || this.photoRequest) return;
+    const token = wx.getStorageSync('userToken');
+    if (!token) {
+      wx.showToast({ title: '请重新登录后查看照片', icon: 'none' });
+      return;
+    }
+    this.setData({ photoLoading: true });
+    const request = this.photoRequest = api.downloadDeliveryPhoto(order.id, token);
+    const stillCurrent = () => this.photoRequest === request && wx.getStorageSync('userToken') === token;
+    const showPhotoError = () => wx.showToast({ title: '送达照片暂时无法打开，请重试', icon: 'none' });
+    try {
+      const path = await request;
+      if (stillCurrent()) wx.previewImage({ urls: [path], fail: showPhotoError });
+    } catch (_) {
+      if (stillCurrent()) showPhotoError();
+    } finally {
+      if (this.photoRequest === request) {
+        this.photoRequest = null;
+        this.setData({ photoLoading: false });
+      }
+    }
+  },
+
   refund() { wx.navigateTo({ url: `/pages/refund/index?id=${this.orderId}` }); },
   pay() { wx.navigateTo({ url: `/pages/payment/index?id=${this.data.order.paymentId}` }); },
   afterSale(event) { wx.navigateTo({ url: `/pages/aftersale/index?id=${event.currentTarget.dataset.id}` }); },

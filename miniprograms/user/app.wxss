@@ -219,6 +219,12 @@ view, text, button, input, textarea, picker, scroll-view, image, map { box-sizin
 .dialog-title { font-size: 17px; font-weight: 700; }
 .dialog-content { margin: 13px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.62; overflow-wrap: anywhere; }
 .dialog-options { display: grid; gap: 2px; margin: 10px 0; }
+.page button.dialog-option,
+.page .dialog-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .page button.dialog-option { min-height: 38px; border-radius: 10px; color: var(--muted); font-size: 13px; }
 .page button.dialog-option.on { color: #a84b21; background: #fff0e7; font-weight: 700; }
 .dialog-actions { display: flex; margin: 11px -20px 0; }

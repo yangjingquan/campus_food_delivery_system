@@ -4,9 +4,5 @@
 merchant-api/src/test/*
 user-api/src/test/*
 rider-api/src/test/
-!user-api/src/test/java/
 user-api/src/test/java/**/*
-!user-api/src/test/java/**/
-!user-api/src/test/java/com/campusfood/user/OrderServiceTest.java
-!user-api/src/test/java/com/campusfood/user/DeliveryPickupTest.java
-!user-api/src/test/java/com/campusfood/user/PricingSettlementMysqlTest.java
+user-api/target/*

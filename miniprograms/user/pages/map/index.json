@@ -1,1 +1,4 @@
-{ "navigationBarTitleText": "配送位置" }
+{
+  "navigationBarTitleText": "配送位置",
+  "usingComponents": { "delivery-map": "/components/delivery-map/index" }
+}

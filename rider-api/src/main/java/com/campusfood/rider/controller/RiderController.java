@@ -11,6 +11,8 @@ import com.campusfood.rider.service.RiderReminders;
 import java.io.IOException;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/rider/v1")
@@ -95,10 +98,14 @@ public class RiderController {
         return orders.detail(approved(auth), id);
     }
 
-    @PostMapping("/orders/{id}/complete")
+    @PostMapping(value = "/orders/{id}/complete", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Object complete(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String auth,
-                           @PathVariable String id) {
-        return domain.complete(approved(auth), id);
+                           @PathVariable String id, @RequestParam MultipartFile photo) throws IOException {
+        String rider = approved(auth);
+        if (photo.isEmpty() || photo.getSize() > 4 * 1024 * 1024) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请上传 4 MB 以内的送达照片");
+        }
+        return domain.complete(rider, id, photo.getBytes());
     }
 
     @PostMapping("/orders/{id}/location")

@@ -115,17 +115,18 @@ public class HomeBannerService {
 
     private static Picture readImage(MultipartFile file) {
         if (file.isEmpty() || file.getSize() > MAX_IMAGE_BYTES) {
-            throw invalid("请上传不超过 768 KB 的 JPG 或 PNG 图片");
+            throw invalid("请上传不超过 768 KB 的 JPG、PNG 或 WebP 图片");
         }
         try (var source = new MemoryCacheImageInputStream(file.getInputStream())) {
             var readers = ImageIO.getImageReaders(source);
-            if (!readers.hasNext()) throw invalid("请上传有效的 JPG 或 PNG 图片");
+            if (!readers.hasNext()) throw invalid("请上传有效的 JPG、PNG 或 WebP 图片");
             var reader = readers.next();
             try {
                 String mediaType = switch (reader.getFormatName().toLowerCase(java.util.Locale.ROOT)) {
                     case "png" -> "image/png";
                     case "jpeg" -> "image/jpeg";
-                    default -> throw invalid("仅支持 JPG 和 PNG 图片");
+                    case "webp" -> "image/webp";
+                    default -> throw invalid("仅支持 JPG、PNG 和 WebP 图片");
                 };
                 reader.setInput(source);
                 // 先读尺寸再解码，避免小文件声明异常大的图像。
@@ -139,7 +140,7 @@ public class HomeBannerService {
                 reader.dispose();
             }
         } catch (IOException | IllegalArgumentException error) {
-            throw invalid("图片无法读取，请重新选择 JPG 或 PNG 图片");
+            throw invalid("图片无法读取，请重新选择 JPG、PNG 或 WebP 图片");
         }
     }
 

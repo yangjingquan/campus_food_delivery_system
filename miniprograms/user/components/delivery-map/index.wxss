@@ -1,0 +1,30 @@
+:host { display: block; }
+.delivery-map {
+  margin-bottom: 12px;
+  padding: 15px;
+  border: 1px solid var(--line, #ecede7);
+  border-radius: 20px;
+  background: var(--surface, #fff);
+}
+.delivery-map-title {
+  color: var(--ink, #292c29);
+  font-size: 16px;
+  font-weight: 680;
+  line-height: 1.4;
+}
+.delivery-map-frame {
+  height: 236px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #eaf0e5;
+}
+.delivery-map-native { display: block; width: 100%; height: 100%; }
+.delivery-map-status, .delivery-map-time {
+  color: var(--muted, #626961);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.delivery-map-status { margin-top: 8px; }
+.delivery-map-status.is-stale { color: #a84b21; }
+.delivery-map-time { margin-top: 2px; }

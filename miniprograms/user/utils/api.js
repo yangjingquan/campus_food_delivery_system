@@ -41,19 +41,27 @@ function updateAvatar(avatarPath) {
   });
 }
 
-function downloadAvatar(token) {
+function downloadPrivateImage(path, token, errorMessage) {
   return new Promise((resolve, reject) => {
     wx.downloadFile({
-      url: BASE_URL + '/me/avatar',
+      url: BASE_URL + path,
       header: { Authorization: 'Bearer ' + token },
       timeout: 12000,
       success({ statusCode, tempFilePath }) {
         if (statusCode === 200 && tempFilePath) resolve(tempFilePath);
-        else reject(new Error('头像加载失败'));
+        else reject(new Error(errorMessage));
       },
       fail: reject
     });
   });
+}
+
+function downloadAvatar(token) {
+  return downloadPrivateImage('/me/avatar', token, '头像加载失败');
+}
+
+function downloadDeliveryPhoto(orderId, token) {
+  return downloadPrivateImage(`/orders/${encodeURIComponent(orderId)}/delivery-photo`, token, '送达照片加载失败');
 }
 
 module.exports = {
@@ -63,5 +71,6 @@ module.exports = {
   delete: (path, options) => request('DELETE', path, undefined, options),
   updateAvatar,
   downloadAvatar,
+  downloadDeliveryPhoto,
   baseUrl: BASE_URL
 };

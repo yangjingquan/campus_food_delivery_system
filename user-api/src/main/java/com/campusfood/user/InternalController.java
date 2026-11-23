@@ -1,7 +1,9 @@
 package com.campusfood.user;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.util.Map;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,11 +65,12 @@ public class InternalController {
         return delivery.pickup(body.get("token"), riderId, true);
     }
 
-    @PostMapping("/riders/{riderId}/orders/{orderId}/complete")
+    @PostMapping(value = "/riders/{riderId}/orders/{orderId}/complete", consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public Map<String, Object> riderComplete(@PathVariable String riderId, @PathVariable String orderId,
-                                             HttpServletRequest request) {
+                                             HttpServletRequest request) throws IOException {
         delivery.requireInternal(request);
-        return delivery.riderComplete(riderId, orderId);
+        byte[] photo = request.getInputStream().readNBytes(DeliveryProof.MAX_BYTES + 1);
+        return delivery.riderComplete(riderId, orderId, photo);
     }
 
     @PostMapping("/riders/{riderId}/orders/{orderId}/location")

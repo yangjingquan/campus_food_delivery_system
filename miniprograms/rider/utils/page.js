@@ -240,7 +240,11 @@ function register(screen) {
     openModal(event) {
       const { topic, id, address } = event.currentTarget.dataset;
       if (topic === 'complete') {
-        this.setData({ modal: { topic, id, title: '确认已送达？', text: '请核对 ' + address + '，并确认餐品已送到寝室门口。', confirm: '确认送达' } });
+        this.setData({ modal: {
+          topic, id, title: '确认已送达？',
+          text: '请核对 ' + address + '，拍摄餐品放置位置作为送达凭证。',
+          confirm: '确认送达'
+        } });
       } else {
         const [title, text] = help[topic];
         this.setData({ modal: { title, text, confirm: '我知道了' } });
@@ -254,14 +258,37 @@ function register(screen) {
     noop() {
     },
 
+    async takeDeliveryPhoto() {
+      const modal = this.data.modal;
+      if (this.data.busy || modal?.topic !== 'complete') return;
+      this.setData({ busy: true });
+      try {
+        const { tempFiles } = await api.wxCall('chooseMedia', {
+          count: 1, mediaType: ['image'], sizeType: ['compressed'], sourceType: ['camera'], camera: 'back'
+        });
+        const photo = tempFiles?.[0];
+        if (!photo?.tempFilePath) return;
+        if (photo.size > 4 * 1024 * 1024) return toast('照片超过 4 MB，请重新拍摄');
+        this.setData({ modal: {
+          ...modal, photo: photo.tempFilePath, title: '确认送达照片',
+          text: '请确认照片清楚显示餐品的放置位置。', confirm: '上传并完成配送'
+        } });
+      } catch (error) {
+        if (!/cancel/i.test(error?.errMsg || '')) toast('无法拍照，请检查相机及隐私授权');
+      } finally {
+        this.setData({ busy: false });
+      }
+    },
+
     async confirmModal() {
       const modal = this.data.modal;
       if (this.data.busy || !modal) return;
       if (!modal.topic) return this.closeModal();
+      if (modal.topic === 'complete' && !modal.photo) return this.takeDeliveryPhoto();
       this.setData({ busy: true });
       try {
         if (modal.topic === 'complete') {
-          await api.request('/orders/' + encodeURIComponent(modal.id) + '/complete', 'POST');
+          await api.completeDelivery(modal.id, modal.photo);
           toast('已确认送达');
           this.setData({ modal: null });
           await this.refresh();
@@ -282,10 +309,6 @@ function register(screen) {
         }
       } catch (error) {
         toast(errorMessage(error));
-        if (modal.topic === 'complete') {
-          this.setData({ modal: null });
-          await this.refresh();
-        }
       } finally {
         this.setData({ busy: false });
       }

@@ -51,6 +51,23 @@ public class DeliveryService {
         return location;
     }
 
+    public record DeliveryPhoto(byte[] data, String mediaType) {}
+
+    public DeliveryPhoto userDeliveryPhoto(long userId, String orderId) {
+        var photo = db.query("""
+            SELECT p.photo_data,p.media_type
+            FROM rider_delivery_proof p
+            JOIN business_order o ON o.id=p.order_id
+            JOIN user_order_detail d ON d.order_id=o.id
+            WHERE o.id=? AND d.user_id=? AND o.fulfillment_type='delivery' AND o.fulfill_status='COMPLETED'
+            """, rows -> rows.next() ? new DeliveryPhoto(rows.getBytes("photo_data"), rows.getString("media_type")) : null,
+            orderId, userId);
+        if (photo == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "送达照片不存在");
+        }
+        return photo;
+    }
+
     public Map<String, Object> merchantLocation(String merchant, String orderId) {
         var owners = db.queryForList("""
             SELECT d.user_id FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
@@ -161,11 +178,20 @@ public class DeliveryService {
 
 
     @Transactional
-    public Map<String, Object> riderComplete(String riderId, String orderId) {
+    public Map<String, Object> riderComplete(String riderId, String orderId, byte[] photo) {
         var order = riderOrderForUpdate(riderId, orderId);
         if (Fulfillment.COMPLETED.is(order.get("fulfill_status"))) {
             return Map.of("orderId", orderId, "status", "COMPLETED");
         }
+        if (!Fulfillment.DELIVERING.is(order.get("fulfill_status"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单未处于配送中，不能确认送达");
+        }
+        String mediaType = DeliveryProof.mediaType(photo);
+        db.update("""
+            INSERT INTO rider_delivery_proof(order_id,rider_id,photo_data,media_type)
+            VALUES (?,?,?,?)
+            """, orderId, riderId, photo, mediaType);
+        // 凭证和送达状态在同一事务提交，失败时一起回滚。
         var result = updateStatus(orderId, Map.of("status", Fulfillment.COMPLETED.name(), "actor", OrderActor.RIDER_DELIVERY.name()));
         db.update("UPDATE rider SET deliveries=deliveries+1 WHERE id=?", riderId);
         return result;

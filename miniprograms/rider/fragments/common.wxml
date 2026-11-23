@@ -115,6 +115,10 @@
     <view class="modal" catchtap="noop">
       <view class="h3">{{modal.title}}</view>
       <view class="small modal-copy">{{modal.text}}</view>
+      <block wx:if="{{modal.photo}}">
+        <image class="delivery-photo-preview" src="{{modal.photo}}" mode="aspectFit" aria-label="送达照片预览"/>
+        <button class="link delivery-photo-retake" bindtap="takeDeliveryPhoto" disabled="{{busy}}">重拍照片</button>
+      </block>
       <view class="modal-actions">
         <button wx:if="{{modal.topic}}" class="btn outline" bindtap="closeModal" disabled="{{busy}}">取消</button>
         <button class="btn primary" bindtap="confirmModal" loading="{{busy}}" disabled="{{busy}}">{{modal.confirm}}</button>

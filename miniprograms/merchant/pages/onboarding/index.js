@@ -14,7 +14,7 @@ Page({
       const form = (revision && revision.status === 'REJECTED' ? revision : store) || this.data.form;
       const editable = !store || store.auditStatus === 'REJECTED' ||
         (store.auditStatus === 'APPROVED' && this.edit && (!revision || revision.status !== 'PENDING_REVIEW'));
-      this.setData({ store, revision, form, editable, photo: '', photoError: '' });
+      this.setData({ store, revision, form, editable, photo: '', photoWidth: 0, photoError: '' });
       if (store && store.hasPhoto) {
         try { this.setData({ photo: await api.photo() }); }
         catch (error) { this.setData({ photoError: error.message }); }
@@ -32,13 +32,14 @@ Page({
     });
   },
   input(event) { this.setData({ ['form.' + event.currentTarget.dataset.field]: event.detail.value }); },
+  photoLoaded(event) { this.setData({ photoWidth: event.detail.width }); },
   async choosePhoto() {
     this.setData({ photoError: '' });
     try {
       const photo = await choosePhoto();
       if (!photo) return;
       this.image = photo.dataUrl;
-      this.setData({ photo: photo.path, formError: '' });
+      this.setData({ photo: photo.path, photoWidth: 0, formError: '' });
     } catch (error) {
       this.setData({ photoError: error.message });
     }

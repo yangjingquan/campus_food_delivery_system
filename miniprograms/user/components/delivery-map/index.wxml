@@ -1,0 +1,9 @@
+<view class="delivery-map">
+  <view class="delivery-map-title">配送位置</view>
+  <view wx:if="{{markers.length}}" class="delivery-map-frame">
+    <map class="delivery-map-native" latitude="{{latitude}}" longitude="{{longitude}}" scale="{{16}}"
+      markers="{{markers}}" show-location="{{false}}" enable-scroll="{{true}}" enable-zoom="{{true}}"/>
+  </view>
+  <view class="delivery-map-status {{stale ? 'is-stale' : ''}}">{{stateText}}</view>
+  <view wx:if="{{updatedAt}}" class="delivery-map-time">更新于 {{updatedAt}}</view>
+</view>

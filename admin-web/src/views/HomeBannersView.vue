@@ -78,8 +78,8 @@ function openEditor(item?: HomeBanner) {
 const chooseImage: UploadProps['onChange'] = ({ raw: file }) => {
   imageUpload.value?.clearFiles()
   if (!file || busy.value || !dialog.value) return
-  if (!['image/jpeg', 'image/png'].includes(file.type) || file.size > 768 * 1024 || !file.size) {
-    imageError.value = '请选择不超过 768 KB 的 JPG 或 PNG 图片'
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 768 * 1024 || !file.size) {
+    imageError.value = '请选择不超过 768 KB 的 JPG、PNG 或 WebP 图片'
     return
   }
   clearDraftImage()
@@ -191,7 +191,7 @@ onUnmounted(clearDraftImage)
       </div>
       <el-form-item label="轮播图片" :required="!editing" :error="imageError">
         <ElUpload ref="imageUpload" class="banner-upload" drag :auto-upload="false" :show-file-list="false"
-          :disabled="busy" accept="image/png,image/jpeg" :on-change="chooseImage">
+          :disabled="busy" accept="image/png,image/jpeg,image/webp" :on-change="chooseImage">
           <span class="banner-upload-content">
             <img v-if="preview" :src="preview" alt="轮播图预览" class="banner-preview" />
             <el-icon v-else class="banner-upload-icon" aria-hidden="true"><Upload /></el-icon>
@@ -203,7 +203,7 @@ onUnmounted(clearDraftImage)
             </span>
           </span>
         </ElUpload>
-        <span class="banner-help">JPG 或 PNG，最大 768 KB。建议使用约 2∶1 的横图。</span>
+        <span class="banner-help">JPG、PNG 或 WebP，最大 768 KB。建议使用约 2∶1 的横图。</span>
         <template #error="{ error }">
           <span class="banner-error" role="alert">{{ error }}</span>
         </template>

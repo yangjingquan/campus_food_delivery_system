@@ -129,6 +129,17 @@ public class UserController {
     public Map<String, Object> order(@PathVariable String orderId, HttpServletRequest request) { return orders.detail(auth.require(request).userId(), orderId); }
     @GetMapping("/orders/{orderId}/location")
     public Map<String, Object> location(@PathVariable String orderId, HttpServletRequest request) { return delivery.userLocation(auth.require(request).userId(), orderId); }
+
+    @GetMapping("/orders/{orderId}/delivery-photo")
+    public ResponseEntity<byte[]> deliveryPhoto(@PathVariable String orderId, HttpServletRequest request) {
+        var photo = delivery.userDeliveryPhoto(auth.require(request).userId(), orderId);
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType(photo.mediaType()))
+            .cacheControl(CacheControl.noStore())
+            .header("X-Content-Type-Options", "nosniff")
+            .body(photo.data());
+    }
+
     @PostMapping("/orders/{orderId}/aftersales")
     public Map<String, Object> requestRefund(@PathVariable String orderId, @RequestBody Map<String, Object> body, HttpServletRequest request) { return refunds.apply(auth.require(request).userId(), orderId, body); }
     @GetMapping("/aftersales/{refundId}")

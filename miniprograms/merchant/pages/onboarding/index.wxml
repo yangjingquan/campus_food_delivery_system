@@ -18,7 +18,8 @@
       <view class="kv"><text>联系人</text><text>{{store.contact}}</text></view>
       <view class="kv"><text>联系电话</text><text>{{store.phone}}</text></view>
       <view class="kv"><text>店铺地址</text><text>{{store.address}}</text></view>
-      <image wx:if="{{photo}}" class="photo" src="{{photo}}" mode="aspectFill" aria-label="店铺图片" />
+      <image wx:if="{{photo}}" class="store-photo" src="{{photo}}" mode="widthFix" bindload="photoLoaded"
+        style="width: {{photoWidth ? photoWidth + 'px' : '100%'}}" aria-label="店铺图片" />
     </block>
     <button wx:if="{{!editable && store.auditStatus === 'APPROVED'}}" class="btn primary wide separator" bindtap="workbench" hover-class="pressed">进入订单工作台</button>
     <button wx:elif="{{!editable}}" class="btn plain centered separator" bindtap="refresh" hover-class="pressed">刷新审核状态</button>
@@ -36,7 +37,8 @@
     <text class="label">联系电话</text><input aria-label="联系电话" class="field" type="number" data-field="phone" bindinput="input" value="{{form.phone}}" maxlength="20" />
     <text class="label">店铺地址</text><input aria-label="店铺地址" class="field" data-field="address" bindinput="input" value="{{form.address}}" maxlength="255" />
     <text class="form-section">店铺图片</text>
-    <image wx:if="{{photo}}" class="photo" src="{{photo}}" mode="aspectFill" aria-label="店铺图片" />
+    <image wx:if="{{photo}}" class="store-photo" src="{{photo}}" mode="widthFix" bindload="photoLoaded"
+      style="width: {{photoWidth ? photoWidth + 'px' : '100%'}}" aria-label="店铺图片" />
     <view wx:else class="photo-placeholder"><image class="icon" src="/assets/ui/photo.svg" mode="aspectFit" aria-hidden="true" /></view>
     <view wx:if="{{photoError}}" class="hint">{{photoError}}</view>
     <button class="btn plain separator" bindtap="choosePhoto" hover-class="pressed">{{photo ? '更换店铺图片' : '选择店铺图片'}}</button>

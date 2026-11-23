@@ -62,12 +62,12 @@ async function request(path, method = 'GET', data) {
   }
 }
 
-async function apply(form, filePath) {
+async function uploadImage(path, filePath, name, formData) {
   const upload = async bearer => unwrap(await wxCall('uploadFile', {
-    url: baseUrl() + '/profile/application',
+    url: baseUrl() + path,
     filePath,
-    name: 'studentCard',
-    formData: form,
+    name,
+    ...(formData ? { formData } : {}),
     header: { Authorization: 'Bearer ' + bearer },
     timeout: 20000
   }).catch(() => { throw new Error('上传失败，请检查网络后重试'); }));
@@ -81,6 +81,14 @@ async function apply(form, filePath) {
   }
 }
 
+function apply(form, filePath) {
+  return uploadImage('/profile/application', filePath, 'studentCard', form);
+}
+
+function completeDelivery(orderId, filePath) {
+  return uploadImage('/orders/' + encodeURIComponent(orderId) + '/complete', filePath, 'photo');
+}
+
 async function logout() {
   const bearer = wx.getStorageSync(tokenKey);
   if (bearer) {
@@ -92,4 +100,4 @@ async function logout() {
   }
 }
 
-module.exports = { request, wxCall, apply, logout };
+module.exports = { request, wxCall, apply, completeDelivery, logout };

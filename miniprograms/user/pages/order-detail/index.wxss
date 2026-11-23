@@ -6,7 +6,6 @@
 .step.done .step-dot { background: var(--green); }
 .step.current { font-weight: 700; }
 .step.current .step-dot { box-shadow: 0 0 0 3px #e3f0e5; }
-.order-detail-page button.map-link { margin-top: 8px; }
 .order-detail-page button.aftersale-link { display: block; }
 .order-item { margin-top: 9px; }
 .item-amount { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
@@ -16,5 +15,6 @@
 .step-dot { position: relative; z-index: 1; }
 .step.current { color: #a84b21; }
 .step.current .step-dot { box-shadow: none; }
-.order-detail-page button.map-link, .order-detail-page button.copy-link { margin: 0 0 12px; }
+.order-detail-page button.copy-link { margin: 0 0 12px; }
+.order-detail-page button.delivery-photo-link { margin-top: 10px; }
 .aftersale-amount { margin-top: 6px; color: #a84b21; }

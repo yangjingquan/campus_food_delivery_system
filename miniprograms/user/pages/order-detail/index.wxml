@@ -15,11 +15,13 @@
           <view class="step-dot"></view><text>{{item}}</text>
         </view>
       </view>
-      <view wx:if="{{!pickup}}" class="split">
-        <view class="small">{{order.locationAvailable ? '骑手已领取，可查看本订单的配送位置。' : order.fulfillStatus === 'COMPLETED' ? '订单已完成，位置共享已结束。' : '骑手尚未领取，暂不展示位置。'}}</view>
+      <view wx:if="{{!pickup && !order.locationAvailable}}" class="split">
+        <view class="small">{{order.fulfillStatus === 'COMPLETED' ? '订单已完成，位置共享已结束。' : '骑手尚未领取，暂不展示位置。'}}</view>
+        <button wx:if="{{order.deliveryPhotoAvailable}}" class="btn outline small-btn delivery-photo-link"
+          loading="{{photoLoading}}" disabled="{{photoLoading}}" bindtap="previewDeliveryPhoto">查看送达照片</button>
       </view>
     </view>
-    <button wx:if="{{order.locationAvailable}}" class="btn outline wide map-link" bindtap="map">查看配送位置</button>
+    <delivery-map wx:if="{{!pickup && order.locationAvailable}}" order-id="{{order.id}}" bind:ended="refreshAfterDelivery"/>
 
     <button wx:for="{{aftersales}}" wx:key="id" class="card wide aftersale-link" data-id="{{item.id}}" bindtap="afterSale">
       <view class="row">
@@ -48,7 +50,7 @@
       <view wx:if="{{pickup}}" class="kv"><text class="label">取餐地点</text><text>{{order.pickupAddress}}</text></view>
       <view wx:if="{{pickup && order.pickupCode}}" class="kv"><text class="label">取餐号</text><text selectable>{{order.pickupCode}}</text></view>
       <view wx:if="{{!pickup}}" class="kv"><text class="label">收餐地址</text><text>{{order.building}} {{order.room}}</text></view>
-      <view wx:if="{{!pickup}}" class="kv"><text class="label">收餐人</text><text>{{order.receiverName}}　{{order.phone}}</text></view>
+      <view wx:if="{{!pickup}}" class="kv"><text class="label">收餐人</text><text>{{order.receiverName}}{{order.phone ? '　' + order.phone : ''}}</text></view>
       <view class="kv"><text class="label">订单号</text><text>{{order.id}}</text></view>
       <view class="kv"><text class="label">支付记录单号</text><text>{{order.paymentId}}</text></view>
       <view wx:if="{{paidAtText}}" class="kv"><text class="label">付款时间</text><text>{{paidAtText}}</text></view>

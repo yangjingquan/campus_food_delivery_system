@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -44,8 +45,9 @@ public class DomainClient {
         return call(user.post().uri("/internal/v1/riders/{rider}/pickup", rider).body(Map.of("token", token)));
     }
 
-    public Map<String, Object> complete(String rider, String order) {
-        return call(user.post().uri("/internal/v1/riders/{rider}/orders/{order}/complete", rider, order));
+    public Map<String, Object> complete(String rider, String order, byte[] photo) {
+        return call(user.post().uri("/internal/v1/riders/{rider}/orders/{order}/complete", rider, order)
+            .contentType(MediaType.APPLICATION_OCTET_STREAM).body(photo));
     }
 
     public Map<String, Object> location(String rider, String order, Map<String, Object> body) {

@@ -1,7 +1,6 @@
 <wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="details-title order-status">
-  <template is="chip" data="{{label: states.label(order.status), tone: order.status === 'DELIVERING' ? '' : 'gray'}}"/>
   <view class="h2">{{order.status === 'CLOSED' ? '订单已关闭' : order.status === 'COMPLETED' ? '已送达，辛苦了' : '正在配送，请注意安全'}}</view>
   <text class="small muted">独立商户订单 #{{order.id}}</text>
 </view>
@@ -51,8 +50,9 @@
   <view class="timeline-item" wx:if="{{order.paidAt}}"><text class="strong">订单支付</text><text class="span">{{order.paidTime}}</text></view>
   <view class="timeline-item" wx:if="{{order.arrivedAt}}"><text class="strong">到达暂存点</text><text class="span">{{order.arrivedTime}}</text></view>
   <view class="timeline-item" wx:if="{{order.pickedUpAt}}"><text class="strong">扫码领取</text><text class="span">{{order.pickupTime}}</text></view>
-  <view class="timeline-item current" wx:if="{{order.closedAt || order.completedAt}}">
-    <text class="strong">{{states.label(order.status)}}</text><text class="span">{{order.endTime}}</text>
+  <view class="timeline-item current" wx:if="{{order.status === 'COMPLETED' || order.status === 'CLOSED'}}">
+    <text class="strong">{{order.status === 'COMPLETED' ? '配送完成' : '订单已关闭'}}</text>
+    <text class="span" wx:if="{{order.closedAt || order.completedAt}}">{{order.endTime}}</text>
   </view>
 </view>
 <view class="card" wx:if="{{order.refunds.length}}">

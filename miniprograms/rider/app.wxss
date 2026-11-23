@@ -542,6 +542,22 @@ button[loading]::before { margin-right: 5px; }
   box-shadow: 0 12px 35px rgba(24, 53, 44, .2);
 }
 .modal-copy { margin-top: 9px; font-size: 13px; line-height: 1.7; color: var(--muted); }
+.delivery-photo-preview {
+  display: block;
+  width: 100%;
+  height: 180px;
+  max-height: 28vh;
+  margin-top: 12px;
+  border-radius: 12px;
+  background: var(--soft);
+}
+.modal-layer .delivery-photo-retake {
+  min-height: 44px;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 650;
+}
+.delivery-photo-retake + .modal-actions { margin-top: 0; }
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
 .modal-actions .btn {
   display: flex;

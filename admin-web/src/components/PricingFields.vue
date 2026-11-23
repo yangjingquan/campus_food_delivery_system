@@ -18,7 +18,7 @@ function setMode(key: keyof PricingForm, mode: PricingMode) {
         <el-option label="百分比" value="PERCENTAGE" />
       </el-select>
       <el-input-number v-model="form[field.key].value" :min="0" :max="form[field.key].mode === 'FIXED' ? (lockMode ? 1000 : maxFixedAmount) : 100"
-        :precision="2" :controls="false" :aria-label="field.label + '数值'">
+        :step="0.01" :precision="2" :controls="false" :aria-label="field.label + '数值'">
         <template #suffix>{{ form[field.key].mode === 'FIXED' ? '元' : '%' }}</template>
       </el-input-number>
     </div>
