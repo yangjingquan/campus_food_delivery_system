@@ -84,7 +84,7 @@ const photoError = ref('')
 let photoRequest = 0
 const keyNames: Record<string, string> = {
   originalWithdrawalId: '原提现编号', listed: '上架状态', enabled: '接单状态',
-  id: '编号', name: '名称', contact: '联系人', phone: '联系方式', address: '地址', auditStatus: '审核状态', auditReason: '审核说明', businessStatus: '营业状态', orderCount: '订单数', joinedAt: '登记时间',
+  id: '编号', name: '名称', contact: '联系人', phone: '联系方式', address: '地址', auditStatus: '审核状态', auditReason: '审核说明', businessStatus: '营业状态', joinedAt: '登记时间',
   gender: '性别', availableTime: '可送餐时间', deliveries: '配送单数', balanceCents: '可提现余额', paymentId: '合并支付单号', merchantId: '商户编号', merchant: '商户', rider: '骑手', items: '商品摘要', foodCents: '餐品金额', deliveryCents: '配送费', paidCents: '用户实付', refundedCents: '累计退款', foodRefundedCents: '累计退餐品', paymentStatus: '支付状态', fulfillStatus: '履约状态', refundStatus: '售后状态', settlementStatus: '结算状态', accepted: '商户已接单', pendingRefund: '存在处理中退款', locking: '结算锁定', paymentCount: '支付单退款次数', paidAt: '支付时间', completedAt: '完成时间', closedAt: '关闭时间', intervene: '待管理员介入', interveneReason: '介入原因', coordinationNotes: '协调记录',
   reason: '说明', type: '类型', amountCents: '金额', status: '处理状态', channelStatus: '渠道状态', createdAt: '创建时间', operator: '操作人', applicant: '申请主体', applicantType: '主体类型', time: '时间', subject: '账务主体', foodAmount: '餐品金额', deliveryAmount: '配送费', paidAmount: '实付金额', refundAmount: '退款金额', settlement: '结算状态', riderDue: '骑手应得', merchantBalance: '商户可扣余额', platformAdvance: '平台垫付', recovered: '已扣回', note: '说明',
 }
@@ -96,7 +96,7 @@ const columnSets: Record<string, Array<{ key: string; label: string; minWidth?: 
     { key: 'contact', label: '联系人', minWidth: 100 }, { key: 'phone', label: '联系方式', minWidth: 130 },
     { key: 'auditStatus', label: '审核状态', minWidth: 105 }, { key: 'businessStatus', label: '营业状态', minWidth: 100 },
     { key: 'listed', label: '上架状态', minWidth: 95 },
-    { key: 'orderCount', label: '订单数', minWidth: 85 }, { key: 'joinedAt', label: '入驻时间', minWidth: 150 },
+    { key: 'joinedAt', label: '入驻时间', minWidth: 150 },
   ],
   riders: [
     { key: 'id', label: '骑手编号', minWidth: 100 }, { key: 'name', label: '姓名', minWidth: 110 },
@@ -844,7 +844,7 @@ function runRowAction(row: Row) {
         <p v-else class="muted">{{ photoError || (activeRow.hasPhoto ? '正在加载照片…' : '暂无学生证照片') }}</p>
       </div>
       <div class="detail-grid">
-        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot','hasPhoto','reviewable','retryMode','retryRequested','availability','interveneCode','operatorCode','channelDetail'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow, key) }}</strong></div></template>
+        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!(section === 'merchants' && key === 'orderCount') && !['coordinationNotes','snapshot','hasPhoto','reviewable','retryMode','retryRequested','availability','interveneCode','operatorCode','channelDetail'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow, key) }}</strong></div></template>
       </div>
       <div v-if="section === 'withdrawals' && canRetryWithdrawal(activeRow)" class="detail-section">
         <el-button type="primary" :loading="retryingWithdrawalId === activeRow.id"
@@ -889,9 +889,9 @@ function runRowAction(row: Row) {
           {{ note.previousStatus && note.nextStatus ? stateLabel(note.previousStatus) + ' → ' + stateLabel(note.nextStatus) : note.note }}
         </p><p v-if="!activeRow.coordinationNotes?.length" class="muted">暂无协调备注</p></div>
       </template>
-      <template v-if="section === 'merchants'">
-        <div class="detail-section"><h3>本店订单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.merchant === activeRow?.name).slice(0, 4)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ stateLabel(linked.fulfillStatus) }}</strong><span>{{ money(linked.paidCents) }}</span></div><p v-if="!relatedOrders.some((order) => order.merchant === activeRow?.name)" class="muted">暂无关联订单</p><el-button v-if="auth.can('order.view')" link type="primary" @click="router.push('/orders')">进入订单列表</el-button></div>
-      </template>
+      <div v-if="section === 'merchants' && auth.can('order.view')" class="detail-section">
+        <el-button link type="primary" @click="router.push('/orders')">进入订单列表</el-button>
+      </div>
       <template v-if="section === 'riders'">
         <div class="detail-section"><h3>配送记录</h3><div v-for="linked in relatedOrders.filter((order) => order.rider === activeRow?.name).slice(0, 5)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ stateLabel(linked.fulfillStatus) }}</span></div><p v-if="!relatedOrders.some((order) => order.rider === activeRow?.name)" class="muted">暂无已分配的配送订单</p></div>
       </template>
