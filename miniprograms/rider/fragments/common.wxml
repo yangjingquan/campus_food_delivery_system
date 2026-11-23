@@ -37,7 +37,10 @@
     data-topic="{{topic}}" hover-class="pressed">
     <view class="rowicon"><template is="icon" data="{{name: icon}}"/></view>
     <view class="text">
-      <text class="strong">{{label}}</text>
+      <view class="listrow-title">
+        <text class="strong">{{label}}</text>
+        <text wx:if="{{badgeCount > 0}}" class="listrow-count" aria-label="{{badgeCount}} 笔待收款确认">{{badgeCount}}</text>
+      </view>
       <text wx:if="{{description}}" class="small">{{description}}</text>
     </view>
     <view wx:if="{{value || status}}" class="right">

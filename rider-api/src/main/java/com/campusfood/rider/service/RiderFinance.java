@@ -9,17 +9,19 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class RiderFinance {
+    private static final String WITHDRAWAL_STATUS = """
+        CASE WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='WAIT_USER_CONFIRM' THEN '待收款确认'
+             WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='UNKNOWN' THEN '结果待确认'
+             ELSE w.status_label END
+        """.strip();
     private static final String WITHDRAWALS = """
-        SELECT w.id,w.amount_cents AS amountCents,
-               CASE WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='WAIT_USER_CONFIRM' THEN '待收款确认'
-                    WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='UNKNOWN' THEN '结果待确认'
-                    ELSE w.status_label END AS status,w.created_at AS createdAt,w.reason,
+        SELECT w.id,w.amount_cents AS amountCents,%s AS status,w.created_at AS createdAt,w.reason,
                CASE t.status WHEN 'PROCESSING' THEN '处理中' WHEN 'UNKNOWN' THEN '未知'
                     WHEN 'SUCCEEDED' THEN '成功' WHEN 'FAILED' THEN '失败' END AS transferStatus,t.reason AS transferReason
         FROM withdrawal_request_display w LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
         LEFT JOIN rider_transfer_channel c ON c.withdrawal_id=w.id
         WHERE w.account_id=? AND w.applicant_type='骑手'
-        """;
+        """.formatted(WITHDRAWAL_STATUS);
     private final JdbcTemplate db;
 
     public RiderFinance(JdbcTemplate db) {
@@ -49,12 +51,20 @@ public class RiderFinance {
             SELECT COALESCE(SUM(amount_cents),0) FROM withdrawal_request
             WHERE account_id=? AND applicant_type='骑手' AND status='PAID'
             """, Long.class, rider));
+        totals.put("pendingReceiptCount", db.queryForObject("""
+            SELECT COUNT(*) FROM withdrawal_request_display w
+            LEFT JOIN rider_transfer_channel c ON c.withdrawal_id=w.id
+            WHERE w.account_id=? AND w.applicant_type='骑手' AND (%s)='待收款确认'
+            """.formatted(WITHDRAWAL_STATUS), Long.class, rider));
         return totals;
     }
 
     public List<Map<String, Object>> withdrawals(String rider, int offset) {
-        return db.queryForList(WITHDRAWALS + " ORDER BY w.created_at DESC,w.id DESC LIMIT 30 OFFSET ?",
-            rider, Math.max(0, offset));
+        return db.queryForList("""
+            SELECT records.* FROM (%s) records
+            ORDER BY (records.status='待收款确认') DESC,records.createdAt DESC,records.id DESC
+            LIMIT 30 OFFSET ?
+            """.formatted(WITHDRAWALS), rider, Math.max(0, offset));
     }
 
     public Map<String, Object> withdrawal(String rider, String id) {
