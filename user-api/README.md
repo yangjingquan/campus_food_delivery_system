@@ -20,7 +20,7 @@ The mini program API root is `/api/user/v1`. Authenticated calls send `Authoriza
 | `/orders/{id}/aftersales`, `/aftersales/{id}` | Refund/after-sale submission and status |
 | `/internal/v1/...` | Fulfillment, rider location, merchant decisions, and verified refund results; requires `X-Internal-Key` |
 
-The checkout fee is read from `operations_config` and applied once per merchant. Single-store payment creates one merchant order; a multi-store payment creates one merchant order per store. Unpaid reservations expire using the configured timeout. Refunds close only the merchant order they apply to, and `first_closed_at` preserves the original 24-hour after-sale deadline.
+Checkout splits a payment into one order per merchant and locks the delivery fee and both commission rules for each order. A merchant uses its own complete rule set when enabled and the platform defaults otherwise. Each settlement journal event records the applied rule parameters and posted amount. Unpaid reservations expire using the configured timeout. Refunds close the affected merchant order. On a partial refund before rider pickup, the remaining delivery fee is refunded along with the requested food amount. The original 24-hour after-sale deadline remains fixed.
 
 Production reads the merchant ID, merchant certificate serial and private key, WeChat Pay public key and ID, API v3 key, and HTTPS callback URL from the admin-managed configuration. Set `USER_PAYMENT_MODE=wechat` after deploying this version and verifying the channel. The payment callback path is `/api/user/v1/payments/wechat/notify`. Checkout captures the configuration version used for payment and refund reconciliation. If callbacks from an earlier key version cannot be authenticated against the current key, order reconciliation can still use the stored version.
 
@@ -34,3 +34,5 @@ python3 ../scripts/check-user-integration.py
 ```
 
 The integration script creates a random temporary database and account, then removes them after checking single-store checkout, multi-store splitting, partial refund limits, the non-resetting 24-hour window, independent merchant fulfillment, and delivery-location state.
+
+To run `PricingSettlementMysqlTest`, set `PRICING_IT_JDBC`, `PRICING_IT_USER`, and `PRICING_IT_PASSWORD` to a disposable local MySQL database named `campus_pricing_it`. The test applies the service migrations and rolls back the transaction data for each case.

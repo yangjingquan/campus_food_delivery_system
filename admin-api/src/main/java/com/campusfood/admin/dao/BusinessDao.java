@@ -48,6 +48,8 @@ public interface BusinessDao extends BaseMapper<BusinessOrder> {
 
     int insertOperationsConfig(@Param("fee") int fee, @Param("foodRate") java.math.BigDecimal foodRate,
                                @Param("deliveryRate") java.math.BigDecimal deliveryRate,
+                               @Param("feeBps") Integer feeBps, @Param("foodFixed") Integer foodFixed,
+                               @Param("deliveryFixed") Integer deliveryFixed,
                                @Param("regularBatch") int regularBatch, @Param("peakBatch") int peakBatch,
                                @Param("serviceStart") String serviceStart, @Param("serviceEnd") String serviceEnd,
                                @Param("peakStart") String peakStart, @Param("peakEnd") String peakEnd,

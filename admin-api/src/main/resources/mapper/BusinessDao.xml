@@ -75,8 +75,9 @@
     </select>
 
     <select id="listOperationsConfigs" resultType="map">
-        SELECT id AS configId,CONCAT('OPS-V',LPAD(id,3,'0')) AS version,fee_cents AS feeCents,food_rate AS foodRate,
-        delivery_rate AS deliveryRate,regular_batch AS regularBatch,peak_batch AS peakBatch,service_start AS serviceStart,
+        SELECT id AS configId,CONCAT('OPS-V',LPAD(id,GREATEST(3,CHAR_LENGTH(id)),'0')) AS version,fee_cents AS feeCents,food_rate AS foodRate,
+        delivery_rate AS deliveryRate,fee_bps AS feeBps,food_fixed_cents AS foodFixed,
+        delivery_fixed_cents AS deliveryFixed,regular_batch AS regularBatch,peak_batch AS peakBatch,service_start AS serviceStart,
         service_end AS serviceEnd,peak_start AS peakStart,peak_end AS peakEnd,accept_timeout AS acceptTimeout,
         reminder_interval AS reminderInterval,effective_at AS effectiveAt,operator FROM operations_config ORDER BY id DESC
     </select>
@@ -95,9 +96,10 @@
     </insert>
 
     <insert id="insertOperationsConfig">
-        INSERT INTO operations_config(fee_cents,food_rate,delivery_rate,regular_batch,peak_batch,
+        INSERT INTO operations_config(fee_cents,food_rate,delivery_rate,fee_bps,food_fixed_cents,delivery_fixed_cents,
+        pricing_versioned,regular_batch,peak_batch,
         service_start,service_end,peak_start,peak_end,accept_timeout,reminder_interval,operator) VALUES(#{fee},
-        #{foodRate},#{deliveryRate},#{regularBatch},#{peakBatch},#{serviceStart},#{serviceEnd},
+        #{foodRate},#{deliveryRate},#{feeBps},#{foodFixed},#{deliveryFixed},TRUE,#{regularBatch},#{peakBatch},#{serviceStart},#{serviceEnd},
         #{peakStart},#{peakEnd},#{acceptTimeout},#{reminderInterval},#{actor})
     </insert>
 

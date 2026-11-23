@@ -25,7 +25,7 @@
             </view>
           </view>
         </view>
-        <view wx:if="{{item.eligible}}" class="row split"><text class="small">本商户固定配送费</text><text>{{item.feeText}}</text></view>
+        <view wx:if="{{item.eligible}}" class="row split"><text class="small">本商户配送费</text><text>{{item.feeText}}</text></view>
         <view wx:else class="split small cart-excluded">
           {{item.shortfallText ? '还差 ' + item.shortfallText + ' 起送，暂不参与结算' : '店铺暂不可用，暂不参与结算'}}
         </view>

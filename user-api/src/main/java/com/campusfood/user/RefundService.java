@@ -2,7 +2,6 @@ package com.campusfood.user;
 
 import com.campusfood.domain.BusinessStates.Payment;
 import com.campusfood.domain.BusinessStates.Fulfillment;
-import com.campusfood.domain.BusinessStates.Settlement;
 import com.campusfood.domain.BusinessStates.Refund;
 import com.campusfood.domain.BusinessStates.RefundChannel;
 import com.campusfood.domain.BusinessStates.RefundEvent;
@@ -43,7 +42,7 @@ public class RefundService {
         Map<String, Object> order = lockedOrder(userId, orderId);
         if (!Payment.PAYMENT_SUCCEEDED.is(order.get("mergedPaymentStatus"))
                 || order.get("rider_settled_at") != null
-                || Settlement.WITHDRAWABLE.is(order.get("settlement_status"))
+                || isSettled(order)
                 || Refund.REFUND_FAILED.is(order.get("refund_status"))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单当前不能申请售后");
         }
@@ -64,9 +63,15 @@ public class RefundService {
         long refunded = number(order, "refunded_cents");
         long food = number(order, "food_cents");
         long foodRefunded = number(order, "food_refunded_cents");
-        long amount = "full".equals(type) ? paid - refunded : parseCents(body.get("amountCents"));
-        if (amount <= 0 || amount > paid - refunded) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额超过该订单剩余可退金额");
-        if ("partial".equals(type) && amount > food - foodRefunded) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "部分退款仅退餐品，不能超过剩余可退餐品金额");
+        boolean full = "full".equals(type);
+        long balance = paid - refunded;
+        long requestedFood = full ? food - foodRefunded : parseCents(body.get("amountCents"));
+        if (!full && (requestedFood <= 0 || requestedFood > food - foodRefunded)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "部分退款的餐品金额不能超过剩余可退餐品金额");
+        }
+        long delivery = deliveryRefund(order, full);
+        long amount = full ? balance : requestedFood + delivery;
+        if (amount <= 0 || amount > balance) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额超过该订单剩余可退金额");
 
         String refundId = "AS-" + UUID.randomUUID();
         String reason = text(body, "reason");
@@ -74,8 +79,8 @@ public class RefundService {
         if (reason.isBlank() || reason.length() > 120 || description.length() > 500) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写退款原因，补充说明不超过 500 字");
         Refund status = beforeAcceptance ? Refund.REFUND_PROCESSING : Refund.AWAITING_MERCHANT_DECISION;
         RefundChannel channelStatus = beforeAcceptance ? RefundChannel.REFUND_SUBMISSION_PENDING : RefundChannel.REFUND_NOT_STARTED;
-        db.update("INSERT INTO refund_record(id,order_id,payment_id,reason,type,amount_cents,status,channel_status,created_at,operator_code) VALUES(?,?,?,?,?,?,?,?,?,?)",
-            refundId, orderId, order.get("payment_id"), reason, type, amount, status.name(), channelStatus.name(), now, RefundOperator.USER_REQUEST.name());
+        db.update("INSERT INTO refund_record(id,order_id,payment_id,reason,type,amount_cents,delivery_refund_cents,status,channel_status,created_at,operator_code) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            refundId, orderId, order.get("payment_id"), reason, type, amount, delivery, status.name(), channelStatus.name(), now, RefundOperator.USER_REQUEST.name());
         db.update("INSERT INTO user_refund_detail(refund_id,description) VALUES(?,?)", refundId, description);
         addEvent(refundId, RefundEvent.AFTER_SALE_REQUESTED, beforeAcceptance ? "商户尚未接单，按规则自动处理全额退款" : "售后申请已提交，等待商户处理", now);
         db.update("UPDATE business_order SET refund_status=?,pending_refund=TRUE WHERE id=?", status.name(), orderId);
@@ -94,6 +99,16 @@ public class RefundService {
             addEvent(refundId, RefundEvent.MERCHANT_REFUND_DECLINED, reason, System.currentTimeMillis());
         } else if ("approve".equals(decision)) {
             long now = System.currentTimeMillis();
+            if ("partial".equals(refund.get("type"))) {
+                var order = db.queryForMap("""
+                    SELECT o.delivery_cents,o.refunded_cents,o.food_refunded_cents,d.pickup_rider_id
+                    FROM business_order o JOIN user_order_detail d ON d.order_id=o.id WHERE o.id=? FOR UPDATE
+                    """, refund.get("order_id"));
+                long food = number(refund, "amount_cents") - number(refund, "delivery_refund_cents");
+                long delivery = deliveryRefund(order, false);
+                db.update("UPDATE refund_record SET amount_cents=?,delivery_refund_cents=? WHERE id=?",
+                    food + delivery, delivery, refundId);
+            }
             db.update("UPDATE refund_record SET status='REFUND_PROCESSING',channel_status='REFUND_SUBMISSION_PENDING',operator=NULL,operator_code='MERCHANT_ACTION' WHERE id=?", refundId);
             db.update("UPDATE business_order SET refund_status='REFUND_PROCESSING' WHERE id=?", refund.get("order_id"));
             addEvent(refundId, RefundEvent.MERCHANT_REFUND_APPROVED, "开始处理退款", now);
@@ -277,7 +292,7 @@ public class RefundService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写协商退款原因");
         }
         var orders = db.queryForList("""
-            SELECT o.*,d.first_closed_at,d.rider_settled_at,p.payment_mode AS paymentMode
+            SELECT o.*,d.first_closed_at,d.rider_settled_at,d.merchant_settled_at,d.pickup_rider_id,p.payment_mode AS paymentMode
             FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
             JOIN payment_order p ON p.id=o.payment_id
             WHERE o.id=? AND o.merchant_id=? AND p.status='PAYMENT_SUCCEEDED' FOR UPDATE
@@ -289,7 +304,7 @@ public class RefundService {
         }
         if (!Boolean.TRUE.equals(order.get("accepted")) || Boolean.TRUE.equals(order.get("locking"))
                 || order.get("rider_settled_at") != null
-                || List.of("WITHDRAWABLE", "SETTLED", "WITHDRAWN").contains(order.get("settlement_status"))) {
+                || isSettled(order)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单当前不能提交商户退款");
         }
         long now = System.currentTimeMillis();
@@ -304,14 +319,15 @@ public class RefundService {
             String scope = merchant + ":" + orderId + ":" + requestKey;
             refundId = "AS-M-" + UUID.nameUUIDFromBytes(scope.getBytes(StandardCharsets.UTF_8));
             var previous = db.queryForList("""
-                SELECT r.type,r.amount_cents,r.reason,d.restore_stock
+                SELECT r.type,r.amount_cents,r.delivery_refund_cents,r.reason,d.restore_stock
                 FROM refund_record r JOIN user_refund_detail d ON d.refund_id=r.id
                 WHERE r.id=? FOR UPDATE
                 """, refundId);
             if (!previous.isEmpty()) {
                 var existing = previous.getFirst();
                 if (!type.equals(existing.get("type")) || !reason.equals(existing.get("reason"))
-                        || ("partial".equals(type) && number(existing, "amount_cents") != parseCents(body.get("amountCents")))
+                        || ("partial".equals(type) && number(existing, "amount_cents") - number(existing, "delivery_refund_cents")
+                            != parseCents(body.get("amountCents")))
                         || Boolean.TRUE.equals(existing.get("restore_stock")) != Boolean.TRUE.equals(body.get("restoreStock"))) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "请求编号已用于其他退款内容，请刷新订单");
                 }
@@ -324,23 +340,26 @@ public class RefundService {
         }
         long remaining = number(order, "paid_cents") - number(order, "refunded_cents");
         long food = number(order, "food_cents") - number(order, "food_refunded_cents");
-        long amount = "full".equals(type) ? remaining : parseCents(body.get("amountCents"));
+        boolean full = "full".equals(type);
+        long requestedFood = full ? food : parseCents(body.get("amountCents"));
+        long delivery = deliveryRefund(order, full);
+        long amount = full ? remaining : requestedFood + delivery;
         if (!List.of("full", "partial").contains(type) || amount <= 0 || amount > remaining
-                || ("partial".equals(type) && amount > food)) {
+                || (!full && (requestedFood <= 0 || requestedFood > food))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额超过该订单剩余可退范围");
         }
         if (negotiated) {
             db.update("""
-                INSERT INTO refund_record(id,order_id,payment_id,reason,type,amount_cents,status,channel_status,created_at,operator_code)
-                VALUES(?,?,?,?,?,?,'REFUND_PROCESSING','REFUND_SUBMISSION_PENDING',?,'MERCHANT_NEGOTIATED')
-                """, refundId, orderId, order.get("payment_id"), reason, type, amount, now);
+                INSERT INTO refund_record(id,order_id,payment_id,reason,type,amount_cents,delivery_refund_cents,status,channel_status,created_at,operator_code)
+                VALUES(?,?,?,?,?,?,?,'REFUND_PROCESSING','REFUND_SUBMISSION_PENDING',?,'MERCHANT_NEGOTIATED')
+                """, refundId, orderId, order.get("payment_id"), reason, type, amount, delivery, now);
             db.update("INSERT INTO user_refund_detail(refund_id,description,restore_stock) VALUES(?,?,?)",
                 refundId, reason, Boolean.TRUE.equals(body.get("restoreStock")));
         } else {
             db.update("""
-                UPDATE refund_record SET type=?,amount_cents=?,status='REFUND_PROCESSING',
+                UPDATE refund_record SET type=?,amount_cents=?,delivery_refund_cents=?,status='REFUND_PROCESSING',
                     channel_status='REFUND_SUBMISSION_PENDING',operator=NULL,operator_code='MERCHANT_ACTION' WHERE id=?
-                """, type, amount, refundId);
+                """, type, amount, delivery, refundId);
             db.update("""
                 INSERT INTO user_refund_detail(refund_id,restore_stock) VALUES(?,?)
                 ON DUPLICATE KEY UPDATE restore_stock=?
@@ -352,9 +371,19 @@ public class RefundService {
         return publicDetail(refundId);
     }
 
+    private static boolean isSettled(Map<String, Object> order) {
+        return order.get("merchant_settled_at") != null
+            || List.of("WITHDRAWABLE", "SETTLED", "WITHDRAWN").contains(order.get("settlement_status"));
+    }
+
+    private long deliveryRefund(Map<String, Object> order, boolean full) {
+        if (!full && order.get("pickup_rider_id") != null) return 0;
+        return number(order, "delivery_cents") - (number(order, "refunded_cents") - number(order, "food_refunded_cents"));
+    }
+
     private void createTimeoutRefund(String orderId) {
         List<Map<String, Object>> rows = db.queryForList("""
-            SELECT o.payment_id,o.paid_cents,o.refunded_cents,o.id,p.payment_mode AS paymentMode
+            SELECT o.payment_id,o.paid_cents,o.refunded_cents,o.food_refunded_cents,o.delivery_cents,o.id,p.payment_mode AS paymentMode
             FROM business_order o JOIN payment_order p ON p.id=o.payment_id
             WHERE o.id=? AND o.fulfill_status='AWAITING_MERCHANT' AND o.accepted=FALSE AND o.pending_refund=FALSE
               AND o.refund_status='NO_AFTER_SALE' FOR UPDATE
@@ -365,8 +394,8 @@ public class RefundService {
         if (amount <= 0) return;
         String refundId = "AS-AUTO-" + UUID.randomUUID();
         long now = System.currentTimeMillis();
-        db.update("INSERT INTO refund_record(id,order_id,payment_id,reason,type,amount_cents,status,channel_status,created_at,operator_code) VALUES(?,?,?,?,?,?,?,?,?,?)",
-            refundId, orderId, order.get("payment_id"), "商户接单超时", "full", amount, "REFUND_PROCESSING", "REFUND_SUBMISSION_PENDING", now, RefundOperator.SYSTEM_TIMEOUT.name());
+        db.update("INSERT INTO refund_record(id,order_id,payment_id,reason,type,amount_cents,delivery_refund_cents,status,channel_status,created_at,operator_code) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            refundId, orderId, order.get("payment_id"), "商户接单超时", "full", amount, deliveryRefund(order, true), "REFUND_PROCESSING", "REFUND_SUBMISSION_PENDING", now, RefundOperator.SYSTEM_TIMEOUT.name());
         db.update("INSERT INTO user_refund_detail(refund_id,description) VALUES(?,?)", refundId, "商户超过运营配置的接单时限未接单");
         db.update("UPDATE business_order SET refund_status='REFUND_PROCESSING',pending_refund=TRUE WHERE id=?", orderId);
         addEvent(refundId, RefundEvent.ORDER_TIMEOUT_REFUND_REQUESTED, "接单超时时长按运营配置执行", now);
@@ -477,19 +506,22 @@ public class RefundService {
     }
 
     private void completeRefund(String refundId, String orderId, long now, RefundChannel channelStatus, String message) {
-        Map<String, Object> order = db.queryForMap("SELECT paid_cents,food_cents,refunded_cents,food_refunded_cents,accepted,fulfill_status FROM business_order WHERE id=? FOR UPDATE", orderId);
-        Map<String, Object> refund = db.queryForMap("SELECT amount_cents,type FROM refund_record WHERE id=? FOR UPDATE", refundId);
+        Map<String, Object> order = db.queryForMap("SELECT paid_cents,food_cents,delivery_cents,refunded_cents,food_refunded_cents,accepted,fulfill_status FROM business_order WHERE id=? FOR UPDATE", orderId);
+        Map<String, Object> refund = db.queryForMap("SELECT amount_cents,delivery_refund_cents,type FROM refund_record WHERE id=? FOR UPDATE", refundId);
         long amount = number(refund, "amount_cents");
         long remainingPaid = number(order, "paid_cents") - number(order, "refunded_cents");
         long remainingFood = number(order, "food_cents") - number(order, "food_refunded_cents");
-        if (amount <= 0 || amount > remainingPaid || ("partial".equals(refund.get("type")) && amount > remainingFood)) {
+        long delivery = "partial".equals(refund.get("type")) ? number(refund, "delivery_refund_cents")
+            : amount - Math.min(amount, remainingFood);
+        long foodRefund = amount - delivery;
+        if (amount <= 0 || amount > remainingPaid || foodRefund < 0 || foodRefund > remainingFood
+                || delivery > deliveryRefund(order, true)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "退款金额状态已变化，不能完成本次退款");
         }
-        long foodRefund = "partial".equals(refund.get("type")) ? amount : Math.min(amount, remainingFood);
         db.update("UPDATE business_order SET refunded_cents=refunded_cents+?,food_refunded_cents=food_refunded_cents+?,refund_status='REFUND_SUCCEEDED',pending_refund=FALSE,fulfill_status='CLOSED',settlement_status='SETTLEMENT_HELD',closed_at=COALESCE(closed_at,?),payment_last_refund_at=?,last_refund_at=? WHERE id=?",
             amount, foodRefund, now, now, now, orderId);
         db.update("UPDATE user_order_detail SET first_closed_at=COALESCE(first_closed_at,?) WHERE order_id=?", now, orderId);
-        db.update("UPDATE refund_record SET status='REFUND_SUCCEEDED',channel_status=?,channel_detail=NULL,channel_reason=NULL WHERE id=?", channelStatus.name(), refundId);
+        db.update("UPDATE refund_record SET status='REFUND_SUCCEEDED',delivery_refund_cents=?,channel_status=?,channel_detail=NULL,channel_reason=NULL WHERE id=?", delivery, channelStatus.name(), refundId);
         boolean restore = !Boolean.TRUE.equals(order.get("accepted")) && Fulfillment.AWAITING_MERCHANT.is(order.get("fulfill_status"));
         if (Boolean.TRUE.equals(order.get("accepted"))) {
             // 同一订单多次部分退款，只能恢复一份原订单库存。
@@ -526,26 +558,26 @@ public class RefundService {
     }
 
     private Map<String, Object> lockedOrder(long userId, String orderId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id,o.paid_cents,o.food_cents,o.refunded_cents,o.food_refunded_cents,o.payment_status,o.fulfill_status,o.settlement_status,o.refund_status,o.accepted,o.completed_at,d.first_closed_at,d.rider_settled_at,p.status AS mergedPaymentStatus,p.payment_mode AS paymentMode FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE o.id=? AND d.user_id=? FOR UPDATE", orderId, userId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id,o.paid_cents,o.food_cents,o.delivery_cents,o.refunded_cents,o.food_refunded_cents,o.payment_status,o.fulfill_status,o.settlement_status,o.refund_status,o.accepted,o.completed_at,d.first_closed_at,d.rider_settled_at,d.merchant_settled_at,d.pickup_rider_id,p.status AS mergedPaymentStatus,p.payment_mode AS paymentMode FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE o.id=? AND d.user_id=? FOR UPDATE", orderId, userId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
         return rows.get(0);
     }
 
     private Map<String, Object> ownedRefund(long userId, String refundId, boolean lock) {
-        String sql = "SELECT r.id,r.order_id,r.payment_id,r.reason,r.type,r.amount_cents,r.status,r.channel_status,r.channel_detail AS channelDetail,r.channel_reason,r.created_at,r.operator_code,r.operator,d.description,d.original_online_failure,d.wait_until,o.refunded_cents,o.food_refunded_cents FROM refund_record r JOIN user_order_detail u ON u.order_id=r.order_id JOIN business_order o ON o.id=r.order_id LEFT JOIN user_refund_detail d ON d.refund_id=r.id WHERE r.id=? AND u.user_id=?" + (lock ? " FOR UPDATE" : "");
+        String sql = "SELECT r.id,r.order_id,r.payment_id,r.reason,r.type,r.amount_cents,r.delivery_refund_cents,r.status,r.channel_status,r.channel_detail AS channelDetail,r.channel_reason,r.created_at,r.operator_code,r.operator,d.description,d.original_online_failure,d.wait_until,o.refunded_cents,o.food_refunded_cents FROM refund_record r JOIN user_order_detail u ON u.order_id=r.order_id JOIN business_order o ON o.id=r.order_id LEFT JOIN user_refund_detail d ON d.refund_id=r.id WHERE r.id=? AND u.user_id=?" + (lock ? " FOR UPDATE" : "");
         List<Map<String, Object>> rows = db.queryForList(sql, refundId, userId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "售后记录不存在");
         return rows.get(0);
     }
 
     private Map<String, Object> lockedRefund(String refundId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT id,order_id,payment_id,reason,type,amount_cents,status,channel_status,channel_reason,created_at FROM refund_record WHERE id=? FOR UPDATE", refundId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT id,order_id,payment_id,reason,type,amount_cents,delivery_refund_cents,status,channel_status,channel_reason,created_at FROM refund_record WHERE id=? FOR UPDATE", refundId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "售后记录不存在");
         return rows.get(0);
     }
 
     private Map<String, Object> publicDetail(String refundId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT r.id,r.order_id AS orderId,r.payment_id AS paymentId,r.reason,r.type,r.amount_cents AS amountCents,r.status,r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,r.operator_code AS operatorCode,r.operator,COALESCE(r.operator_code='USER_ESCALATED',FALSE) AS platformIntervened,d.description,d.wait_until AS waitUntil,d.original_online_failure AS originalOnlineFailure,o.fulfill_status AS fulfillmentStatus,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents FROM refund_record r JOIN business_order o ON o.id=r.order_id LEFT JOIN user_refund_detail d ON d.refund_id=r.id WHERE r.id=?", refundId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT r.id,r.order_id AS orderId,r.payment_id AS paymentId,r.reason,r.type,r.amount_cents AS amountCents,r.delivery_refund_cents AS deliveryRefundCents,r.amount_cents-r.delivery_refund_cents AS foodRefundCents,r.status,r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,r.operator_code AS operatorCode,r.operator,COALESCE(r.operator_code='USER_ESCALATED',FALSE) AS platformIntervened,d.description,d.wait_until AS waitUntil,d.original_online_failure AS originalOnlineFailure,o.fulfill_status AS fulfillmentStatus,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents FROM refund_record r JOIN business_order o ON o.id=r.order_id LEFT JOIN user_refund_detail d ON d.refund_id=r.id WHERE r.id=?", refundId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "售后记录不存在");
         Map<String, Object> result = new java.util.LinkedHashMap<>(rows.get(0));
         result.put("events", db.queryForList("SELECT status,message,created_at AS createdAt FROM user_after_sale_event WHERE refund_id=? ORDER BY id", refundId));

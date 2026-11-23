@@ -5,7 +5,9 @@ import { adminApi } from '../api/admin'
 import ListPagination from '../components/ListPagination.vue'
 import { useListPagination } from '../domain/useListPagination'
 import { useAuthStore } from '../stores/auth'
-import { money, toCents } from '../domain/rules'
+import { money } from '../domain/rules'
+import { configPricing, formatPricing, pricingAmount, pricingForm, pricingPayload, type Pricing } from '../domain/pricing'
+import PricingFields from '../components/PricingFields.vue'
 import type { ConfigSnapshot } from '../domain/types'
 
 interface PrintingSettings {
@@ -16,7 +18,7 @@ interface PrintingSettings {
 const loading = ref(false)
 const auth = useAuthStore()
 const saving = ref(false)
-const history = ref<ConfigSnapshot[]>([])
+const history = ref<Array<ConfigSnapshot & { pricing: Pricing }>>([])
 const { page, pageSize, total, pageRows } = useListPagination(() => history.value)
 const savedPrinting = ref<PrintingSettings>()
 const printingForm = reactive({ appId: '', appSecret: '' })
@@ -25,19 +27,24 @@ const printingEditable = computed(() => auth.can('config.edit') && !!savedPrinti
 const printingChanged = computed(() => printingForm.appId.trim() !== savedPrinting.value?.appId || !!printingForm.appSecret)
 const needsPrintingSecret = computed(() => !savedPrinting.value?.appSecretSet || printingForm.appId.trim() !== savedPrinting.value.appId)
 const form = reactive({
-  version: '', fee: '4.00', foodRate: 10, deliveryRate: 20, regularBatch: 30, peakBatch: 20,
+  version: '', regularBatch: 30, peakBatch: 20,
   serviceStart: '10:30', serviceEnd: '20:30',
   peakPeriods: [] as Array<{ start: string; end: string }>, acceptTimeout: 30, reminderInterval: 15,
-  effectiveAt: '', operator: '',
 })
+const pricing = ref(pricingForm())
+const supportsPricing = ref(true)
+const validPricing = computed(() => pricingPayload(pricing.value))
 const preview = computed(() => {
-  const fee = /^\d+(\.\d{0,2})?$/.test(form.fee) ? Math.round(Number(form.fee) * 100) : 0
-  const foodCommission = Math.round(2000 * form.foodRate / 100)
-  const deliveryCommission = Math.round(fee * form.deliveryRate / 100)
+  const rules = validPricing.value
+  if (!rules) return
+  const food = 2000
+  const fee = pricingAmount(rules.fee, food)
+  const foodCommission = Math.min(food, pricingAmount(rules.food, food))
+  const deliveryCommission = Math.min(fee, pricingAmount(rules.delivery, fee))
   return {
-    fee: money(fee), merchant: money(2000 - foodCommission),
+    fee: money(fee), merchant: money(food - foodCommission),
     rider: money(fee - deliveryCommission), platform: money(foodCommission + deliveryCommission),
-    total: money(2000 + fee),
+    total: money(food + fee),
   }
 })
 const scheduleError = computed(() => {
@@ -57,7 +64,7 @@ async function load() {
   try {
     const result = await adminApi.workspace<{ config: ConfigSnapshot; history: ConfigSnapshot[]; printing?: PrintingSettings }>('config')
     setForm(result.config)
-    history.value = result.history
+    history.value = result.history.map(item => ({ ...item, pricing: configPricing(item) }))
     if (result.printing && !printingSaving.value && (!savedPrinting.value || !printingChanged.value)) {
       savedPrinting.value = result.printing
       resetPrinting()
@@ -68,19 +75,29 @@ async function load() {
 function setForm(config: ConfigSnapshot) {
   const periods = config.peakPeriods ?? (config.peakStart < config.peakEnd
     ? [{ start: config.peakStart, end: config.peakEnd }] : [])
-  Object.assign(form, { ...config, peakPeriods: periods.map(period => ({ ...period })), fee: (config.feeCents / 100).toFixed(2) })
+  Object.assign(form, {
+    version: config.version, regularBatch: config.regularBatch, peakBatch: config.peakBatch,
+    serviceStart: config.serviceStart, serviceEnd: config.serviceEnd, acceptTimeout: config.acceptTimeout,
+    reminderInterval: config.reminderInterval, peakPeriods: periods.map(period => ({ ...period })),
+  })
+  supportsPricing.value = config.pricing != null
+  pricing.value = pricingForm(configPricing(config))
 }
 function reset() { void load(); ElMessage.info('已恢复最近保存的配置，本次未保存修改已取消。') }
 async function save() {
   try {
-    const feeCents = toCents(form.fee)
+    const rules = validPricing.value
+    if (!rules) return ElMessage.warning('请填写三项计费规则')
     if (scheduleError.value) {
       ElMessage.warning(scheduleError.value)
       return
     }
     await ElMessageBox.confirm('保存后生成新的运营配置版本。历史订单继续使用下单时的规则快照，不会回算。', '确认保存运营配置', { confirmButtonText: '确认保存', cancelButtonText: '继续编辑' })
     saving.value = true
-    await adminApi.action('config.save', { patch: { ...form, feeCents } })
+    const amounts = supportsPricing.value ? { pricing: rules } : {
+      feeCents: rules.fee.value, foodRate: rules.food.value / 100, deliveryRate: rules.delivery.value / 100,
+    }
+    await adminApi.action('config.save', { patch: { ...form, ...amounts } })
     ElMessage.success('运营配置已保存，新版本仅用于后续业务。')
     await load()
   } catch (error) {
@@ -120,13 +137,12 @@ onMounted(() => { void load() })
   <div class="config-layout operations-config" v-loading="loading">
     <div class="config-main">
     <section class="panel-card config-form-panel">
-      <div class="section-heading"><h2>配送规则</h2></div>
+      <div class="section-heading"><h2>平台默认计费规则</h2></div>
       <el-form label-position="top" class="config-grid" :disabled="!auth.can('config.edit') || saving">
         <div class="fee-fields">
-        <el-form-item label="每笔商户拆单固定配送费"><el-input v-model="form.fee" inputmode="decimal"><template #prepend>¥</template><template #append>元 / 单</template></el-input></el-form-item>
-        <el-form-item label="餐品金额平台抽成"><el-input-number v-model="form.foodRate" :min="0" :max="100" :precision="2" controls-position="right"><template #suffix>%</template></el-input-number></el-form-item>
-        <el-form-item label="配送费平台抽成"><el-input-number v-model="form.deliveryRate" :min="0" :max="100" :precision="2" controls-position="right"><template #suffix>%</template></el-input-number></el-form-item>
+          <PricingFields :form="pricing" :lock-mode="!supportsPricing" />
         </div>
+        <p v-if="!supportsPricing" class="pricing-compatibility">当前接口支持固定配送费和比例抽成。</p>
         <div class="config-subhead">配送时段与发车批次</div>
         <el-form-item label="配送服务时段"><div class="time-range"><el-time-select v-model="form.serviceStart" start="00:00" step="00:15" end="23:45" /><span>至</span><el-time-select v-model="form.serviceEnd" start="00:00" step="00:15" end="23:45" /></div></el-form-item>
         <el-form-item label="常规批次间隔"><el-input-number v-model="form.regularBatch" :min="1" :max="1440" controls-position="right"><template #suffix>分钟</template></el-input-number></el-form-item>
@@ -165,7 +181,7 @@ onMounted(() => { void load() })
         <el-form-item label="支付后接单超时"><el-input-number v-model="form.acceptTimeout" :min="1" :max="1440" controls-position="right"><template #suffix>分钟</template></el-input-number></el-form-item>
         <el-form-item label="管理员提醒间隔"><el-input-number v-model="form.reminderInterval" :min="1" :max="1440" controls-position="right"><template #suffix>分钟</template></el-input-number></el-form-item>
       </el-form>
-      <div class="config-actions"><el-button :disabled="saving" @click="reset">取消修改</el-button><el-button v-if="auth.can('config.edit')" type="primary" :loading="saving" :disabled="loading || !!scheduleError" @click="save">保存并生成新版本</el-button></div>
+      <div class="config-actions"><el-button :disabled="saving" @click="reset">取消修改</el-button><el-button v-if="auth.can('config.edit')" type="primary" :loading="saving" :disabled="loading || !!scheduleError || !validPricing" @click="save">保存并生成新版本</el-button></div>
     </section>
     <section class="panel-card config-form-panel" aria-labelledby="printing-title">
       <div class="section-heading">
@@ -197,16 +213,18 @@ onMounted(() => { void load() })
     </div>
     <aside class="config-aside">
       <section class="panel-card rule-preview">
-        <h3>金额分配预览</h3><p>以餐品 ¥20.00、配送费 {{ preview.fee }} 为例</p>
+        <h3>金额分配预览</h3>
+        <template v-if="preview"><p>以餐品 ¥20.00、配送费 {{ preview.fee }} 为例</p>
         <div class="preview-row"><span>商户应得</span><strong>{{ preview.merchant }}</strong></div>
         <div class="preview-row"><span>骑手应得</span><strong>{{ preview.rider }}</strong></div>
         <div class="preview-row"><span>平台收入</span><strong>{{ preview.platform }}</strong></div>
-        <div class="preview-total"><span>合计用户实付</span><strong>{{ preview.total }}</strong></div>
+        <div class="preview-total"><span>合计用户实付</span><strong>{{ preview.total }}</strong></div></template>
+        <p v-else>填写三项规则后可预览分配金额</p>
       </section>
       <section class="panel-card history-panel">
         <div class="section-heading"><div><h3>配置变更记录</h3></div><el-icon><Clock /></el-icon></div>
         <el-empty v-if="!history.length" description="暂无变更记录" :image-size="70" />
-        <div v-for="item in pageRows" :key="item.version" class="history-item"><div><strong>{{ item.version }}</strong><el-tag size="small" type="info" effect="light">历史版本</el-tag></div><p>{{ item.operator }} · {{ new Date(item.effectiveAt).toLocaleString('zh-CN') }}</p><small>配送费 ¥{{ (item.feeCents / 100).toFixed(2) }} · 餐品抽成 {{ item.foodRate }}% · 配送抽成 {{ item.deliveryRate }}%</small><p class="history-peaks">高峰 {{ item.peakPeriods?.map(period => `${period.start}–${period.end}`).join('、') || '未设置' }}</p></div>
+        <div v-for="item in pageRows" :key="item.version" class="history-item"><div><strong>{{ item.version }}</strong><el-tag size="small" type="info" effect="light">历史版本</el-tag></div><p>{{ item.operator }} · {{ new Date(item.effectiveAt).toLocaleString('zh-CN') }}</p><small>配送费 {{ formatPricing(item.pricing.fee) }} · 餐品抽成 {{ formatPricing(item.pricing.food) }} · 配送抽成 {{ formatPricing(item.pricing.delivery) }}</small><p class="history-peaks">高峰 {{ item.peakPeriods?.map(period => `${period.start}–${period.end}`).join('、') || '未设置' }}</p></div>
         <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total"
           :disabled="loading" label="运营配置变更记录分页" />
       </section>
@@ -217,9 +235,9 @@ onMounted(() => { void load() })
 <style scoped>
 .operations-config { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 20px; }
 .config-main { display: grid; min-width: 0; gap: 20px; }
+.pricing-compatibility { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 13px; }
 .printing-unavailable { margin: 0; color: var(--muted); }
 .fee-fields { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.fee-fields :deep(.el-input-group__prepend), .fee-fields :deep(.el-input-group__append) { padding: 0 10px; }
 .peak-section { grid-column: 1 / -1; min-width: 0; margin: 4px 0 8px; border: 1px solid var(--line); border-radius: 10px; }
 .peak-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 14px; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: #f6f8fb; }
 .peak-heading h3 { margin: 0; font-size: 14px; color: var(--text); }

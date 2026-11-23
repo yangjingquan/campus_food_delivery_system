@@ -27,7 +27,7 @@ Page({
         ...event, key: index, timeText: time(event.createdAt)
       }));
       this.setData({
-        item: data, events, loading: false, amountText: money(data.amountCents), createdAtText: time(data.createdAt),
+        item: data, events, loading: false, amountText: money(data.amountCents), deliveryRefundText: data.deliveryRefundCents ? money(data.deliveryRefundCents) : '', createdAtText: time(data.createdAt),
         stateHint: hints[data.status] || '请查看处理记录。',
         canIntervene: ['REFUND_REJECTED', 'AWAITING_MERCHANT_DECISION'].includes(data.status)
           || (data.status === 'REFUND_VERIFYING' && !data.platformIntervened),

@@ -1,5 +1,4 @@
 const api = require('../../utils/api');
-const { money } = require('../../utils/display');
 
 const { showDialog, dialogEvents } = require('../../utils/dialog');
 
@@ -151,7 +150,7 @@ Page({
       showDialog(this, {
         title: '配送规则与费用',
         content: config.serviceStart
-          ? `每单配送费 ${money(config.deliveryFeeCents)}。配送时段 ${config.serviceStart}–${config.serviceEnd}，高峰每 ${config.peakBatchMinutes} 分钟一批。`
+          ? `配送费按商户结算页展示的金额收取。配送时段 ${config.serviceStart}–${config.serviceEnd}，高峰每 ${config.peakBatchMinutes} 分钟一批。`
           : '暂时无法获取配送配置，请稍后重试。'
       });
     }

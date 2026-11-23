@@ -13,10 +13,14 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class RiderOrders {
     private static final String WAITING = Fulfillment.AWAITING_RIDER.name();
+    static final String FEE = "GREATEST(0,o.delivery_cents-o.refunded_cents+o.food_refunded_cents)";
+    static final String COMMISSION = "COALESCE(s.delivery_commission_cents,IF(o.refunded_cents>0 AND o.paid_cents=o.refunded_cents,0,d.rider_commission_cents))";
+    static final String DUE = "COALESCE(s.amount_cents,o.delivery_cents-d.rider_commission_cents)";
+    static final String SETTLEMENT_JOIN = " LEFT JOIN order_settlement_snapshot s ON s.order_id=o.id AND s.event_type='rider_settlement_credit' ";
     private static final String OWNED = """
         SELECT o.id,o.merchant,o.pickup_number AS pickupNumber,o.items,o.id AS code,o.fulfill_status AS status,
-               d.building,d.room,o.delivery_cents AS feeCents,d.rider_commission_cents AS commissionCents,
-               o.delivery_cents-d.rider_commission_cents AS dueCents,o.paid_at AS paidAt,d.arrived_at AS arrivedAt,
+               d.building,d.room,%s AS feeCents,%s AS commissionCents,%s AS dueCents,
+               IF(o.refunded_cents>0 AND o.paid_cents=o.refunded_cents,%s,0) AS fundedCents,o.paid_at AS paidAt,d.arrived_at AS arrivedAt,
                d.picked_up_at AS pickedUpAt,o.completed_at AS completedAt,o.closed_at AS closedAt,
                o.refund_status AS refundStatus,o.last_refund_at AS lastRefundAt,d.rider_settled_at AS settledAt,
                CASE
@@ -26,7 +30,7 @@ public class RiderOrders {
                END AS incomeStatus,
                COALESCE(o.last_refund_at,o.completed_at)+86400000 AS eligibleAt
         FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
-        """;
+        """.formatted(FEE, COMMISSION, DUE, DUE) + SETTLEMENT_JOIN;
 
     private final JdbcTemplate db;
 

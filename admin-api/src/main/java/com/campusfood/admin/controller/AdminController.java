@@ -96,6 +96,12 @@ public class AdminController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.merchantPrinter(id, authorization));
     }
 
+    @GetMapping("/merchants/{id}/pricing")
+    public Map<String, Object> merchantPricing(@PathVariable String id,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return service.merchantPricing(id, authorization);
+    }
+
     @GetMapping("/riders/{id}/student-card")
     public ResponseEntity<byte[]> riderStudentCard(@PathVariable String id,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
@@ -104,6 +110,12 @@ public class AdminController {
                 .header("X-Content-Type-Options", "nosniff")
                 .contentType(MediaType.parseMediaType((String) photo.get("media_type")))
                 .body((byte[]) photo.get("image_data"));
+    }
+
+    @GetMapping("/orders/{id}/settlement-snapshots")
+    public Map<String, Object> settlementSnapshots(@PathVariable String id,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return service.settlementSnapshots(id, authorization);
     }
 
     @GetMapping("/overview")

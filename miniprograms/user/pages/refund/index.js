@@ -23,6 +23,7 @@ Page({
         order: data, refund, type: refund.canPartial ? 'partial' : 'full',
         amount: refund.canPartial ? '' : (refund.remaining / 100).toFixed(2),
         paidText: money(data.paidCents), foodText: money(data.foodCents), refundedText: money(data.refundedCents), feeText: money(data.deliveryFeeCents),
+        returnDeliveryText: data.partialDeliveryRefundCents > 0 ? money(data.partialDeliveryRefundCents) : '',
         remainingFoodText: money(refund.food), remainingPaidText: money(refund.remaining), loading: false
       });
     } catch (error) {

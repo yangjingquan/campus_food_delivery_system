@@ -1,3 +1,5 @@
+import type { Pricing } from './pricing'
+
 export type SectionKey = 'merchants' | 'riders' | 'orders' | 'aftersales' | 'finance' | 'withdrawals' | 'config' | 'wechat'
 export type AuditStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED'
 export type RefundStatus = 'NO_AFTER_SALE' | 'AFTER_SALE_ENDED' | 'REFUND_SUCCEEDED' | 'OFFLINE_RESOLVED' | 'REFUND_FAILED' | 'PLATFORM_REVIEW' | 'AWAITING_MERCHANT_DECISION' | 'REFUND_PROCESSING' | 'REFUND_VERIFYING' | 'REFUND_QUEUED' | 'REFUND_REJECTED' | 'NEGOTIATING'
@@ -102,6 +104,7 @@ export interface Withdrawal {
 
 export interface ConfigSnapshot {
   version: string
+  pricing?: Pricing | null
   feeCents: number
   foodRate: number
   deliveryRate: number

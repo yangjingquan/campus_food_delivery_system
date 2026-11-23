@@ -43,9 +43,17 @@ public class FinanceService {
         String sql = switch (kind) {
             case "settlements" -> """
                 SELECT o.id,o.food_cents AS foodCents,o.food_refunded_cents AS foodRefundedCents,
-                       d.food_rate_snapshot AS foodRate,d.merchant_settled_cents AS settledCents,
-                       d.merchant_settled_at AS settledAt,o.settlement_status AS status,o.completed_at AS completedAt
+                       COALESCE(r.food_mode,'PERCENTAGE') AS foodRuleMode,
+                       COALESCE(r.food_value,d.food_rate_snapshot*100) AS foodRuleValue,
+                       o.food_cents-o.food_refunded_cents AS foodBaseCents,
+                       COALESCE(s.food_commission_cents,
+                           IF(d.merchant_settled_cents IS NULL,NULL,o.food_cents-o.food_refunded_cents-d.merchant_settled_cents)) AS foodCommissionCents,
+                       d.merchant_settled_cents AS settledCents,d.merchant_settled_at AS settledAt,
+                       IF(o.refunded_cents>0 AND o.refunded_cents=o.paid_cents,'CLOSED',o.settlement_status) AS status,
+                       COALESCE(o.last_refund_at,o.completed_at) AS settlementBaseAt
                 FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
+                LEFT JOIN order_pricing_rule r ON r.order_id=o.id
+                LEFT JOIN order_settlement_snapshot s ON s.order_id=o.id AND s.event_type='settlement_credit'
                 WHERE o.merchant_id=? AND o.paid_at>0 ORDER BY o.paid_at DESC LIMIT 100
                 """;
             case "debts" -> """

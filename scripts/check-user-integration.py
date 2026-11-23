@@ -139,7 +139,7 @@ try:
     assert approved['status'] == 'REFUND_SUCCEEDED', approved
     closed = expect(200, call('GET', '/api/user/v1/orders/' + aftersale_order, token=token), 'partially refunded merchant order closed')
     untouched = expect(200, call('GET', '/api/user/v1/orders/' + order_id, token=token), 'other merchant order unaffected')
-    assert closed['fulfillStatus'] == 'CLOSED' and closed['refundedCents'] == 500, closed
+    assert closed['fulfillStatus'] == 'CLOSED' and closed['refundedCents'] == 900 and closed['foodRefundedCents'] == 500, closed
     assert untouched['fulfillStatus'] == 'AWAITING_MERCHANT' and untouched['refundedCents'] == 0, untouched
     near_deadline = int(time.time() * 1000) - 24 * 60 * 60 * 1000 + 4000
     root_sql('UPDATE `' + database + '`.user_order_detail SET first_closed_at=' + str(near_deadline) + " WHERE order_id='" + aftersale_order + "'")
@@ -147,7 +147,7 @@ try:
     again = expect(200, call('POST', '/api/user/v1/orders/' + aftersale_order + '/aftersales', {'type': 'partial', 'amountCents': 300, 'reason': '二次部分退款'}, token), 'second partial refund inside original window')
     expect(200, call('POST', '/internal/v1/aftersales/' + again['id'] + '/decision', {'decision': 'approve'}, key=internal_key), 'approve second partial refund')
     after_second = expect(200, call('GET', '/api/user/v1/orders/' + aftersale_order, token=token), 'first closure time is retained')
-    assert after_second['firstClosedAt'] == near_deadline and after_second['refundedCents'] == 800, after_second
+    assert after_second['firstClosedAt'] == near_deadline and after_second['refundedCents'] == 1200 and after_second['foodRefundedCents'] == 800, after_second
     time.sleep(5)
     expect(410, call('POST', '/api/user/v1/orders/' + aftersale_order + '/aftersales', {'type': 'partial', 'amountCents': 100, 'reason': '过期边界测试'}, token), 'second refund does not reset 24-hour window')
     for status, extra in [('PREPARING_FOOD', {}), ('AWAITING_RIDER', {}), ('DELIVERING', {'riderName': '测试骑手'})]:

@@ -1,7 +1,5 @@
 package com.campusfood.user;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Duration;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,11 +15,20 @@ class MerchantSettlement {
         FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
         JOIN payment_order p ON p.id=o.payment_id
         JOIN finance_account a ON a.id=o.merchant_id AND a.type='MERCHANT' AND a.status='ACCOUNT_ACTIVE'
+        LEFT JOIN order_pricing_rule pricing ON pricing.order_id=o.id
+        LEFT JOIN operations_config original ON original.id=d.operations_rule_id
         WHERE o.payment_status='PAYMENT_SUCCEEDED' AND p.status='PAYMENT_SUCCEEDED' AND p.payment_mode='wechat'
-          AND o.fulfill_status='COMPLETED' AND o.completed_at<?
-          AND o.settlement_status='PENDING_SETTLEMENT' AND o.refunded_cents=0 AND o.pending_refund=FALSE
-          AND o.locking=FALSE AND o.refund_status IN ('NO_AFTER_SALE','AFTER_SALE_ENDED')
-          AND d.food_rate_snapshot BETWEEN 0 AND 100 AND d.merchant_settled_at IS NULL
+          AND o.pending_refund=FALSE AND o.locking=FALSE AND d.merchant_settled_at IS NULL
+          AND (pricing.order_id IS NOT NULL OR d.food_rate_snapshot IS NOT NULL OR original.id IS NOT NULL)
+          AND NOT EXISTS (SELECT 1 FROM refund_record r WHERE r.order_id=o.id
+                AND r.status IN ('AWAITING_MERCHANT_DECISION','NEGOTIATING','REFUND_PROCESSING',
+                                 'REFUND_VERIFYING','REFUND_QUEUED','PLATFORM_REVIEW','REFUND_FAILED'))
+          AND ((o.fulfill_status='COMPLETED' AND o.completed_at<? AND o.refunded_cents=0
+                AND o.settlement_status='PENDING_SETTLEMENT' AND o.refund_status IN ('NO_AFTER_SALE','AFTER_SALE_ENDED'))
+            OR (o.fulfill_status='CLOSED' AND o.last_refund_at<?
+                AND o.refunded_cents>0 AND o.refunded_cents<o.paid_cents
+                AND o.settlement_status='SETTLEMENT_HELD'
+                AND o.refund_status IN ('REFUND_SUCCEEDED','OFFLINE_RESOLVED','AFTER_SALE_ENDED')))
         """;
 
     private final JdbcTemplate db;
@@ -35,31 +42,30 @@ class MerchantSettlement {
     @Scheduled(fixedDelayString = "${app.merchant-settlement-scan-ms:60000}", initialDelay = 15000)
     void scan() {
         long cutoff = System.currentTimeMillis() - WAIT_MILLIS;
-        var due = db.queryForList("SELECT o.id " + ELIGIBLE + " ORDER BY o.completed_at,o.id LIMIT 50", String.class, cutoff);
+        var due = db.queryForList("SELECT o.id " + ELIGIBLE + " ORDER BY COALESCE(o.last_refund_at,o.completed_at),o.id LIMIT 50", String.class, cutoff, cutoff);
         for (String order : due) {
             transactions.executeWithoutResult(status -> credit(order, cutoff));
         }
     }
 
     private void credit(String id, long cutoff) {
-        var rows = db.query("""
-            SELECT o.merchant_id,o.food_cents,d.food_rate_snapshot
-            """ + ELIGIBLE + " AND o.id=? FOR UPDATE",
-            (row, index) -> new Credit(row.getString(1), row.getLong(2), row.getBigDecimal(3)), cutoff, id);
+        var rows = db.queryForList("""
+            SELECT o.merchant_id,o.food_cents,o.delivery_cents,o.paid_cents,o.refunded_cents,o.food_refunded_cents,
+                   d.rider_commission_cents
+            """ + ELIGIBLE + " AND o.id=? FOR UPDATE", cutoff, cutoff, id);
         if (rows.isEmpty()) return;
-        Credit credit = rows.getFirst();
-
-        // 仅处理有成交规则快照的正常真实支付单。沿用管理端的四舍五入到分口径。
-        long commission = BigDecimal.valueOf(credit.foodCents()).multiply(credit.foodRate())
-            .movePointLeft(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
-        long net = credit.foodCents() - commission;
+        var order = rows.getFirst();
+        String merchant = order.get("merchant_id").toString();
+        var settlement = OrderPricing.settlement(db, id, order);
+        long net = settlement.merchantDue();
         long now = System.currentTimeMillis();
-        db.update("UPDATE finance_account SET balance_cents=balance_cents+? WHERE id=?", net, credit.merchant());
+        db.update("UPDATE finance_account SET balance_cents=balance_cents+? WHERE id=?", net, merchant);
         db.update("""
             INSERT INTO account_journal(account_id,event_type,reference_id,available_delta,frozen_delta)
             VALUES(?,'settlement_credit',?,?,0)
-            """, credit.merchant(), id, net);
-        recoverAdvances(credit.merchant(), id);
+            """, merchant, id, net);
+        OrderPricing.recordSettlement(db, id, "settlement_credit", merchant, settlement, net, now);
+        recoverAdvances(merchant, id);
         db.update("UPDATE business_order SET settlement_status='WITHDRAWABLE' WHERE id=?", id);
         db.update("UPDATE user_order_detail SET merchant_settled_cents=?,merchant_settled_at=? WHERE order_id=?",
             net, now, id);
@@ -90,8 +96,5 @@ class MerchantSettlement {
                 """, merchant, reference, -recovered, id, reference, recovered, id);
             available -= recovered;
         }
-    }
-
-    private record Credit(String merchant, long foodCents, BigDecimal foodRate) {
     }
 }

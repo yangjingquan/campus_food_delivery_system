@@ -20,7 +20,7 @@ Page({
         const [config, { data }] = await Promise.all([
           getApp().getConfig(true), api.get('/catalog', { auth: false })
         ]);
-        this.feePerMerchant = config.deliveryFeeCents;
+        this.config = config;
         this.merchants = new Map(data.merchants.map(merchant => [merchant.id, merchant]));
       }
       this.refreshCart();
@@ -29,7 +29,7 @@ Page({
   },
   refreshCart() {
     const items = cart.read();
-    const feePerMerchant = this.feePerMerchant ?? 0;
+    const fee = merchantId => cart.feeRule(this.merchants?.get(merchantId), this.config);
     const groups = cart.groups(items).map(group => {
       const merchant = this.merchants.get(group.merchantId);
       const prices = new Map((merchant?.products || []).map(product => [product.id, product.priceCents]));
@@ -40,15 +40,15 @@ Page({
           picture: display.photo(item.photoPath, item.artwork), fallback: display.illustration(item.artwork)
         };
       });
-      const { foodCents } = cart.totals(lines, 0);
+      const { foodCents, deliveryFeeCents } = cart.totals(lines, fee);
       const shortfall = (merchant?.minimumOrderCents || 0) - foodCents;
       return {
         ...group, items: lines, eligible: !!merchant && shortfall <= 0,
         shortfallText: shortfall > 0 ? display.money(shortfall) : '',
-        feeText: display.money(feePerMerchant)
+        feeText: display.money(deliveryFeeCents)
       };
     });
-    const totals = cart.totals(groups.flatMap(group => group.items), feePerMerchant);
+    const totals = cart.totals(groups.flatMap(group => group.items), fee);
     this.setData({
       groups, checkoutCount: groups.filter(group => group.eligible).length,
       foodText: display.money(totals.foodCents), feeText: display.money(totals.deliveryFeeCents),

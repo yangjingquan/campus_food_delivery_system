@@ -38,7 +38,7 @@
       </view>
       <view class="split">
         <view class="kv"><text class="label">餐品金额</text><text>{{foodText}}</text></view>
-        <view wx:if="{{!pickup}}" class="kv"><text class="label">固定配送费</text><text>{{feeText}}</text></view>
+        <view wx:if="{{!pickup}}" class="kv"><text class="label">配送费</text><text>{{feeText}}</text></view>
         <view class="kv"><text class="label">{{order.mergedPaymentStatus === 'PAYMENT_SUCCEEDED' ? '订单实付' : '订单金额'}}</text><text>{{amountText}}</text></view>
         <view wx:if="{{order.refundedCents}}" class="kv"><text class="label">累计已退</text><text>{{refundedText}}</text></view>
       </view>

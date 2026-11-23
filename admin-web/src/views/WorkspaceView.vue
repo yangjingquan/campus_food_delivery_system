@@ -1,13 +1,17 @@
 <script setup lang="ts">
+import { ElCollapse, ElCollapseItem } from 'element-plus'
+import PricingFields from '../components/PricingFields.vue'
+import { formatPricing, pricingFields, pricingForm, pricingPayload, type SettlementSnapshot } from '../domain/pricing'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { ElImage, ElMessage, ElMessageBox, ElUpload, type UploadInstance, type UploadProps } from 'element-plus'
+import { Search, Upload } from '@element-plus/icons-vue'
 import { adminApi, type MerchantPrinter } from '../api/admin'
 import ListPagination from '../components/ListPagination.vue'
 import { useListPagination } from '../domain/useListPagination'
 import { useAuthStore } from '../stores/auth'
 import { money } from '../domain/rules'
+import { encodePhoto, isPhotoFile } from '../domain/photo'
 import { interventionLabel, stateLabel } from '../domain/businessStates'
 import type { FinanceSection } from '../router'
 import type { Order, SectionKey } from '../domain/types'
@@ -27,12 +31,29 @@ const finance = ref<Record<FinanceSection, Row[]>>({ accounts: [], ledger: [], d
 let loadRequest = 0
 const drawer = ref(false)
 const printerDialog = ref(false)
+const pricingTarget = ref<{ id: string; name: string }>()
+const pricingLoading = ref('')
+const pricingSaving = ref(false)
+const pricingEnabled = ref(false)
+const pricingVersion = ref(0)
+const merchantPricing = ref(pricingForm())
+const merchantPricingValid = computed(() => pricingPayload(merchantPricing.value))
+const pricingDialog = computed({
+  get: () => !!pricingTarget.value,
+  set: open => { if (!open) pricingTarget.value = undefined },
+})
 const merchantDialog = ref(false)
 const merchantSaving = ref(false)
 const merchantChangingId = ref('')
 const merchantEditingId = ref('')
 const merchantCanOpen = ref(true)
 const merchantForm = reactive({ name: '', contact: '', phone: '', address: '', open: false })
+const merchantImageUpload = ref<UploadInstance>()
+const selectedMerchantImage = ref<File>()
+const selectedMerchantImageUrl = ref('')
+const currentMerchantImageUrl = ref('')
+const merchantImageError = ref('')
+let merchantImageRequest: AbortController | undefined
 const riderDialog = ref(false)
 const riderSaving = ref(false)
 const riderChangingId = ref('')
@@ -47,6 +68,15 @@ const printerTarget = ref<{ id: string; name: string; saved: MerchantPrinter }>(
 const printerForm = reactive({ sn: '', pkey: '' })
 const printerNeedsPkey = computed(() => !printerTarget.value?.saved.pkeySet || printerForm.sn.trim() !== printerTarget.value.saved.sn)
 const printerChanged = computed(() => printerForm.sn.trim() !== printerTarget.value?.saved.sn || !!printerForm.pkey)
+const snapshots = ref<SettlementSnapshot[]>([])
+const snapshotsLoading = ref(false)
+const snapshotsError = ref('')
+let snapshotRequest = 0
+const snapshotEvents: Record<string, string> = {
+  settlement_credit: '商户入账', rider_settlement_credit: '骑手入账',
+  rider_refund_debit: '商户承担骑手费用', rider_refund_advance: '平台垫付',
+}
+const snapshotSources = { DEFAULT: '平台默认', MERCHANT: '商户独立', LEGACY: '原成交规则' }
 const activeRow = ref<Row | null>(null)
 const merchantPhoto = ref('')
 const photoError = ref('')
@@ -250,12 +280,29 @@ function clearPhoto() {
   photoError.value = ''
 }
 
-onUnmounted(clearPhoto)
+onUnmounted(() => {
+  clearPhoto()
+  clearMerchantEditorImages()
+})
 
 async function openDetails(row: Row) {
   clearPhoto()
   activeRow.value = row
   drawer.value = true
+  const snapshot = ++snapshotRequest
+  snapshots.value = []
+  snapshotsError.value = ''
+  snapshotsLoading.value = section.value === 'orders'
+  if (snapshotsLoading.value) {
+    try {
+      const data = await adminApi.settlementSnapshots(String(row.id))
+      if (snapshot === snapshotRequest) snapshots.value = data
+    } catch (error) {
+      if (snapshot === snapshotRequest) snapshotsError.value = error instanceof Error ? error.message : '快照加载失败'
+    } finally {
+      if (snapshot === snapshotRequest) snapshotsLoading.value = false
+    }
+  }
   if (!['merchants', 'riders'].includes(section.value) || !row.hasPhoto) return
   const request = photoRequest
   try {
@@ -415,7 +462,83 @@ async function changeRiderStatus(row: Row) {
   }
 }
 
+async function openPricing(row: Row) {
+  if (pricingLoading.value) return
+  const id = String(row.id)
+  pricingLoading.value = id
+  try {
+    const data = await adminApi.merchantPricing(id)
+    if (section.value !== 'merchants') return
+    pricingEnabled.value = data.enabled
+    pricingVersion.value = data.version
+    merchantPricing.value = pricingForm(data.pricing)
+    pricingTarget.value = { id, name: String(row.name) }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '商户规则读取失败')
+  } finally {
+    pricingLoading.value = ''
+  }
+}
+
+async function savePricing() {
+  const pricing = merchantPricingValid.value
+  if (!pricing || !pricingTarget.value || pricingSaving.value) return
+  pricingSaving.value = true
+  try {
+    await adminApi.action('merchant.save-pricing', {
+      id: pricingTarget.value.id, enabled: pricingEnabled.value, version: pricingVersion.value, pricing,
+    })
+    pricingDialog.value = false
+    ElMessage.success('该商户的计费规则已保存')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '商户规则保存失败')
+  } finally {
+    pricingSaving.value = false
+  }
+}
+
+function clearSelectedMerchantImage() {
+  if (selectedMerchantImageUrl.value) URL.revokeObjectURL(selectedMerchantImageUrl.value)
+  selectedMerchantImageUrl.value = ''
+  selectedMerchantImage.value = undefined
+  merchantImageError.value = ''
+}
+
+function clearMerchantEditorImages() {
+  merchantImageRequest?.abort()
+  merchantImageRequest = undefined
+  clearSelectedMerchantImage()
+  if (currentMerchantImageUrl.value) URL.revokeObjectURL(currentMerchantImageUrl.value)
+  currentMerchantImageUrl.value = ''
+}
+
+const selectMerchantImage: UploadProps['onChange'] = ({ raw: file }) => {
+  merchantImageUpload.value?.clearFiles()
+  if (!file || merchantSaving.value || !merchantDialog.value) return
+  if (!isPhotoFile(file)) {
+    merchantImageError.value = '请选择不超过 1 MB 的 JPEG 或 PNG 图片'
+    return
+  }
+  clearSelectedMerchantImage()
+  selectedMerchantImage.value = file
+  selectedMerchantImageUrl.value = URL.createObjectURL(file)
+}
+
+async function loadMerchantEditorPhoto(id: string) {
+  const request = new AbortController()
+  merchantImageRequest = request
+  try {
+    const blob = await adminApi.merchantPhoto(id, request.signal)
+    if (!request.signal.aborted) currentMerchantImageUrl.value = URL.createObjectURL(blob)
+  } catch {
+    if (!request.signal.aborted && !selectedMerchantImage.value) {
+      merchantImageError.value = '原图暂时无法加载，可以重新选择图片'
+    }
+  }
+}
+
 function openMerchantForm(row?: Row) {
+  clearMerchantEditorImages()
   merchantEditingId.value = row?.id || ''
   merchantCanOpen.value = !row || row.auditStatus === 'APPROVED'
   Object.assign(merchantForm, {
@@ -423,6 +546,7 @@ function openMerchantForm(row?: Row) {
     address: row?.address || '', open: row?.businessStatus === 'STORE_OPEN',
   })
   merchantDialog.value = true
+  if (row?.hasPhoto) void loadMerchantEditorPhoto(String(row.id))
 }
 
 async function saveMerchant() {
@@ -433,8 +557,9 @@ async function saveMerchant() {
   }
   merchantSaving.value = true
   try {
+    const image = selectedMerchantImage.value ? await encodePhoto(selectedMerchantImage.value) : undefined
     await adminApi.action(merchantEditingId.value ? 'merchant.update' : 'merchant.create', {
-      ...merchantForm, id: merchantEditingId.value,
+      ...merchantForm, id: merchantEditingId.value, image,
     })
     merchantDialog.value = false
     ElMessage.success('商户已保存')
@@ -537,7 +662,7 @@ function runRowAction(row: Row) {
           <span v-else>{{ displayValue(scope.row, column.key) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" :width="section === 'riders' && auth.can('rider.manage') ? 310 : section === 'merchants' && auth.can('merchant.manage') ? 325 : section === 'merchants' && auth.can('merchant.printer.edit') ? 275 : section === 'merchants' || section === 'riders' ? 220 : section === 'aftersales' ? 190 : section === 'withdrawals' ? 250 : 170" fixed="right">
+      <el-table-column label="操作" :width="section === 'riders' && auth.can('rider.manage') ? 310 : section === 'merchants' && auth.can('merchant.manage') ? 395 : section === 'merchants' && auth.can('merchant.printer.edit') ? 275 : section === 'merchants' || section === 'riders' ? 220 : section === 'aftersales' ? 190 : section === 'withdrawals' ? 250 : 170" fixed="right">
         <template #default="scope">
           <template v-if="section === 'merchants' || section === 'riders'">
             <el-button link type="primary" @click="runRowAction(scope.row)">{{ rowActionText(scope.row) }}</el-button>
@@ -545,6 +670,7 @@ function runRowAction(row: Row) {
               link type="primary" :loading="printerLoadingId === scope.row.id" @click="openPrinter(scope.row)">打印机设置</el-button>
             <template v-if="section === 'merchants' && auth.can('merchant.manage') && !String(scope.row.id).startsWith('revision:')">
               <el-button link type="primary" @click="openMerchantForm(scope.row)">编辑</el-button>
+              <el-button link type="primary" :loading="pricingLoading === scope.row.id" @click="openPricing(scope.row)">计费规则</el-button>
               <el-button v-if="scope.row.auditStatus === 'APPROVED'" link :type="merchantListed(scope.row) ? 'warning' : 'success'"
                 :disabled="merchantChangingId === scope.row.id" @click="changeMerchant(scope.row)">
                 {{ merchantListed(scope.row) ? '下架' : '上架' }}
@@ -606,8 +732,24 @@ function runRowAction(row: Row) {
     </el-form>
   </el-dialog>
 
+  <el-dialog v-model="pricingDialog" :title="pricingTarget?.name + ' · 计费规则'" width="min(510px, 94vw)"
+    :close-on-click-modal="!pricingSaving" :close-on-press-escape="!pricingSaving" :show-close="!pricingSaving">
+    <el-form label-position="top" :disabled="pricingSaving" @submit.prevent="savePricing">
+      <el-form-item label="启用商户独立规则">
+        <el-switch v-model="pricingEnabled" active-text="使用本店规则" inactive-text="使用平台默认"
+          aria-label="启用商户独立规则" />
+      </el-form-item>
+      <PricingFields :form="merchantPricing" />
+      <div class="form-actions">
+        <el-button @click="pricingDialog = false">取消</el-button>
+        <el-button native-type="submit" type="primary" :loading="pricingSaving" :disabled="!merchantPricingValid">保存</el-button>
+      </div>
+    </el-form>
+  </el-dialog>
+
   <el-dialog v-model="merchantDialog" :title="merchantEditingId ? '编辑商户' : '新增商户'" width="min(540px, 94vw)"
-    :close-on-click-modal="!merchantSaving" :show-close="!merchantSaving">
+    :close-on-click-modal="!merchantSaving" :close-on-press-escape="!merchantSaving" :show-close="!merchantSaving"
+    @close="clearMerchantEditorImages">
     <el-form label-position="top" :disabled="merchantSaving" @submit.prevent="saveMerchant">
       <el-form-item label="商户名称" required><el-input v-model.trim="merchantForm.name" maxlength="120" /></el-form-item>
       <el-form-item label="联系人" required><el-input v-model.trim="merchantForm.contact" maxlength="80" /></el-form-item>
@@ -615,6 +757,29 @@ function runRowAction(row: Row) {
       <el-form-item label="店铺地址" required><el-input v-model.trim="merchantForm.address" maxlength="255" /></el-form-item>
       <el-form-item v-if="merchantCanOpen" label="营业状态">
         <el-switch v-model="merchantForm.open" active-text="营业中" inactive-text="休息中" />
+      </el-form-item>
+      <el-form-item label="商户图片">
+        <div class="merchant-image-field">
+          <ElUpload ref="merchantImageUpload" drag accept="image/jpeg,image/png" :auto-upload="false"
+            :show-file-list="false" :disabled="merchantSaving" :on-change="selectMerchantImage">
+            <el-icon class="el-icon--upload"><Upload /></el-icon>
+            <div class="el-upload__text">
+              拖拽图片到此处，或<em>{{ selectedMerchantImageUrl || currentMerchantImageUrl ? '点击更换' : '点击选择' }}</em>
+            </div>
+            <template #tip>
+              <p v-if="merchantImageError" class="el-upload__tip merchant-image-error" role="alert">{{ merchantImageError }}</p>
+              <p v-else class="el-upload__tip">JPEG 或 PNG，最大 1 MB</p>
+            </template>
+          </ElUpload>
+          <div v-if="selectedMerchantImageUrl || currentMerchantImageUrl" class="merchant-image-selection">
+            <ElImage class="merchant-image-preview" :src="selectedMerchantImageUrl || currentMerchantImageUrl" fit="cover"
+              :alt="selectedMerchantImage ? '待保存的商户图片' : '当前商户图片'"
+              :preview-src-list="[selectedMerchantImageUrl || currentMerchantImageUrl]" preview-teleported />
+            <el-button v-if="selectedMerchantImage" link type="primary" :disabled="merchantSaving" @click="clearSelectedMerchantImage">
+              撤销所选图片
+            </el-button>
+          </div>
+        </div>
       </el-form-item>
       <div class="form-actions">
         <el-button @click="merchantDialog = false">取消</el-button>
@@ -665,6 +830,31 @@ function runRowAction(row: Row) {
       <template v-if="section === 'orders'">
         <div class="detail-section"><h3>合并支付单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.paymentId === activeRow?.paymentId)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ stateLabel(linked.fulfillStatus) }} · {{ money(linked.paidCents) }}</span></div></div>
         <div v-if="activeRow.intervene && auth.can('order.coordinate')" class="detail-section"><el-button type="primary" plain @click="coordinateFromDrawer">记录协调备注</el-button></div>
+        <section class="detail-section" v-loading="snapshotsLoading">
+          <h3>结算快照</h3>
+          <p v-if="snapshotsError" role="alert">{{ snapshotsError }}</p>
+          <p v-else-if="!snapshotsLoading && !snapshots.length" class="muted">暂无结算快照</p>
+          <el-collapse v-else>
+            <el-collapse-item v-for="entry in snapshots" :key="entry.eventType" :name="entry.eventType">
+              <template #title>{{ snapshotEvents[entry.eventType] || entry.eventType }} · {{ money(entry.amountCents) }}</template>
+              <div class="detail-grid">
+                <div class="detail-item"><span>规则</span><strong>{{ snapshotSources[entry.ruleSource] }} · 版本 {{ entry.ruleVersion }}</strong></div>
+                <div class="detail-item"><span>入账时间</span><strong>{{ new Date(entry.settledAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) }}</strong></div>
+                <div v-for="field in pricingFields" :key="field.key" class="detail-item">
+                  <span>{{ field.label }}</span><strong>{{ formatPricing(entry.rules[field.key]) }}</strong>
+                </div>
+                <div class="detail-item"><span>餐品结算基数</span><strong>{{ money(entry.foodBaseCents) }}</strong></div>
+                <div class="detail-item"><span>原配送费</span><strong>{{ money(entry.originalDeliveryCents) }}</strong></div>
+                <div class="detail-item"><span>退款后配送费</span><strong>{{ money(entry.deliveryBaseCents) }}</strong></div>
+                <div class="detail-item"><span>餐品已退</span><strong>{{ money(entry.foodRefundedCents) }}</strong></div>
+                <div class="detail-item"><span>配送费已退</span><strong>{{ money(entry.deliveryRefundedCents) }}</strong></div>
+                <div class="detail-item"><span>实际餐品抽成</span><strong>{{ money(entry.foodCommissionCents) }}</strong></div>
+                <div class="detail-item"><span>实际配送费抽成</span><strong>{{ money(entry.deliveryCommissionCents) }}</strong></div>
+                <div class="detail-item"><span>骑手应得</span><strong>{{ money(entry.riderDueCents) }}</strong></div>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+        </section>
         <div class="detail-section"><h3>协调记录</h3><p v-for="note in activeRow.coordinationNotes || []" :key="note.id">
           {{ note.time }} · {{ note.actorCode ? stateLabel(note.actorCode) : note.actor }} ·
           {{ note.previousStatus && note.nextStatus ? stateLabel(note.previousStatus) + ' → ' + stateLabel(note.nextStatus) : note.note }}
@@ -680,3 +870,13 @@ function runRowAction(row: Row) {
   </el-drawer>
 
 </template>
+
+
+<style scoped>
+.merchant-image-field { width: 100%; }
+.merchant-image-field :deep(.el-upload-dragger) { padding: 12px; }
+.merchant-image-field :deep(.el-icon--upload) { margin: 0 0 6px; font-size: 30px; }
+.merchant-image-selection { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.merchant-image-preview { flex: 0 0 72px; width: 72px; height: 72px; border-radius: 8px; }
+.merchant-image-error { color: var(--el-color-danger); }
+</style>

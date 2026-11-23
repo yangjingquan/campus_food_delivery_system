@@ -6,11 +6,22 @@ function read(merchantScope, mode) {
   return merchantScope ? items.filter(item => item.merchantId === merchantScope) : items;
 }
 function save(items, mode) { wx.setStorageSync(storageKey(mode), items); return items; }
-function totals(items, feePerMerchant) {
-  const foodCents = items.reduce((sum, item) => sum + item.priceCents * item.quantity, 0);
-  const merchantIds = [...new Set(items.map(item => item.merchantId))];
-  const deliveryFeeCents = merchantIds.length * feePerMerchant;
-  return { foodCents, deliveryFeeCents, totalCents: foodCents + deliveryFeeCents, merchantCount: merchantIds.length };
+function totals(items, feeForMerchant) {
+  let foodCents = 0;
+  let deliveryFeeCents = 0;
+  const grouped = groups(items);
+  for (const group of grouped) {
+    const subtotal = group.items.reduce((sum, item) => sum + item.priceCents * item.quantity, 0);
+    foodCents += subtotal;
+    const rule = typeof feeForMerchant === 'function' ? feeForMerchant(group.merchantId) : feeForMerchant;
+    deliveryFeeCents += rule?.mode === 'PERCENTAGE'
+      ? Math.floor((subtotal * rule.value + 5000) / 10000)
+      : (rule?.value ?? rule ?? 0);
+  }
+  return { foodCents, deliveryFeeCents, totalCents: foodCents + deliveryFeeCents, merchantCount: grouped.length };
+}
+function feeRule(merchant, config) {
+  return merchant?.deliveryFeeRule ?? merchant?.deliveryFeeCents ?? config?.deliveryFeeRule ?? config?.deliveryFeeCents ?? 0;
 }
 function add(items, product, merchant, delta = 1, mode) {
   const cart = [...items];
@@ -37,4 +48,4 @@ function groups(items) {
   });
   return [...result.values()];
 }
-module.exports = { read, save, totals, add, groups };
+module.exports = { read, save, totals, feeRule, add, groups };

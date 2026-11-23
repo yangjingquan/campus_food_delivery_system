@@ -3,7 +3,7 @@ const ui = require('../../utils/ui');
 const labels = { settlements: '订单结算', debts: '欠款与扣回', ledger: '资金流水', withdrawals: '提现记录' };
 const events = {
   debt_recover: '欠款扣回', debt_receive: '平台收回垫付款', withdraw_freeze: '提现冻结',
-  withdraw_unfreeze: '提现解冻', withdraw_paid: '提现出款', settlement_credit: '订单结算入账'
+  rider_refund_debit: '全额退款骑手费用扣款', withdraw_unfreeze: '提现解冻', withdraw_paid: '提现出款', settlement_credit: '订单结算入账'
 };
 
 function receiptUnavailable() {
@@ -49,10 +49,14 @@ Page({
     try {
       const rows = (await api.request('/finance/' + this.kind)).map(item => ({
         ...item,
-        time: this.kind === 'withdrawals' ? item.createdAt : ui.date(item.createdAt || item.completedAt),
+        time: this.kind === 'withdrawals' ? item.createdAt : ui.date(item.createdAt || item.settlementBaseAt),
         label: events[item.eventType] || item.eventType,
         amount: ui.money(item.amountCents), food: ui.money(item.foodCents),
         refunded: ui.money(item.foodRefundedCents),
+        foodBase: ui.money(item.foodBaseCents),
+        foodRule: item.foodRuleValue == null ? '' : item.foodRuleMode === 'FIXED'
+          ? ui.money(item.foodRuleValue) : item.foodRuleValue / 100 + '%',
+        foodCommission: item.foodCommissionCents == null ? '' : ui.money(item.foodCommissionCents),
         net: item.settledCents == null ? '' : ui.money(item.settledCents),
         netTime: ui.date(item.settledAt),
         riderAmount: ui.money(item.riderDueCents),

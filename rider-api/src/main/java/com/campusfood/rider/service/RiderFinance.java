@@ -31,18 +31,20 @@ public class RiderFinance {
 
     public Map<String, Object> summary(String rider) {
         var totals = db.queryForMap("""
-            SELECT COUNT(*) AS orderCount,COALESCE(SUM(o.delivery_cents),0) AS feeCents,
-                   COALESCE(SUM(d.rider_commission_cents),0) AS commissionCents,
-                   COALESCE(SUM(o.delivery_cents-d.rider_commission_cents),0) AS dueCents,
+            SELECT COUNT(*) AS orderCount,COALESCE(SUM(%s),0) AS feeCents,
+                   COALESCE(SUM(%s),0) AS commissionCents,
+                   COALESCE(SUM(%s),0) AS dueCents,
+                   COALESCE(SUM(IF(o.refunded_cents>0 AND o.paid_cents=o.refunded_cents,%s,0)),0) AS fundedCents,
                    COALESCE(SUM(IF(d.rider_settled_at IS NULL AND (o.pending_refund OR o.locking OR
                        o.refund_status NOT IN ('NO_AFTER_SALE','AFTER_SALE_ENDED','REFUND_SUCCEEDED','OFFLINE_RESOLVED')),
-                       o.delivery_cents-d.rider_commission_cents,0)),0) AS heldCents,
+                       %s,0)),0) AS heldCents,
                    COALESCE(SUM(IF(d.rider_settled_at IS NULL AND NOT (o.pending_refund OR o.locking OR
                        o.refund_status NOT IN ('NO_AFTER_SALE','AFTER_SALE_ENDED','REFUND_SUCCEEDED','OFFLINE_RESOLVED')),
-                       o.delivery_cents-d.rider_commission_cents,0)),0) AS pendingCents,
+                       %s,0)),0) AS pendingCents,
                    COALESCE(SUM(o.completed_at>=? AND o.fulfill_status='COMPLETED'),0) AS todayCompleted
-            FROM user_order_detail d JOIN business_order o ON o.id=d.order_id WHERE d.pickup_rider_id=?
-            """, java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"))
+            FROM user_order_detail d JOIN business_order o ON o.id=d.order_id %s WHERE d.pickup_rider_id=?
+            """.formatted(RiderOrders.FEE,RiderOrders.COMMISSION,RiderOrders.DUE,RiderOrders.DUE,RiderOrders.DUE,
+                RiderOrders.DUE,RiderOrders.SETTLEMENT_JOIN), java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"))
                 .atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant().toEpochMilli(), rider);
         totals.putAll(db.queryForList("""
             SELECT balance_cents AS availableCents,frozen_cents AS frozenCents

@@ -31,6 +31,7 @@
       <view wx:if="{{order.fulfillmentType !== 'pickup'}}" class="kv"><text>配送费</text><text>{{amounts.delivery}}</text></view>
       <view class="kv"><text>实付</text><text class="price">{{amounts.paid}}</text></view>
       <view class="kv"><text>已退款</text><text>{{amounts.refunded}}</text></view>
+      <view wx:if="{{amounts.settled}}" class="kv"><text>商户入账</text><text>{{amounts.settled}}</text></view>
       <view class="kv"><text>支付单号</text><text class="mono" selectable>{{order.paymentId}}</text></view>
     </view>
     <view wx:if="{{order.fulfillmentType !== 'pickup'}}" class="card">
@@ -44,6 +45,7 @@
       <view wx:for="{{aftersales}}" wx:key="id" class="separator">
         <view class="row summary"><text class="price">{{item.amount}}</text><text class="badge {{item.status === 'REFUND_FAILED' ? 'danger' : item.status === 'REFUND_REJECTED' || item.status === 'REFUND_VERIFYING' || item.status === 'REFUND_PROCESSING' ? 'warn' : ''}}">{{states.label(item.status)}}</text></view>
         <view>{{item.reason}}</view><view class="hint">{{item.time}} · {{item.channelStatus === 'LEGACY_DETAIL' ? item.channelDetail : states.label(item.channelStatus)}}</view>
+        <view wx:if="{{item.deliveryRefund}}" class="hint">含退回配送费 {{item.deliveryRefund}}</view>
         <view wx:if="{{item.channelReason}}" class="notice">{{item.channelReason}}</view>
         <view wx:if="{{item.offlineTime}}" class="hint">线下实退 {{item.offlineTime}} · {{item.offlineChannel}}</view>
         <view wx:if="{{item.status === 'AWAITING_MERCHANT_DECISION'}}" class="actions split-actions refund-actions">
@@ -52,19 +54,20 @@
         </view>
         <button wx:if="{{item.status === 'REFUND_REJECTED'}}" class="btn plain wide separator" data-action="end" data-id="{{item.id}}" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">协商不退款，结束售后</button>
       </view>
-      <button wx:if="{{order.accepted && !order.pendingRefund && remaining > 0 && order.refundStatus !== 'REFUND_FAILED'}}" class="btn wide separator" data-action="negotiate" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">发起协商退款</button>
+      <button wx:if="{{order.accepted && !order.pendingRefund && !order.settlementRecorded && remaining > 0 && order.refundStatus !== 'REFUND_FAILED'}}" class="btn wide separator" data-action="negotiate" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">发起协商退款</button>
     </view>
     <view wx:if="{{refundForm}}" class="card" id="refund-form">
       <view class="section">{{refundForm.action === 'reject' ? '填写拒绝原因' : refundForm.action === 'end' ? '结束售后' : '确认退款金额'}}</view>
       <block wx:if="{{refundForm.action === 'negotiate' || refundForm.action === 'approve'}}">
         <view class="hint">剩余实付 {{amounts.remaining}} · 餐品可退 {{amounts.foodRemaining}}</view>
         <text class="label">退款类型</text>
-        <picker range="{{['退剩余实付', '部分退餐品']}}" value="{{refundForm.type === 'partial' ? 1 : 0}}" bindchange="type">
-          <view class="field">{{refundForm.type === 'partial' ? '部分退餐品' : '退剩余实付'}}</view>
+        <picker range="{{['退剩余实付', '部分退款']}}" value="{{refundForm.type === 'partial' ? 1 : 0}}" bindchange="type">
+          <view class="field">{{refundForm.type === 'partial' ? '部分退款' : '退剩余实付'}}</view>
         </picker>
         <block wx:if="{{refundForm.type === 'partial'}}">
-          <text class="label">部分退款金额（元）</text>
-          <view class="currency-field"><text aria-hidden="true">¥</text><input aria-label="部分退款金额（元）" class="field" type="digit" data-field="amount" bindinput="input" value="{{refundForm.amount}}" /></view>
+          <text class="label">餐品退款金额（元）</text>
+          <view wx:if="{{order.partialDeliveryRefundCents}}" class="hint">未取餐，配送费将一并退回。</view>
+          <view class="currency-field"><text aria-hidden="true">¥</text><input aria-label="餐品退款金额（元）" class="field" type="digit" data-field="amount" bindinput="input" value="{{refundForm.amount}}" /></view>
         </block>
         <view class="row separator"><text>退款成功后恢复该单库存</text><switch aria-label="退款成功后恢复该单库存" checked="{{refundForm.restoreStock}}" color="#167953" bindchange="restore" /></view>
       </block>

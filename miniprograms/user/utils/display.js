@@ -4,6 +4,12 @@ function money(cents) {
   return `¥${(Number(cents || 0) / 100).toFixed(2)}`;
 }
 
+function deliveryFee(rule, cents) {
+  return rule?.mode === 'PERCENTAGE'
+    ? '餐品小计的 ' + (rule.value / 100) + '%'
+    : money(rule?.value ?? cents);
+}
+
 function illustration(artwork) {
   const kind = ['rice', 'noodle', 'drink'].includes(artwork) ? artwork : 'rice';
   return `/assets/${kind}.svg`;
@@ -21,4 +27,4 @@ function time(value) {
   return local.toISOString().slice(0, 16).replace('T', ' ');
 }
 
-module.exports = { money, illustration, photo, time };
+module.exports = { money, deliveryFee, illustration, photo, time };

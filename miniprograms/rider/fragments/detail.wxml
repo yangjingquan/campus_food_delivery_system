@@ -41,8 +41,9 @@
   </view>
   <view class="info-group">
     <view class="group-label">费用</view>
-    <template is="fees" data="{{rows: [{label:'订单配送费',value:'¥ ' + order.fee},
+    <template is="fees" data="{{rows: [{label:'实收配送费',value:'¥ ' + order.fee},
       {label:'平台抽成',value:'¥ ' + order.commission},{label:'骑手应得',value:'¥ ' + order.due}]}}"/>
+  <view wx:if="{{order.fundedCents > 0}}" class="muted small">全额退款骑手报酬 ¥ {{order.funded}}，由商户承担</view>
   </view>
 </view>
 <view class="card timeline">

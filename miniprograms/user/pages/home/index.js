@@ -73,7 +73,7 @@ Page({
         const artwork = item.products[0]?.artwork;
         return {
           ...item, picture: display.photo(item.photoPath, artwork),
-          fallback: display.illustration(artwork), deliveryFeeText: display.money(item.deliveryFeeCents)
+          fallback: display.illustration(artwork), deliveryFeeText: display.deliveryFee(item.deliveryFeeRule, item.deliveryFeeCents)
         };
       });
       this.setData({ merchants, config, categories, loading: false });

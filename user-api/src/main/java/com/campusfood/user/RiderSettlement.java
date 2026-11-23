@@ -40,36 +40,35 @@ class RiderSettlement {
     }
 
     private void credit(String id, long cutoff) {
-        // 与退款共用订单锁。历史已领取订单缺少费率快照时，优先采用成交时的规则版本。
         var orders = db.queryForList("""
-            SELECT o.merchant_id,o.merchant,o.rider,o.delivery_cents,o.paid_cents,o.refunded_cents,
-                   d.pickup_rider_id,
-                   COALESCE(d.rider_commission_cents,ROUND(o.delivery_cents * COALESCE(
-                       (SELECT delivery_rate FROM operations_config WHERE id=d.operations_rule_id),
-                       (SELECT delivery_rate FROM operations_config ORDER BY id DESC LIMIT 1)) / 100)) AS commission
+            SELECT o.merchant_id,o.merchant,o.rider,o.food_cents,o.delivery_cents,o.paid_cents,o.refunded_cents,
+                   o.food_refunded_cents,d.pickup_rider_id,d.rider_commission_cents
             """ + ELIGIBLE + " AND o.id=? FOR UPDATE", cutoff, cutoff, id);
         if (orders.isEmpty()) {
             return;
         }
         var order = orders.getFirst();
         String rider = order.get("pickup_rider_id").toString();
-        long commission = number(order, "commission");
-        long due = number(order, "delivery_cents") - commission;
+        var settlement = OrderPricing.settlement(db, id, order);
+        long due = settlement.riderDue();
         var riderAccount = db.queryForList("SELECT id FROM finance_account WHERE id=? AND type='RIDER' FOR UPDATE",
             String.class, rider);
         if (riderAccount.isEmpty()) {
             return;
         }
-        if (number(order, "paid_cents") == number(order, "refunded_cents") && due > 0) {
-            chargeMerchant(order, id, due);
+        long now = System.currentTimeMillis();
+        if (settlement.fullyRefunded() && due > 0) {
+            chargeMerchant(order, id, settlement, now);
         }
         db.update("UPDATE finance_account SET balance_cents=balance_cents+? WHERE id=?", due, rider);
         journal(rider, "rider_settlement_credit", id, due);
+        OrderPricing.recordSettlement(db, id, "rider_settlement_credit", rider, settlement, due, now);
         db.update("UPDATE user_order_detail SET rider_settled_at=?,rider_commission_cents=? WHERE order_id=?",
-            System.currentTimeMillis(), commission, id);
+            now, settlement.riderCalculationCommission(), id);
     }
 
-    private void chargeMerchant(Map<String, Object> order, String id, long due) {
+    private void chargeMerchant(Map<String, Object> order, String id, OrderPricing.Settlement settlement, long now) {
+        long due = settlement.riderDue();
         String merchant = order.get("merchant_id").toString();
         long balance = db.queryForList("SELECT balance_cents FROM finance_account WHERE id=? AND type='MERCHANT' FOR UPDATE",
             Long.class, merchant).stream().findFirst().orElse(0L);
@@ -77,6 +76,7 @@ class RiderSettlement {
         if (debit > 0) {
             db.update("UPDATE finance_account SET balance_cents=balance_cents-? WHERE id=?", debit, merchant);
             journal(merchant, "rider_refund_debit", id, -debit);
+            OrderPricing.recordSettlement(db, id, "rider_refund_debit", merchant, settlement, -debit, now);
         }
         long advance = due - debit;
         if (advance > 0) {
@@ -87,6 +87,7 @@ class RiderSettlement {
                 VALUES(?,?,?,?,?,?,?,'已领餐全额退款，平台垫付骑手收入',?)
                 """, "RD-" + java.util.UUID.randomUUID(), id, order.get("merchant"), order.get("rider"), due, balance, advance, merchant);
             journal("SYSTEM_PLATFORM", "rider_refund_advance", id, -advance);
+            OrderPricing.recordSettlement(db, id, "rider_refund_advance", "SYSTEM_PLATFORM", settlement, -advance, now);
         }
     }
 
@@ -95,9 +96,5 @@ class RiderSettlement {
             INSERT INTO account_journal(account_id,event_type,reference_id,available_delta,frozen_delta)
             VALUES(?,?,?,?,0)
             """, account, type, order, delta);
-    }
-
-    private static long number(Map<String, Object> row, String key) {
-        return ((Number) row.get(key)).longValue();
     }
 }

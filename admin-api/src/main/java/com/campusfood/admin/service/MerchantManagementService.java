@@ -14,6 +14,7 @@ import com.campusfood.admin.entity.FinanceAccount;
 import com.campusfood.admin.entity.Merchant;
 import com.campusfood.domain.BusinessStates.Audit;
 import com.campusfood.domain.BusinessStates.Business;
+import com.campusfood.domain.InlinePhoto;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +53,7 @@ public class MerchantManagementService {
                 if (merchants.lockPendingRevision(id) != null)
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "请先处理该商户的待审资料");
                 StoreFields fields = fields(payload, current.getPhone());
+                savePhoto(id, readPhoto(payload));
                 update.set(Merchant::getName, fields.name()).set(Merchant::getContact, fields.contact())
                         .set(Merchant::getPhone, fields.phone()).set(Merchant::getAddress, fields.address())
                         .set(current.getAuditStatus() == Audit.APPROVED, Merchant::getBusinessStatus, fields.business());
@@ -80,12 +82,31 @@ public class MerchantManagementService {
 
     private Map<String, Object> create(Map<?, ?> payload, String actor) {
         StoreFields fields = fields(payload, null);
+        InlinePhoto photo = readPhoto(payload);
         String id = UUID.randomUUID().toString().replace("-", "");
         merchants.insert(Merchant.create(id, fields.name(), fields.contact(), fields.phone(), fields.address(),
                 fields.business(), LocalDateTime.now(BEIJING).format(JOIN_TIME)));
+        savePhoto(id, photo);
         merchants.createFinanceAccount(id, fields.name());
         audit.insertAudit(actor, "merchant.create", id, "", "DISABLED", "");
         return Map.of("ok", true, "id", id);
+    }
+
+    private static InlinePhoto readPhoto(Map<?, ?> payload) {
+        Object image = payload.get("image");
+        if (image == null) return null;
+        if (!(image instanceof String value)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户图片格式无效");
+        }
+        try {
+            return InlinePhoto.parse(value.trim(), "商户图片");
+        } catch (IllegalArgumentException error) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage());
+        }
+    }
+
+    private void savePhoto(String id, InlinePhoto photo) {
+        if (photo != null) merchants.savePhoto(id, photo.data(), photo.mediaType());
     }
 
     private record StoreFields(String name, String contact, String phone, String address, Business business) {}

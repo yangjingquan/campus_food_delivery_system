@@ -4,6 +4,8 @@ import { ElImage, ElMessage, ElMessageBox, ElUpload, type UploadInstance, type U
 import { Search, Picture, Upload } from '@element-plus/icons-vue'
 import { adminApi, type FoodCategory } from '../api/admin'
 import ListPagination from '../components/ListPagination.vue'
+import ProductThumbnail from '../components/ProductThumbnail.vue'
+import { encodePhoto, isPhotoFile } from '../domain/photo'
 import { money } from '../domain/rules'
 import { useAuthStore } from '../stores/auth'
 
@@ -57,6 +59,7 @@ const form = reactive({
 const imageUpload = ref<UploadInstance>()
 const selectedImage = ref<File>()
 const imagePreview = ref('')
+const photoRevisions = reactive<Record<string, number>>({})
 
 function isAvailable(value: ProductRow['available']) {
   return value === true || value === 1 || value === '1'
@@ -124,22 +127,13 @@ function clearSelectedImage() {
 const selectImage: UploadProps['onChange'] = ({ raw: file }) => {
   imageUpload.value?.clearFiles()
   if (!file || saving.value || !editorOpen.value) return
-  if (!['image/jpeg', 'image/png'].includes(file.type) || !file.size || file.size > 1024 * 1024) {
+  if (!isPhotoFile(file)) {
     ElMessage.warning('请选择不超过 1 MB 的 JPEG 或 PNG 图片')
     return
   }
   clearSelectedImage()
   selectedImage.value = file
   imagePreview.value = URL.createObjectURL(file)
-}
-
-function encodeImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(new Error('商品图片读取失败'))
-    reader.readAsDataURL(file)
-  })
 }
 
 async function saveProduct() {
@@ -153,11 +147,13 @@ async function saveProduct() {
   }
   saving.value = true
   try {
-    const image = selectedImage.value ? await encodeImage(selectedImage.value) : ''
+    const image = selectedImage.value ? await encodePhoto(selectedImage.value) : ''
+    const editedId = editing.value?.id
     await adminApi.saveProduct({
       merchantId: form.merchantId, name: form.name.trim(), category: form.category, description: form.description.trim(),
       priceCents, stock, previousStock: editing.value?.stock ?? 0, image,
-    }, editing.value?.id)
+    }, editedId)
+    if (editedId && image) photoRevisions[editedId] = (photoRevisions[editedId] ?? 0) + 1
     editorOpen.value = false
     ElMessage.success('商品已保存')
     await loadProducts()
@@ -287,7 +283,10 @@ onUnmounted(() => {
               :aria-label="`查看${scope.row.name}图片`"
               @click="viewPhoto(scope.row as ProductRow)"
             >
-              <el-icon><Picture /></el-icon>
+              <ProductThumbnail
+                :key="`${scope.row.id}:${scope.row.updatedAt}:${photoRevisions[scope.row.id] ?? 0}`"
+                :product-id="scope.row.id"
+              />
             </button>
             <span v-else class="product-thumb product-thumb-empty"><el-icon><Picture /></el-icon></span>
             <div class="product-cell-copy">

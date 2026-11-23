@@ -123,7 +123,7 @@ public class DeliveryService {
         }
         var orders = db.queryForList("""
             SELECT o.id,o.fulfill_status,o.fulfillment_type,o.pending_refund,o.locking,o.refund_status,d.pickup_rider_id,
-                o.delivery_cents,d.operations_rule_id
+                o.delivery_cents
             FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
             WHERE o.id=? FOR UPDATE
             """, matches.getFirst());
@@ -151,13 +151,8 @@ public class DeliveryService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单售后尚待处理");
         }
         var result = updateStatus(id, Map.of("status", Fulfillment.DELIVERING.name(), "riderName", riders.getFirst(), "actor", OrderActor.RIDER_SCAN.name()));
-        // 有成交规则的订单沿用原费率，旧订单在首次领取时补齐快照。
-        var rate = db.queryForObject("""
-            SELECT COALESCE((SELECT delivery_rate FROM operations_config WHERE id=?),
-                            (SELECT delivery_rate FROM operations_config ORDER BY id DESC LIMIT 1))
-            """, BigDecimal.class, order.get("operations_rule_id"));
-        long commission = BigDecimal.valueOf(((Number) order.get("delivery_cents")).longValue())
-            .multiply(rate).movePointLeft(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+        long commission = OrderPricing.applied(db, id).rules().delivery()
+            .commission(((Number) order.get("delivery_cents")).longValue());
         db.update("""
             UPDATE user_order_detail SET pickup_rider_id=?,picked_up_at=?,rider_commission_cents=? WHERE order_id=?
             """, riderId, result.get("updatedAt"), commission, id);

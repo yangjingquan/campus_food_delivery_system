@@ -22,6 +22,7 @@ function order(data) {
     fee: money(data.feeCents),
     commission: money(data.commissionCents),
     due: money(data.dueCents),
+    funded: money(data.fundedCents),
     paidTime: date(data.paidAt),
     arrivedTime: date(data.arrivedAt),
     pickupTime: date(data.pickedUpAt),
@@ -45,7 +46,7 @@ function maskPhone(phone) {
 }
 
 function finance(data) {
-  const keys = ['fee', 'commission', 'due', 'pending', 'held', 'available', 'frozen', 'paidOut'];
+  const keys = ['fee', 'commission', 'due', 'funded', 'pending', 'held', 'available', 'frozen', 'paidOut'];
   return { ...data, ...Object.fromEntries(keys.map(key => [key, money(data[key + 'Cents'])])) };
 }
 

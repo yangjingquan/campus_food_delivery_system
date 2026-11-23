@@ -1,6 +1,10 @@
 package com.campusfood.admin.service;
 
+import java.math.BigDecimal;
 import java.time.*;
+import com.campusfood.domain.PricingRules;
+import com.campusfood.domain.PricingRules.Mode;
+import com.campusfood.domain.PricingRules.Rule;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -88,6 +92,7 @@ public class BusinessService {
                 List<Map<String, Object>> all = db.listOperationsConfigs();
                 for (var config : all) {
                     config.put("peakPeriods", db.listPeakPeriods(config.remove("configId")));
+                    config.put("pricing", defaultPricing(config));
                 }
                 yield Map.of("config", all.get(0), "history", all.subList(1, all.size()));
             }
@@ -151,11 +156,12 @@ public class BusinessService {
             String current = "OPS-V" + String.format("%03d", id);
             if (!current.equals(field(c, "version")))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "配置已被修改，请刷新后重试");
-            int fee = number(c, "feeCents", 0, 100000), regular = number(c, "regularBatch", 1, 1440), peak =
+            int regular = number(c, "regularBatch", 1, 1440), peak =
                     number(c, "peakBatch", 1, 1440), accept = number(c, "acceptTimeout", 1, 1440), reminder =
                     number(c, "reminderInterval", 1, 1440);
-            var food = rate(c, "foodRate");
-            var delivery = rate(c, "deliveryRate");
+            var rules = c.containsKey("pricing") ? PricingConfigurationService.parse(c.get("pricing"))
+                : new PricingRules(PricingRules.fixed(number(c, "feeCents", 0, 100000)),
+                    PricingRules.percentage(rate(c, "foodRate")), PricingRules.percentage(rate(c, "deliveryRate")));
             String start = time(c, "serviceStart"), end = time(c, "serviceEnd");
             if (start.compareTo(end) >= 0)
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "配送服务开始时间须早于结束时间");
@@ -163,7 +169,11 @@ public class BusinessService {
             // 保留旧字段以兼容已有客户端，无高峰时段时使用零长度窗口。
             String ps = periods.isEmpty() ? start : periods.getFirst().get("start");
             String pe = periods.isEmpty() ? start : periods.getFirst().get("end");
-            db.insertOperationsConfig(fee, food, delivery, regular, peak, start, end, ps, pe, accept, reminder, actor);
+            db.insertOperationsConfig(fixedValue(rules.fee()) == null ? 0 : rules.fee().value(),
+                rateValue(rules.food()), rateValue(rules.delivery()),
+                rules.fee().mode() == Mode.PERCENTAGE ? rules.fee().value() : null,
+                fixedValue(rules.food()), fixedValue(rules.delivery()),
+                regular, peak, start, end, ps, pe, accept, reminder, actor);
             long configId = operations.lockLatestVersion();
             for (var period : periods) db.insertPeakPeriod(configId, period.get("start"), period.get("end"));
             audit(actor, type, current, current, "NEW_VERSION", "");
@@ -171,6 +181,27 @@ public class BusinessService {
         }
         throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                 "此操作依赖交易或支付渠道，尚未接入，未执行任何资金操作");
+    }
+
+    private static PricingRules defaultPricing(Map<String, Object> config) {
+        Object feeBps = config.remove("feeBps");
+        Object foodFixed = config.remove("foodFixed");
+        Object deliveryFixed = config.remove("deliveryFixed");
+        return new PricingRules(
+            feeBps instanceof Number n ? new Rule(Mode.PERCENTAGE, n.intValue())
+                : PricingRules.fixed(((Number) config.get("feeCents")).intValue()),
+            foodFixed instanceof Number n ? PricingRules.fixed(n.intValue())
+                : PricingRules.percentage((BigDecimal) config.get("foodRate")),
+            deliveryFixed instanceof Number n ? PricingRules.fixed(n.intValue())
+                : PricingRules.percentage((BigDecimal) config.get("deliveryRate")));
+    }
+
+    private static Integer fixedValue(Rule rule) {
+        return rule.mode() == Mode.FIXED ? rule.value() : null;
+    }
+
+    private static BigDecimal rateValue(Rule rule) {
+        return rule.mode() == Mode.PERCENTAGE ? BigDecimal.valueOf(rule.value(), 2) : BigDecimal.ZERO;
     }
 
     private static List<Map<String, String>> peakPeriods(Map<?, ?> config, String serviceStart, String serviceEnd) {

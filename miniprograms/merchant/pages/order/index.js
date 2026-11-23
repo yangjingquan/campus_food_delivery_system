@@ -18,14 +18,17 @@ Page({
         amounts: {
           paid: ui.money(order.paidCents), delivery: ui.money(order.deliveryCents),
           food: ui.money(order.foodCents), refunded: ui.money(order.refundedCents),
-          remaining: ui.money(remaining), foodRemaining: ui.money(foodRemaining)
+          remaining: ui.money(remaining), foodRemaining: ui.money(foodRemaining),
+          settled: order.merchantSettledCents == null ? '' : ui.money(order.merchantSettledCents)
         },
         paidAt: ui.date(order.paidAt),
         arrivedAt: order.arrivedAt ? ui.date(order.arrivedAt) : '',
         deadline: ui.date(order.acceptDeadlineAt), acceptExpired: Date.now() >= order.acceptDeadlineAt,
         lines: order.lines.map(item => ({ ...item, amount: ui.money(item.amountCents) })),
         aftersales: order.aftersales.map(item => ({
-          ...item, amount: ui.money(item.amountCents), time: ui.date(item.createdAt),
+          ...item, amount: ui.money(item.amountCents),
+          deliveryRefund: item.deliveryRefundCents ? ui.money(item.deliveryRefundCents) : '',
+          time: ui.date(item.createdAt),
           offlineTime: item.offlineActualAt ? ui.date(item.offlineActualAt) : ''
         })),
         events: order.events.map(item => ({ ...item, time: ui.date(item.createdAt) }))
@@ -57,7 +60,7 @@ Page({
     this.setData({
       refundForm: {
         action, refundId: id || '', type: refund ? refund.type : 'full',
-        amount: refund && refund.type === 'partial' ? (refund.amountCents / 100).toFixed(2) : '',
+        amount: refund && refund.type === 'partial' ? ((refund.foodRefundCents ?? refund.amountCents) / 100).toFixed(2) : '',
         reason: '', restoreStock: false, requestKey: 'rf_' + Date.now() + '_' + Math.random().toString(36).slice(2)
       },
       formError: ''
@@ -83,7 +86,9 @@ Page({
         }
       }
       const title = { approve: '同意退款', negotiate: '提交协商退款', reject: '拒绝退款', end: '结束售后' }[action];
-      if (!await ui.confirm(title, submitsMoney ? '确认提交 ' + ui.money(body.amountCents) + ' 的退款。以渠道结果为准。' : '确认提交本次售后处理结果。')) return;
+      const totalRefund = type === 'partial'
+        ? body.amountCents + (this.data.order.partialDeliveryRefundCents || 0) : body.amountCents;
+      if (!await ui.confirm(title, submitsMoney ? '确认提交 ' + ui.money(totalRefund) + ' 的退款。以渠道结果为准。' : '确认提交本次售后处理结果。')) return;
       await api.request(ui.orderPath(this.id) + '/refund', body, 'POST');
       this.setData({ refundForm: null });
       await this.refresh();

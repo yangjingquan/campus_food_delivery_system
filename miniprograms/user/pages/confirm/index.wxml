@@ -36,7 +36,7 @@
     </view>
     <view class="card bill">
       <view class="row"><text>餐品合计</text><text>{{foodText}}</text></view>
-      <view wx:if="{{!pickup}}" class="row"><text>固定配送费 × {{groups.length}}</text><text>{{feeText}}</text></view>
+      <view wx:if="{{!pickup}}" class="row"><text>配送费合计</text><text>{{feeText}}</text></view>
       <view class="row split"><text>{{groups.length > 1 ? '合并应付' : '订单应付'}}</text><text class="price">{{totalText}}</text></view>
     </view>
     <view wx:if="{{addressNeedsLocation}}" class="hint orange">该地址尚未设置地图位置，请补充后下单。</view>

@@ -58,6 +58,13 @@ public interface MerchantMapper extends BaseMapper<Merchant> {
         """)
     void applyPhotoRevision(@Param("id") String id);
 
+    @Insert("""
+        INSERT INTO merchant_store_photo(merchant_id,image_data,media_type)
+        VALUES(#{id},#{data},#{mediaType}) AS incoming
+        ON DUPLICATE KEY UPDATE image_data=incoming.image_data,media_type=incoming.media_type
+        """)
+    void savePhoto(@Param("id") String id, @Param("data") byte[] data, @Param("mediaType") String mediaType);
+
     @Select("SELECT image_data,media_type FROM merchant_store_photo WHERE merchant_id=#{id}")
     Map<String, Object> currentPhoto(@Param("id") String id);
 

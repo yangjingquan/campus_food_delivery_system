@@ -1,11 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-test('购物车实时显示全车预估金额，只结算达标商户', async () => {
+test('购物车按各商户规则计算配送费，只结算达标商户', async () => {
   const merchants = [
     { id: 'A', open: true, minimumOrderCents: 1300, products: [{ id: 'pA', priceCents: 1000, availableStock: 5 }] },
-    { id: 'B', open: true, minimumOrderCents: 1800, products: [{ id: 'pB', priceCents: 1800, availableStock: 5 }] },
-    { id: 'C', open: true, minimumOrderCents: 0, products: [{ id: 'pC', priceCents: 600, availableStock: 5 }] }
+    { id: 'B', open: true, minimumOrderCents: 1800, deliveryFeeRule: { mode: 'PERCENTAGE', value: 1234 }, products: [{ id: 'pB', priceCents: 1800, availableStock: 5 }] },
+    { id: 'C', open: true, minimumOrderCents: 0, deliveryFeeRule: { mode: 'FIXED', value: 125 }, products: [{ id: 'pC', priceCents: 600, availableStock: 5 }] }
   ];
   const storage = {
     shoppingCart: merchants.map(merchant => {
@@ -55,8 +55,8 @@ test('购物车实时显示全车预估金额，只结算达标商户', async ()
   assert.equal(cart.data.groups[0].shortfallText, '¥3.00');
   assert.equal(cart.data.checkoutCount, 2);
   assert.equal(cart.data.foodText, '¥34.00');
-  assert.equal(cart.data.feeText, '¥12.00');
-  assert.equal(cart.data.totalText, '¥46.00');
+  assert.equal(cart.data.feeText, '¥7.47');
+  assert.equal(cart.data.totalText, '¥41.47');
   cart.checkout();
   assert.equal(destinations[0], '/pages/confirm/index?merchantIds=B,C');
 
@@ -65,9 +65,10 @@ test('购物车实时显示全车预估金额，只结算达标商户', async ()
   confirm.onLoad(query);
   await confirm.load();
   assert.deepEqual(confirm.data.groups.map(group => group.merchantId), ['B', 'C']);
+  assert.deepEqual(confirm.data.groups.map(group => group.feeText), ['¥2.22', '¥1.25']);
   await confirm.submit();
   assert.deepEqual(submissions[0].items, [{ productId: 'pB', quantity: 1 }, { productId: 'pC', quantity: 1 }]);
-  assert.equal(submissions[0].expectedTotalCents, 3200);
+  assert.equal(submissions[0].expectedTotalCents, 2747);
 
   const result = loadPage('../pages/payment-result/index');
   result.paymentId = 'payment';

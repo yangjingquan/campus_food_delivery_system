@@ -42,6 +42,7 @@ public class AdminService {
     private final WechatService wechat;
     private final PrintingSettingsService printing;
     private final MerchantPrinterSettingsService merchantPrinters;
+    private final PricingConfigurationService pricing;
     private final MerchantManagementService merchantManagement;
     private final RiderManagementService riderManagement;
     private final BCryptPasswordEncoder passwords = new BCryptPasswordEncoder();
@@ -57,7 +58,7 @@ public class AdminService {
                         AuthorizationService authorization, WithdrawalService withdrawals, WechatService wechat,
                         AdminUserRoleMapper roles, MerchantMapper merchants, RiderMapper riders,
                         ConfigurationLockMapper configurationLocks, PrintingSettingsService printing,
-                        MerchantPrinterSettingsService merchantPrinters, MerchantManagementService merchantManagement,
+                        MerchantPrinterSettingsService merchantPrinters, PricingConfigurationService pricing, MerchantManagementService merchantManagement,
                         RiderManagementService riderManagement) {
         this.db = db;
         this.configurationLocks = configurationLocks;
@@ -71,6 +72,7 @@ public class AdminService {
         this.wechat = wechat;
         this.printing = printing;
         this.merchantPrinters = merchantPrinters;
+        this.pricing = pricing;
         this.merchantManagement = merchantManagement;
         this.riderManagement = riderManagement;
     }
@@ -276,13 +278,23 @@ public class AdminService {
         return merchantPrinters.current(id);
     }
 
+    public Map<String, Object> merchantPricing(String id, String authHeader) {
+        authorization.require(actor(authHeader), "merchant.manage");
+        return pricing.merchant(id);
+    }
+
+    public Map<String, Object> settlementSnapshots(String id, String authHeader) {
+        authorization.require(actor(authHeader), "order.view");
+        return Map.of("rows", pricing.snapshots(id));
+    }
+
     @Transactional
     public Map<String, Object> action(AdminActionRequest body, String authHeader) {
         String username = actor(authHeader);
         String type = String.valueOf(body.type());
         String permission = switch (type) {
             case "merchant.audit" -> "merchant.audit";
-            case "merchant.create", "merchant.update", "merchant.availability", "merchant.delete" -> "merchant.manage";
+            case "merchant.create", "merchant.update", "merchant.availability", "merchant.delete", "merchant.save-pricing" -> "merchant.manage";
             case "merchant.save-printer" -> "merchant.printer.edit";
             case "rider.create", "rider.update", "rider.enable", "rider.disable" -> "rider.manage";
             case "rider.audit" -> "rider.audit";
@@ -302,6 +314,7 @@ public class AdminService {
         if (type.equals("config.save-printing")) return printing.save(payload, username);
         if (type.equals("merchant.save-printer")) return merchantPrinters.save(payload, username);
         if (permission.equals("rider.manage")) return riderManagement.action(type, payload, username);
+        if (type.equals("merchant.save-pricing")) return pricing.saveMerchant(payload, username);
         if (permission.equals("merchant.manage")) return merchantManagement.action(type, payload, username);
         if (type.equals("withdrawal.review")) return withdrawals.review(payload, username);
         if (type.equals("withdrawal.retry")) return withdrawals.retry(payload, username);

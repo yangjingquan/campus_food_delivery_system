@@ -34,11 +34,10 @@ Page({
       if (address) wx.setStorageSync('selectedAddress', address);
 
       const mode = this.data.pickup ? 'pickup' : 'delivery';
-      const fee = this.data.pickup ? 0 : config.deliveryFeeCents;
       const latest = new Map();
-      const merchantMinimums = new Map();
+      const merchants = new Map();
       for (const merchant of catalog.merchants || []) {
-        merchantMinimums.set(merchant.id, this.data.pickup ? 0 : (merchant.minimumOrderCents || 0));
+        merchants.set(merchant.id, merchant);
         for (const product of merchant.products) latest.set(product.id, { product, merchant });
       }
       this.items = cart.read(this.merchantScope, mode).map(item => {
@@ -51,10 +50,11 @@ Page({
           photoPath: entry?.product.photoPath ?? item.photoPath
         };
       });
+      const fee = merchantId => this.data.pickup ? 0 : cart.feeRule(merchants.get(merchantId), config);
       const totals = cart.totals(this.items, fee);
       const groups = cart.groups(this.items).map(group => {
         const amounts = cart.totals(group.items, fee);
-        const minimum = merchantMinimums.get(group.merchantId) || 0;
+        const minimum = this.data.pickup ? 0 : (merchants.get(group.merchantId)?.minimumOrderCents || 0);
         const shortfall = minimum - amounts.foodCents;
         return {
           ...group,
@@ -116,6 +116,7 @@ Page({
       wx.setStorageSync(attemptKey, attempt);
     }
 
+    let refreshQuote = false;
     try {
       const { data } = await api.post('/checkout', { ...fulfillment, requestKey: attempt.requestKey, expectedTotalCents, items });
       const payment = data.payment;
@@ -136,9 +137,11 @@ Page({
       this.setData({ submitError: error.message || '提交结果暂未确认，请重试' });
       if (error.statusCode === 409) {
         wx.removeStorageSync(attemptKey);
+        refreshQuote = true;
       }
     } finally {
       this.setData({ submitting: false });
     }
+    if (refreshQuote) await this.load();
   }
 });

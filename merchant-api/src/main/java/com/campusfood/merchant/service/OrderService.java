@@ -20,6 +20,10 @@ public class OrderService {
     private static final String BASE = """
         SELECT o.id,o.payment_id AS paymentId,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryCents,
                o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,
+               IF(d.pickup_rider_id IS NULL,GREATEST(0,o.delivery_cents-o.refunded_cents+o.food_refunded_cents),0) AS partialDeliveryRefundCents,
+               (d.rider_settled_at IS NOT NULL OR d.merchant_settled_at IS NOT NULL
+                 OR o.settlement_status IN ('WITHDRAWABLE','SETTLED','WITHDRAWN')) AS settlementRecorded,
+               d.merchant_settled_cents AS merchantSettledCents,
                o.fulfill_status AS status,o.payment_status AS paymentStatus,o.refund_status AS refundStatus,
                o.settlement_status AS settlementStatus,o.fulfillment_type AS fulfillmentType,
                o.pickup_number AS pickupNumber,
@@ -32,7 +36,8 @@ public class OrderService {
         """;
 
     private static final String REFUNDS = """
-        SELECT r.id,r.order_id AS orderId,r.type,r.reason,r.amount_cents AS amountCents,r.status,
+        SELECT r.id,r.order_id AS orderId,r.type,r.reason,r.amount_cents AS amountCents,r.delivery_refund_cents AS deliveryRefundCents,
+               r.amount_cents-r.delivery_refund_cents AS foodRefundCents,r.status,
                r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,
                r.offline_channel AS offlineChannel,r.offline_actual_at AS offlineActualAt
         FROM refund_record r JOIN business_order o ON o.id=r.order_id JOIN user_order_detail d ON d.order_id=o.id

@@ -1,5 +1,7 @@
 package com.campusfood.user;
 
+import com.campusfood.domain.PricingRules;
+import com.campusfood.domain.PricingRules.Mode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,9 +25,12 @@ public class CatalogService {
     }
 
     public Map<String, Object> config() {
-        var config = db.queryForMap("SELECT id,fee_cents,regular_batch,peak_batch,service_start,service_end,peak_start,peak_end,accept_timeout,reminder_interval FROM operations_config ORDER BY id DESC LIMIT 1");
+        var config = db.queryForMap("SELECT id,fee_cents,fee_bps,regular_batch,peak_batch,service_start,service_end,peak_start,peak_end,accept_timeout,reminder_interval FROM operations_config ORDER BY id DESC LIMIT 1");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("deliveryFeeCents", ((Number) config.get("fee_cents")).longValue());
+        result.put("deliveryFeeRule", config.get("fee_bps") instanceof Number n
+            ? new PricingRules.Rule(Mode.PERCENTAGE, n.intValue())
+            : PricingRules.fixed(((Number) config.get("fee_cents")).intValue()));
         result.put("regularBatchMinutes", ((Number) config.get("regular_batch")).intValue());
         result.put("peakBatchMinutes", ((Number) config.get("peak_batch")).intValue());
         result.put("serviceStart", config.get("service_start"));
@@ -101,7 +106,7 @@ public class CatalogService {
             "ORDER BY m.id,p.display_order,p.name";
         String like = "%" + term + "%";
         List<Map<String, Object>> rows = db.queryForList(sql, merchantId, merchantId, term, like, like, categoryFilter, categoryFilter);
-        long feePerMerchant = ((Number) config().get("deliveryFeeCents")).longValue();
+        var pricing = OrderPricing.current(db, rows.stream().map(row -> row.get("merchant_id").toString()).distinct().toList());
         Map<String, Map<String, Object>> grouped = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
             String id = row.get("merchant_id").toString();
@@ -112,7 +117,9 @@ public class CatalogService {
                 value.put("address", row.get("merchant_address"));
                 value.put("businessStatus", row.get("business_status"));
                 value.put("open", "STORE_OPEN".equals(row.get("business_status")));
-                value.put("deliveryFeeCents", feePerMerchant);
+                var fee = pricing.get(id).rules().fee();
+                value.put("deliveryFeeRule", fee);
+                if (fee.mode() == Mode.FIXED) value.put("deliveryFeeCents", fee.value());
                 value.put("minimumOrderCents", ((Number) row.get("minimum_order_cents")).longValue());
                 if (hasPhoto(row.get("store_photo"))) value.put("photoPath", "/catalog/merchants/" + id + "/photo");
                 value.put("products", new ArrayList<Map<String, Object>>());

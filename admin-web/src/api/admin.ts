@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { SectionKey } from '../domain/types'
+import type { Pricing, SettlementSnapshot } from '../domain/pricing'
 
 export interface FoodCategory {
   id: number
@@ -76,8 +77,17 @@ export const adminApi = {
   workspace<T = unknown>(section: SectionKey) {
     return unwrap<T>(http.get('/workspace', { params: { section } }))
   },
-  merchantPhoto(id: string) {
-    return unwrap<Blob>(http.get(`/merchants/${encodeURIComponent(id)}/photo`, { responseType: 'blob' }))
+  async settlementSnapshots(id: string) {
+    type Row = Omit<SettlementSnapshot, 'rules'> & { ruleDetails: string }
+    const { rows } = await unwrap<{ rows: Row[] }>(http.get(`/orders/${encodeURIComponent(id)}/settlement-snapshots`))
+    return rows.map(({ ruleDetails, ...row }) => ({ ...row, rules: JSON.parse(ruleDetails) as Pricing }))
+  },
+  merchantPhoto(id: string, signal?: AbortSignal) {
+    return unwrap<Blob>(http.get(`/merchants/${encodeURIComponent(id)}/photo`, { responseType: 'blob', signal }))
+  },
+  merchantPricing(id: string) {
+    return unwrap<{ version: number; enabled: boolean; pricing?: Pricing }>(
+      http.get(`/merchants/${encodeURIComponent(id)}/pricing`))
   },
   merchantPrinter(id: string) {
     return unwrap<MerchantPrinter>(http.get(`/merchants/${encodeURIComponent(id)}/printer`))
@@ -93,8 +103,8 @@ export const adminApi = {
   products(params: { keyword?: string; merchantId?: string; availability?: string; page?: number; pageSize?: number }) {
     return unwrap<{ rows: Array<Record<string, unknown>>; total: number; page: number; pageSize: number }>(http.get('/products', { params }))
   },
-  productPhoto(id: string) {
-    return unwrap<Blob>(http.get(`/products/${encodeURIComponent(id)}/photo`, { responseType: 'blob' }))
+  productPhoto(id: string, signal?: AbortSignal) {
+    return unwrap<Blob>(http.get(`/products/${encodeURIComponent(id)}/photo`, { responseType: 'blob', signal }))
   },
   saveProduct(data: ProductWrite, id?: string) {
     return unwrap<void>(id

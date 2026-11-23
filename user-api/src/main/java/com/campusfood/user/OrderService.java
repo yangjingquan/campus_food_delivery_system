@@ -6,6 +6,7 @@ import com.campusfood.domain.BusinessStates.OrderFilter;
 import com.campusfood.domain.BusinessStates.Payment;
 import com.campusfood.domain.BusinessStates.Refund;
 import com.campusfood.domain.BusinessStates.Settlement;
+import com.campusfood.domain.PricingRules.Mode;
 
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -90,18 +91,16 @@ public class OrderService {
         }
         var coordinates = pickup ? null : AddressCoordinates.require(address);
         List<OrderLine> lines = lockAndValidate(requested);
-        Map<String, Object> operations = db.queryForMap(
-            "SELECT fee_cents,id,food_rate FROM operations_config ORDER BY id DESC LIMIT 1");
-        long feePerMerchant = pickup ? 0 : ((Number) operations.get("fee_cents")).longValue();
-        if (feePerMerchant < 0) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "配送费用配置无效");
-
         Map<String, List<OrderLine>> grouped = new LinkedHashMap<>();
         for (OrderLine line : lines) grouped.computeIfAbsent(line.product().merchantId(), ignored -> new ArrayList<>()).add(line);
         if (pickup && grouped.size() != 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "到店自取仅支持单店下单");
         }
+        var pricingByMerchant = OrderPricing.current(db, grouped.keySet());
         Map<String, Long> subtotals = new LinkedHashMap<>();
+        Map<String, Long> deliveryFees = new LinkedHashMap<>();
         long foodTotal = 0;
+        long deliveryTotal = 0;
         // 起送价按商户拆单后的商品小计校验，先校验再生成支付单或预占库存。
         for (var entry : grouped.entrySet()) {
             long subtotal = 0;
@@ -116,8 +115,10 @@ public class OrderService {
             }
             subtotals.put(entry.getKey(), subtotal);
             foodTotal = Math.addExact(foodTotal, subtotal);
+            long delivery = pickup ? 0 : pricingByMerchant.get(entry.getKey()).rules().fee().calculate(subtotal);
+            deliveryFees.put(entry.getKey(), delivery);
+            deliveryTotal = Math.addExact(deliveryTotal, delivery);
         }
-        long deliveryTotal = Math.multiplyExact(feePerMerchant, grouped.size());
         long total = Math.addExact(foodTotal, deliveryTotal);
         Object quoted = body.get("expectedTotalCents");
         if (quoted != null && (!(quoted instanceof Number cents) || cents.longValue() != total
@@ -142,6 +143,8 @@ public class OrderService {
             List<OrderLine> merchantLines = entry.getValue();
             CatalogLine first = merchantLines.get(0).product();
             long foodCents = subtotals.get(entry.getKey());
+            long deliveryFee = deliveryFees.get(entry.getKey());
+            var pricing = pricingByMerchant.get(entry.getKey());
             StringBuilder summary = new StringBuilder();
             for (OrderLine line : merchantLines) {
                 CatalogLine item = line.product();
@@ -151,9 +154,9 @@ public class OrderService {
                     line.quantity(), item.productId(), line.quantity());
                 if (changed != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, item.productName() + " 库存刚刚变化，请重新确认");
             }
-            long merchantTotal = Math.addExact(foodCents, feePerMerchant);
+            long merchantTotal = Math.addExact(foodCents, deliveryFee);
             String orderId = insertMerchantOrder(now, paymentId, first, limit(summary.toString(), 490),
-                foodCents, feePerMerchant, merchantTotal, fulfillmentType);
+                foodCents, deliveryFee, merchantTotal, fulfillmentType);
             db.update("""
                 INSERT INTO user_order_detail(order_id,user_id,payment_id,address_id,receiver_name,phone,building,room,
                     operations_rule_id,food_rate_snapshot,destination_latitude,destination_longitude,pickup_address)
@@ -161,9 +164,11 @@ public class OrderService {
                 """, orderId, userId, paymentId, pickup ? null : addressId,
                 address.getOrDefault("name", ""), address.getOrDefault("phone", ""),
                 address.getOrDefault("building", ""), address.getOrDefault("room", ""),
-                operations.get("id"), operations.get("food_rate"),
+                pricing.defaultVersion(), pricing.rules().food().mode() == Mode.PERCENTAGE
+                    ? BigDecimal.valueOf(pricing.rules().food().value(), 2) : null,
                 pickup ? null : coordinates.latitude(), pickup ? null : coordinates.longitude(),
                 pickup ? first.merchantAddress() : null);
+            OrderPricing.lock(db, orderId, pricing);
             for (OrderLine line : merchantLines) {
                 CatalogLine item = line.product();
                 long amount = Math.multiplyExact(item.priceCents(), line.quantity());
@@ -171,7 +176,7 @@ public class OrderService {
                     orderId, item.productId(), item.productName(), item.priceCents(), line.quantity(), amount);
             }
             merchantOrders.add(Map.of("id", orderId, "merchantId", entry.getKey(), "merchantName", first.merchantName(),
-                "foodCents", foodCents, "deliveryFeeCents", feePerMerchant, "amountCents", merchantTotal,
+                "foodCents", foodCents, "deliveryFeeCents", deliveryFee, "amountCents", merchantTotal,
                 "status", "PENDING_PAYMENT", "fulfillmentType", fulfillmentType, "itemCount", merchantLines.stream().mapToInt(OrderLine::quantity).sum()));
         }
         return Map.of("payment", Map.of("id", paymentId, "amountCents", total, "status", "UNPAID", "expiresAt", expiresAt.toEpochMilli(), "mode", paymentMode),
@@ -414,11 +419,11 @@ public class OrderService {
     }
 
     public Map<String, Object> detail(long userId, String orderId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id AS paymentId,o.merchant_id AS merchantId,o.merchant AS merchantName,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryFeeCents,o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,o.payment_status AS paymentStatus,o.fulfill_status AS fulfillStatus,o.fulfillment_type AS fulfillmentType,o.refund_status AS refundStatus,o.settlement_status AS settlementStatus,o.accepted,o.pending_refund AS pendingRefund,o.intervene,o.intervene_code AS interveneCode,o.intervene_reason AS interveneReason,o.paid_at AS paidAt,o.completed_at AS completedAt,o.closed_at AS closedAt,d.address_id AS addressId,d.receiver_name AS receiverName,d.phone,d.building,d.room,d.first_closed_at AS firstClosedAt,d.pickup_address AS pickupAddress,CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) AS pickupCode,p.status AS mergedPaymentStatus FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE d.user_id=? AND o.id=?", userId, orderId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id AS paymentId,o.merchant_id AS merchantId,o.merchant AS merchantName,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryFeeCents,o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,o.payment_status AS paymentStatus,o.fulfill_status AS fulfillStatus,o.fulfillment_type AS fulfillmentType,o.refund_status AS refundStatus,o.settlement_status AS settlementStatus,o.accepted,o.pending_refund AS pendingRefund,o.intervene,o.intervene_code AS interveneCode,o.intervene_reason AS interveneReason,o.paid_at AS paidAt,o.completed_at AS completedAt,o.closed_at AS closedAt,d.address_id AS addressId,d.receiver_name AS receiverName,d.phone,d.building,d.room,d.first_closed_at AS firstClosedAt,d.pickup_address AS pickupAddress,(d.rider_settled_at IS NOT NULL OR d.merchant_settled_at IS NOT NULL) AS settlementRecorded,IF(d.pickup_rider_id IS NULL,GREATEST(0,o.delivery_cents-o.refunded_cents+o.food_refunded_cents),0) AS partialDeliveryRefundCents,CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) AS pickupCode,p.status AS mergedPaymentStatus FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE d.user_id=? AND o.id=?", userId, orderId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
         Map<String, Object> result = new LinkedHashMap<>(rows.get(0));
         result.put("items", db.queryForList("SELECT product_id AS productId,name_snapshot AS name,price_cents AS priceCents,quantity,amount_cents AS amountCents FROM user_order_item WHERE order_id=? ORDER BY id", orderId));
-        result.put("aftersales", db.queryForList("SELECT r.id,r.reason,r.type,r.amount_cents AS amountCents,r.status,r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,COALESCE(x.description,'') AS description FROM refund_record r LEFT JOIN user_refund_detail x ON x.refund_id=r.id WHERE r.order_id=? ORDER BY r.created_at DESC", orderId));
+        result.put("aftersales", db.queryForList("SELECT r.id,r.reason,r.type,r.amount_cents AS amountCents,r.delivery_refund_cents AS deliveryRefundCents,r.status,r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,COALESCE(x.description,'') AS description FROM refund_record r LEFT JOIN user_refund_detail x ON x.refund_id=r.id WHERE r.order_id=? ORDER BY r.created_at DESC", orderId));
         result.put("locationAvailable", Fulfillment.DELIVERING.is(result.get("fulfillStatus")));
         return result;
     }

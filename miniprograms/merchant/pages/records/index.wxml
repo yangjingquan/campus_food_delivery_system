@@ -21,8 +21,11 @@
         <view class="row summary"><text class="section">订单结算</text><text class="badge {{item.status === 'PENDING_CREDIT' ? 'warn' : ''}}">{{states.label(item.status)}}</text></view>
         <view class="kv"><text>餐品实付</text><text>{{item.food}}</text></view>
         <view class="kv"><text>餐品已退款</text><text>{{item.refunded}}</text></view>
-        <view class="kv"><text>配送完成</text><text>{{item.time}}</text></view>
-        <view wx:if="{{item.foodRate != null}}" class="kv"><text>餐品抽成</text><text>{{item.foodRate}}%</text></view>
+        <view wx:if="{{item.foodRefundedCents}}" class="kv"><text>剩余餐品金额</text><text>{{item.foodBase}}</text></view>
+        <view wx:if="{{item.settlementBaseAt}}" class="kv"><text>结算计时起点</text><text>{{item.time}}</text></view>
+        <view wx:if="{{item.foodRule}}" class="kv"><text>餐品抽成规则</text><text>{{item.foodRule}}</text></view>
+        <view wx:if="{{item.foodCommission}}" class="kv"><text>餐品实际抽成</text><text>{{item.foodCommission}}</text></view>
+        <view wx:if="{{item.status === 'CLOSED' && !item.net}}" class="kv"><text>商户应得</text><text>¥0.00</text></view>
         <view wx:if="{{item.net}}" class="kv settled"><text>商户入账</text><text>{{item.net}} · {{item.netTime}}</text></view>
         <button class="btn plain align-end separator" data-id="{{item.id}}" bindtap="order" hover-class="pressed">查看订单</button>
       </block>

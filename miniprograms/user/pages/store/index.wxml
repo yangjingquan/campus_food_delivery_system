@@ -18,7 +18,7 @@
         aria-pressed="{{fulfillmentType === 'pickup'}}" data-mode="pickup" bindtap="chooseFulfillment">到店自取</button>
     </view>
     <view class="row section store-service">
-      <text class="small" wx:if="{{fulfillmentType === 'delivery'}}">每商户订单固定配送 {{merchant.deliveryFeeText}}</text>
+      <text class="small" wx:if="{{fulfillmentType === 'delivery'}}">配送费 {{merchant.deliveryFeeText}}</text>
       <text class="small" wx:else>到店取餐 · 免配送费</text>
       <text class="pill" wx:if="{{!merchant.open}}">打烊</text>
     </view>
