@@ -112,6 +112,13 @@ public class AdminController {
                 .body((byte[]) photo.get("image_data"));
     }
 
+    @GetMapping(value = "/orders/{id}/pickup-qr", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> pickupQr(@PathVariable String id,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .contentType(MediaType.IMAGE_PNG).body(service.pickupQr(id, authorization));
+    }
+
     @GetMapping("/orders/{id}/settlement-snapshots")
     public Map<String, Object> settlementSnapshots(@PathVariable String id,
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {

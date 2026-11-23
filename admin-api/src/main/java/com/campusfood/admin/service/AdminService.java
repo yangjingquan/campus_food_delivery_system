@@ -283,6 +283,11 @@ public class AdminService {
         return pricing.merchant(id);
     }
 
+    public byte[] pickupQr(String id, String authHeader) {
+        authorization.require(actor(authHeader), "order.view");
+        return business.pickupQr(id);
+    }
+
     public Map<String, Object> settlementSnapshots(String id, String authHeader) {
         authorization.require(actor(authHeader), "order.view");
         return Map.of("rows", pricing.snapshots(id));

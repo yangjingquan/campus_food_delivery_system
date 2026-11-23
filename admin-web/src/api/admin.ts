@@ -77,6 +77,9 @@ export const adminApi = {
   workspace<T = unknown>(section: SectionKey) {
     return unwrap<T>(http.get('/workspace', { params: { section } }))
   },
+  orderPickupQr(id: string, signal: AbortSignal) {
+    return unwrap<Blob>(http.get(`/orders/${encodeURIComponent(id)}/pickup-qr`, { responseType: 'blob', signal }))
+  },
   async settlementSnapshots(id: string) {
     type Row = Omit<SettlementSnapshot, 'rules'> & { ruleDetails: string }
     const { rows } = await unwrap<{ rows: Row[] }>(http.get(`/orders/${encodeURIComponent(id)}/settlement-snapshots`))

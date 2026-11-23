@@ -3,6 +3,7 @@ package com.campusfood.admin.service;
 import java.math.BigDecimal;
 import java.time.*;
 import com.campusfood.domain.PricingRules;
+import com.campusfood.domain.TicketQr;
 import com.campusfood.domain.PricingRules.Mode;
 import com.campusfood.domain.PricingRules.Rule;
 import java.time.format.DateTimeFormatter;
@@ -41,6 +42,15 @@ public class BusinessService {
         this.riders = riders;
         this.refunds = refunds;
         this.withdrawals = withdrawals;
+    }
+
+    public byte[] pickupQr(String id) {
+        String orderId = db.awaitingRiderOrderId(id);
+        if (orderId == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单当前无可用的骑手领取二维码");
+        }
+        // 打印版小票将商户订单号直接写入二维码。
+        return TicketQr.png(orderId);
     }
 
     private List<Map<String, Object>> orders() {

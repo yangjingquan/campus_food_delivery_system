@@ -19,6 +19,14 @@ public interface BusinessDao extends BaseMapper<BusinessOrder> {
 
     List<Map<String, Object>> listOrderNotes(@Param("orderId") Object orderId);
 
+    default String awaitingRiderOrderId(String id) {
+        BusinessOrder order = selectOne(Wrappers.<BusinessOrder>lambdaQuery().select(BusinessOrder::getId)
+                .eq(BusinessOrder::getId, id)
+                .eq(BusinessOrder::getFulfillStatus, Fulfillment.AWAITING_RIDER)
+                .eq(BusinessOrder::getFulfillmentType, "delivery"));
+        return order == null ? null : order.getId();
+    }
+
     Long sumPaid();
 
     default Integer countOrdersInPeriod(long start, long end) {

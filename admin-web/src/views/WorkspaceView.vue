@@ -6,7 +6,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElImage, ElMessage, ElMessageBox, ElUpload, type UploadInstance, type UploadProps } from 'element-plus'
 import { Search, Upload } from '@element-plus/icons-vue'
-import { adminApi, type MerchantPrinter } from '../api/admin'
+import { adminApi, AdminApiError, type MerchantPrinter } from '../api/admin'
 import ListPagination from '../components/ListPagination.vue'
 import { useListPagination } from '../domain/useListPagination'
 import { useAuthStore } from '../stores/auth'
@@ -79,6 +79,33 @@ const snapshotEvents: Record<string, string> = {
 }
 const snapshotSources = { DEFAULT: '平台默认', MERCHANT: '商户独立', LEGACY: '原成交规则' }
 const activeRow = ref<Row | null>(null)
+const pickupQrOrderId = computed(() => drawer.value && section.value === 'orders'
+  && activeRow.value?.fulfillStatus === 'AWAITING_RIDER' ? String(activeRow.value.id) : '')
+const pickupQrUrl = ref('')
+const pickupQrError = ref('')
+watch(pickupQrOrderId, async (id, _, onCleanup) => {
+  pickupQrUrl.value = ''
+  pickupQrError.value = ''
+  if (!id) return
+
+  const request = new AbortController()
+  let url = ''
+  onCleanup(() => {
+    request.abort()
+    if (url) URL.revokeObjectURL(url)
+  })
+  try {
+    const image = await adminApi.orderPickupQr(id, request.signal)
+    if (request.signal.aborted) return
+    url = URL.createObjectURL(image)
+    pickupQrUrl.value = url
+  } catch (error) {
+    if (request.signal.aborted) return
+    pickupQrError.value = error instanceof AdminApiError && error.status === 404
+      ? '此订单当前无可用的领取二维码，请刷新订单列表。'
+      : '领取二维码加载失败，请重新打开详情。'
+  }
+})
 const merchantPhoto = ref('')
 const photoError = ref('')
 let photoRequest = 0
@@ -837,6 +864,13 @@ function runRowAction(row: Row) {
         <p v-else class="muted">{{ photoError }}</p>
       </div>
       <div class="drawer-intro"><el-tag :type="statusType(String(activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || 'info'))" effect="light" round>{{ stateLabel(activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || '信息记录') }}</el-tag></div>
+      <section v-if="pickupQrOrderId" class="detail-section">
+        <h3>骑手领取二维码</h3>
+        <img v-if="pickupQrUrl" :src="pickupQrUrl" class="pickup-qr" width="240" height="240"
+          alt="打印小票上的骑手领取二维码">
+        <p v-else-if="pickupQrError" class="muted" role="alert">{{ pickupQrError }}</p>
+        <p v-else class="muted" role="status">正在加载二维码…</p>
+      </section>
       <div v-if="section === 'riders'" class="detail-section">
         <h3>学生身份材料</h3>
         <img v-if="merchantPhoto" :src="merchantPhoto" alt="骑手提交的学生证照片"
@@ -902,6 +936,7 @@ function runRowAction(row: Row) {
 
 
 <style scoped>
+.pickup-qr { display: block; max-width: 100%; height: auto; }
 .order-merchant-select { width: 190px; max-width: 100%; }
 .order-merchant-select :deep(.el-select__wrapper.is-focused .el-select__input:focus-visible) { outline: none; }
 .merchant-image-field { width: 100%; }

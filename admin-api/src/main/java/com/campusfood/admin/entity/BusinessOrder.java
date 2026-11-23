@@ -22,6 +22,7 @@ public class BusinessOrder {
     private Long foodRefundedCents;
     private String paymentStatus;
     private Fulfillment fulfillStatus;
+    private String fulfillmentType;
     private String refundStatus;
     private String settlementStatus;
     private Boolean accepted;
@@ -39,6 +40,8 @@ public class BusinessOrder {
     public String getId() { return id; }
 
     public Long getPaidAt() { return paidAt; }
+
+    public String getFulfillmentType() { return fulfillmentType; }
 
     public Fulfillment getFulfillStatus() { return fulfillStatus; }
 
