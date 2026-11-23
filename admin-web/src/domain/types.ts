@@ -117,6 +117,8 @@ export interface ConfigSnapshot {
   peakPeriods: Array<{ start: string; end: string }>
   acceptTimeout: number
   reminderInterval: number
+  merchantSettlementWaitMinutes?: number
+  riderSettlementWaitMinutes?: number
   effectiveAt: string
   operator: string
 }

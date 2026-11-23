@@ -159,15 +159,16 @@ public class OrderService {
                 foodCents, deliveryFee, merchantTotal, fulfillmentType);
             db.update("""
                 INSERT INTO user_order_detail(order_id,user_id,payment_id,address_id,receiver_name,phone,building,room,
-                    operations_rule_id,food_rate_snapshot,destination_latitude,destination_longitude,pickup_address)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    operations_rule_id,food_rate_snapshot,destination_latitude,destination_longitude,pickup_address,
+                    merchant_settlement_wait_minutes,rider_settlement_wait_minutes)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, orderId, userId, paymentId, pickup ? null : addressId,
                 address.getOrDefault("name", ""), address.getOrDefault("phone", ""),
                 address.getOrDefault("building", ""), address.getOrDefault("room", ""),
                 pricing.defaultVersion(), pricing.rules().food().mode() == Mode.PERCENTAGE
                     ? BigDecimal.valueOf(pricing.rules().food().value(), 2) : null,
                 pickup ? null : coordinates.latitude(), pickup ? null : coordinates.longitude(),
-                pickup ? first.merchantAddress() : null);
+                pickup ? first.merchantAddress() : null, pricing.merchantWaitMinutes(), pricing.riderWaitMinutes());
             OrderPricing.lock(db, orderId, pricing);
             for (OrderLine line : merchantLines) {
                 CatalogLine item = line.product();

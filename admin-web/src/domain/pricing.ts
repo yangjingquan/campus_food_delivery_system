@@ -66,4 +66,6 @@ export interface SettlementSnapshot {
   riderDueCents: number
   amountCents: number
   settledAt: number
+  settlementWaitMinutes?: number
+  eligibleAt?: number | null
 }

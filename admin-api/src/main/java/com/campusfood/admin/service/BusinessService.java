@@ -159,6 +159,11 @@ public class BusinessService {
             int regular = number(c, "regularBatch", 1, 1440), peak =
                     number(c, "peakBatch", 1, 1440), accept = number(c, "acceptTimeout", 1, 1440), reminder =
                     number(c, "reminderInterval", 1, 1440);
+            var previous = operations.selectById(id);
+            int merchantWait = c.containsKey("merchantSettlementWaitMinutes")
+                ? number(c, "merchantSettlementWaitMinutes", 0, Integer.MAX_VALUE) : previous.getMerchantSettlementWaitMinutes();
+            int riderWait = c.containsKey("riderSettlementWaitMinutes")
+                ? number(c, "riderSettlementWaitMinutes", 0, Integer.MAX_VALUE) : previous.getRiderSettlementWaitMinutes();
             var rules = c.containsKey("pricing") ? PricingConfigurationService.parse(c.get("pricing"))
                 : new PricingRules(PricingRules.fixed(number(c, "feeCents", 0, 100000)),
                     PricingRules.percentage(rate(c, "foodRate")), PricingRules.percentage(rate(c, "deliveryRate")));
@@ -173,7 +178,7 @@ public class BusinessService {
                 rateValue(rules.food()), rateValue(rules.delivery()),
                 rules.fee().mode() == Mode.PERCENTAGE ? rules.fee().value() : null,
                 fixedValue(rules.food()), fixedValue(rules.delivery()),
-                regular, peak, start, end, ps, pe, accept, reminder, actor);
+                regular, peak, start, end, ps, pe, accept, reminder, merchantWait, riderWait, actor);
             long configId = operations.lockLatestVersion();
             for (var period : periods) db.insertPeakPeriod(configId, period.get("start"), period.get("end"));
             audit(actor, type, current, current, "NEW_VERSION", "");

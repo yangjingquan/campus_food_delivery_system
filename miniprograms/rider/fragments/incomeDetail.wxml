@@ -16,9 +16,10 @@
   <view class="info-group settlement-times">
     <view class="group-label">结算时间</view>
     <template is="pairs" data="{{rows: [{label:'计时起点',value:order.startTime},
+      {label:'等待时长',value:order.settlementWaitMinutes != null ? order.settlementWaitMinutes + ' 分钟' : '—'},
       {label:'预计可提现',value:order.incomeStatus === 'SETTLEMENT_HELD' ? '售后未结，暂缓结算' : order.eligibleTime},
       {label:'实际结算',value:order.settledTime}]}}"/>
   </view>
 </view>
-<template is="note" data="{{label: order.lastRefundAt ? '以最后一次实际退款成功时间重新计算 24 小时，原应得报酬保留。' : '正常订单确认送达满 24 小时且无待处理售后后进入可提现余额。'}}"/>
+<template is="note" data="{{label: order.lastRefundAt ? '从最后一次实际退款成功起，按本单等待时长重新计时。' : '订单完成后，按本单等待时长结算。待处理售后会暂缓入账。'}}"/>
 <template is="action" data="{{page: 'detail', id: order.id, label: '查看配送订单', style: 'outline full'}}"/>

@@ -840,6 +840,12 @@ function runRowAction(row: Row) {
               <div class="detail-grid">
                 <div class="detail-item"><span>规则</span><strong>{{ snapshotSources[entry.ruleSource] }} · 版本 {{ entry.ruleVersion }}</strong></div>
                 <div class="detail-item"><span>入账时间</span><strong>{{ new Date(entry.settledAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) }}</strong></div>
+                <div v-if="entry.settlementWaitMinutes != null" class="detail-item">
+                  <span>结算等待时长</span><strong>{{ entry.settlementWaitMinutes }} 分钟</strong>
+                </div>
+                <div v-if="entry.eligibleAt != null" class="detail-item">
+                  <span>达到结算时间</span><strong>{{ new Date(entry.eligibleAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) }}</strong>
+                </div>
                 <div v-for="field in pricingFields" :key="field.key" class="detail-item">
                   <span>{{ field.label }}</span><strong>{{ formatPricing(entry.rules[field.key]) }}</strong>
                 </div>

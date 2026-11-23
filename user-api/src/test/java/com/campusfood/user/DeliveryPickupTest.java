@@ -42,7 +42,7 @@ class DeliveryPickupTest {
         when(db.queryForList(anyString(), eq(String.class), eq(RIDER))).thenReturn(List.of("测试骑手"));
         when(db.queryForList(anyString(), eq(ORDER))).thenReturn(List.of(order));
         var pricing = new OrderPricing.Applied("MERCHANT", 2, 1,
-            new PricingRules(PricingRules.fixed(400), PricingRules.fixed(100), PricingRules.fixed(80)));
+            new PricingRules(PricingRules.fixed(400), PricingRules.fixed(100), PricingRules.fixed(80)), 1440, 1440);
         doReturn(List.of(pricing)).when(db).query(contains("FROM business_order"), any(RowMapper.class), eq(ORDER));
         doReturn(Map.of("orderId", ORDER, "status", "DELIVERING", "updatedAt", 123L))
             .when(service).updateStatus(eq(ORDER), any());

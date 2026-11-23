@@ -99,7 +99,8 @@ public class PricingConfigurationService {
                    original_delivery_cents AS originalDeliveryCents,food_refunded_cents AS foodRefundedCents,
                    delivery_refunded_cents AS deliveryRefundedCents,food_commission_cents AS foodCommissionCents,
                    delivery_commission_cents AS deliveryCommissionCents,rider_due_cents AS riderDueCents,
-                   amount_cents AS amountCents,settled_at AS settledAt
+                   amount_cents AS amountCents,settled_at AS settledAt,
+                   settlement_wait_minutes AS settlementWaitMinutes,eligible_at AS eligibleAt
             FROM order_settlement_snapshot WHERE order_id=? ORDER BY settled_at,event_type
             """, orderId);
     }

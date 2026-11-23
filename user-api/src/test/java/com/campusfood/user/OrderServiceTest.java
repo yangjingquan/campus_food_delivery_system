@@ -46,7 +46,7 @@ class OrderServiceTest {
             "name", "林同学", "phone", "13800000000", "building", "5号宿舍楼", "room", "302寝室", "latitude", new BigDecimal("41.8"), "longitude", new BigDecimal("123.4")));
         when(db.queryForList(contains("SELECT id,request_fingerprint"), any(Object[].class))).thenReturn(List.of());
         var pricing = new OrderPricing.Applied("DEFAULT", 1, 1,
-            new PricingRules(PricingRules.fixed(400), PricingRules.percentage(BigDecimal.TEN), PricingRules.fixed(80)));
+            new PricingRules(PricingRules.fixed(400), PricingRules.percentage(BigDecimal.TEN), PricingRules.fixed(80)), 1440, 1440);
         doAnswer(invocation -> Map.of("M03", pricing, "M04", pricing))
             .when(db).query(any(PreparedStatementCreator.class), any(ResultSetExtractor.class));
         when(db.update(anyString(), any(Object[].class))).thenReturn(1);

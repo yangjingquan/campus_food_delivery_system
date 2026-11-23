@@ -26,14 +26,21 @@ const printingSaving = ref(false)
 const printingEditable = computed(() => auth.can('config.edit') && !!savedPrinting.value)
 const printingChanged = computed(() => printingForm.appId.trim() !== savedPrinting.value?.appId || !!printingForm.appSecret)
 const needsPrintingSecret = computed(() => !savedPrinting.value?.appSecretSet || printingForm.appId.trim() !== savedPrinting.value.appId)
+const supportsSettlementWait = ref(false)
 const form = reactive({
   version: '', regularBatch: 30, peakBatch: 20,
   serviceStart: '10:30', serviceEnd: '20:30',
   peakPeriods: [] as Array<{ start: string; end: string }>, acceptTimeout: 30, reminderInterval: 15,
+  merchantSettlementWaitMinutes: undefined as number | undefined,
+  riderSettlementWaitMinutes: undefined as number | undefined,
 })
 const pricing = ref(pricingForm())
 const supportsPricing = ref(true)
 const validPricing = computed(() => pricingPayload(pricing.value))
+const validSettlementWaits = computed(() => !supportsSettlementWait.value ||
+  [form.merchantSettlementWaitMinutes, form.riderSettlementWaitMinutes].every(
+  value => value != null && Number.isInteger(value) && value >= 0 && value <= 2147483647,
+))
 const preview = computed(() => {
   const rules = validPricing.value
   if (!rules) return
@@ -79,7 +86,10 @@ function setForm(config: ConfigSnapshot) {
     version: config.version, regularBatch: config.regularBatch, peakBatch: config.peakBatch,
     serviceStart: config.serviceStart, serviceEnd: config.serviceEnd, acceptTimeout: config.acceptTimeout,
     reminderInterval: config.reminderInterval, peakPeriods: periods.map(period => ({ ...period })),
+    merchantSettlementWaitMinutes: config.merchantSettlementWaitMinutes,
+    riderSettlementWaitMinutes: config.riderSettlementWaitMinutes,
   })
+  supportsSettlementWait.value = config.merchantSettlementWaitMinutes != null && config.riderSettlementWaitMinutes != null
   supportsPricing.value = config.pricing != null
   pricing.value = pricingForm(configPricing(config))
 }
@@ -88,6 +98,7 @@ async function save() {
   try {
     const rules = validPricing.value
     if (!rules) return ElMessage.warning('请填写三项计费规则')
+    if (!validSettlementWaits.value) return ElMessage.warning('请填写商户和骑手的结算等待时长')
     if (scheduleError.value) {
       ElMessage.warning(scheduleError.value)
       return
@@ -177,11 +188,27 @@ onMounted(() => { void load() })
           </div>
           <p v-if="scheduleError" role="alert" class="schedule-error">{{ scheduleError }}</p>
         </section>
+        <div class="config-subhead">可提现等待时长</div>
+        <el-form-item label="商户结算等待时长" required>
+          <el-input-number v-model="form.merchantSettlementWaitMinutes" :min="0" :max="2147483647" :precision="0"
+            :disabled="!supportsSettlementWait" controls-position="right"><template #suffix>分钟</template></el-input-number>
+        </el-form-item>
+        <el-form-item label="骑手结算等待时长" required>
+          <el-input-number v-model="form.riderSettlementWaitMinutes" :min="0" :max="2147483647" :precision="0"
+            :disabled="!supportsSettlementWait" controls-position="right"><template #suffix>分钟</template></el-input-number>
+        </el-form-item>
+        <p class="pricing-compatibility">
+          {{ supportsSettlementWait ? '仅对新订单生效。1440 分钟等于 24 小时，设为 0 时在符合条件后的下一次扫描入账。'
+            : '当前接口的结算等待时长为 24 小时。' }}
+        </p>
+        <p v-if="supportsSettlementWait" class="pricing-compatibility">
+          商户或骑手任一方入账后，该订单将停止受理新的退款申请。
+        </p>
         <div class="config-subhead">商户接单与提醒</div>
         <el-form-item label="支付后接单超时"><el-input-number v-model="form.acceptTimeout" :min="1" :max="1440" controls-position="right"><template #suffix>分钟</template></el-input-number></el-form-item>
         <el-form-item label="管理员提醒间隔"><el-input-number v-model="form.reminderInterval" :min="1" :max="1440" controls-position="right"><template #suffix>分钟</template></el-input-number></el-form-item>
       </el-form>
-      <div class="config-actions"><el-button :disabled="saving" @click="reset">取消修改</el-button><el-button v-if="auth.can('config.edit')" type="primary" :loading="saving" :disabled="loading || !!scheduleError || !validPricing" @click="save">保存并生成新版本</el-button></div>
+      <div class="config-actions"><el-button :disabled="saving" @click="reset">取消修改</el-button><el-button v-if="auth.can('config.edit')" type="primary" :loading="saving" :disabled="loading || !!scheduleError || !validPricing || !validSettlementWaits" @click="save">保存并生成新版本</el-button></div>
     </section>
     <section class="panel-card config-form-panel" aria-labelledby="printing-title">
       <div class="section-heading">
@@ -224,7 +251,7 @@ onMounted(() => { void load() })
       <section class="panel-card history-panel">
         <div class="section-heading"><div><h3>配置变更记录</h3></div><el-icon><Clock /></el-icon></div>
         <el-empty v-if="!history.length" description="暂无变更记录" :image-size="70" />
-        <div v-for="item in pageRows" :key="item.version" class="history-item"><div><strong>{{ item.version }}</strong><el-tag size="small" type="info" effect="light">历史版本</el-tag></div><p>{{ item.operator }} · {{ new Date(item.effectiveAt).toLocaleString('zh-CN') }}</p><small>配送费 {{ formatPricing(item.pricing.fee) }} · 餐品抽成 {{ formatPricing(item.pricing.food) }} · 配送抽成 {{ formatPricing(item.pricing.delivery) }}</small><p class="history-peaks">高峰 {{ item.peakPeriods?.map(period => `${period.start}–${period.end}`).join('、') || '未设置' }}</p></div>
+        <div v-for="item in pageRows" :key="item.version" class="history-item"><div><strong>{{ item.version }}</strong><el-tag size="small" type="info" effect="light">历史版本</el-tag></div><p>{{ item.operator }} · {{ new Date(item.effectiveAt).toLocaleString('zh-CN') }}</p><small>配送费 {{ formatPricing(item.pricing.fee) }} · 餐品抽成 {{ formatPricing(item.pricing.food) }} · 配送抽成 {{ formatPricing(item.pricing.delivery) }}</small><p v-if="item.merchantSettlementWaitMinutes != null && item.riderSettlementWaitMinutes != null" class="history-peaks">商户等待 {{ item.merchantSettlementWaitMinutes }} 分钟 · 骑手等待 {{ item.riderSettlementWaitMinutes }} 分钟</p><p class="history-peaks">高峰 {{ item.peakPeriods?.map(period => `${period.start}–${period.end}`).join('、') || '未设置' }}</p></div>
         <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total"
           :disabled="loading" label="运营配置变更记录分页" />
       </section>

@@ -12,7 +12,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 final class OrderPricing {
-    record Applied(String source, long version, long defaultVersion, PricingRules rules) {}
+    record Applied(String source, long version, long defaultVersion, PricingRules rules,
+                   int merchantWaitMinutes, int riderWaitMinutes) {}
+
+    record Timing(int waitMinutes, long eligibleAt) {
+        static Timing from(Map<String, Object> order) {
+            return new Timing(Math.toIntExact(number(order, "wait_minutes")), number(order, "eligible_at"));
+        }
+    }
 
     record Settlement(Applied pricing, long food, long delivery, long paid, long refunded,
                       long foodRefunded, Long pickupCommission) {
@@ -37,6 +44,7 @@ final class OrderPricing {
         if (merchants.isEmpty()) return Map.of();
         return new NamedParameterJdbcTemplate(db).query("""
             SELECT m.id,c.id AS default_version,COALESCE(r.version,c.id) AS version,
+                   c.merchant_settlement_wait_minutes,c.rider_settlement_wait_minutes,
                    IF(r.version IS NULL,'DEFAULT','MERCHANT') AS source,
                    COALESCE(r.fee_mode,IF(c.fee_bps IS NULL,'FIXED','PERCENTAGE')) AS fee_mode,
                    COALESCE(r.fee_value,c.fee_bps,c.fee_cents) AS fee_value,
@@ -67,6 +75,7 @@ final class OrderPricing {
         List<Applied> rows = db.query("""
             SELECT COALESCE(r.source,'LEGACY') AS source,COALESCE(r.version,c.id,fallback.id) AS version,
                    COALESCE(c.id,fallback.id) AS default_version,
+                   d.merchant_settlement_wait_minutes,d.rider_settlement_wait_minutes,
                    COALESCE(r.fee_mode,'FIXED') AS fee_mode,
                    COALESCE(r.fee_value,c.fee_cents,o.delivery_cents) AS fee_value,
                    COALESCE(r.food_mode,'PERCENTAGE') AS food_mode,
@@ -85,7 +94,8 @@ final class OrderPricing {
 
     private static Applied read(ResultSet rs) throws SQLException {
         return new Applied(rs.getString("source"), rs.getLong("version"), rs.getLong("default_version"),
-            new PricingRules(rule(rs, "fee"), rule(rs, "food"), rule(rs, "delivery")));
+            new PricingRules(rule(rs, "fee"), rule(rs, "food"), rule(rs, "delivery")),
+            rs.getInt("merchant_settlement_wait_minutes"), rs.getInt("rider_settlement_wait_minutes"));
     }
 
     private static Rule rule(ResultSet rs, String name) throws SQLException {
@@ -99,20 +109,21 @@ final class OrderPricing {
     }
 
     static void recordSettlement(JdbcTemplate db, String id, String event, String account, Settlement settlement,
-                                 long amount, long now) {
+                                 long amount, long now, Timing timing) {
         var applied = settlement.pricing();
         var rules = applied.rules();
         db.update("""
             INSERT INTO order_settlement_snapshot(order_id,event_type,account_id,rule_source,rule_version,rules,
                 food_base_cents,delivery_base_cents,original_delivery_cents,food_refunded_cents,delivery_refunded_cents,
-                food_commission_cents,delivery_commission_cents,rider_calculation_commission_cents,rider_due_cents,amount_cents,settled_at)
+                food_commission_cents,delivery_commission_cents,rider_calculation_commission_cents,rider_due_cents,amount_cents,settled_at,
+                settlement_wait_minutes,eligible_at)
             VALUES(?,?,?,?,?,JSON_OBJECT('fee',JSON_OBJECT('mode',?,'value',?),
-                'food',JSON_OBJECT('mode',?,'value',?),'delivery',JSON_OBJECT('mode',?,'value',?)),?,?,?,?,?,?,?,?,?,?,?)
+                'food',JSON_OBJECT('mode',?,'value',?),'delivery',JSON_OBJECT('mode',?,'value',?)),?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, id, event, account, applied.source(), applied.version(), rules.fee().mode().name(), rules.fee().value(),
             rules.food().mode().name(), rules.food().value(), rules.delivery().mode().name(), rules.delivery().value(),
             settlement.foodBase(), settlement.deliveryBase(), settlement.delivery(), settlement.foodRefunded(),
             settlement.deliveryRefunded(), settlement.foodCommission(), settlement.deliveryCommission(),
-            settlement.riderCalculationCommission(), settlement.riderDue(), amount, now);
+            settlement.riderCalculationCommission(), settlement.riderDue(), amount, now, timing.waitMinutes(), timing.eligibleAt());
     }
 
     private static long number(Map<String, Object> order, String key) {

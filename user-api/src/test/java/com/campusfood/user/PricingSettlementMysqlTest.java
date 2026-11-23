@@ -256,6 +256,91 @@ class PricingSettlementMysqlTest {
         });
     }
 
+    @Test
+    void newOrdersLockIndependentWaitingTimesAndZeroWaitIsAllowed() {
+        scenario(f -> {
+            var existing = f.checkout("existing_default", List.of(line("P-M03-001")), false, 2400);
+            newDefault(2000, 200, 80);
+            setSettlementWaits(30, 120);
+            var updated = f.checkout("independent_waits", List.of(line("P-M03-001")), false, 2400);
+            newDefault(2000, 200, 80);
+            setSettlementWaits(0, 0);
+            var immediate = f.checkout("zero_waits", List.of(line("P-M03-001")), false, 2400);
+            String existingId = id(order(existing, "M03"));
+            String updatedId = id(order(updated, "M03"));
+            String immediateId = id(order(immediate, "M03"));
+            for (var payment : List.of(existing, updated, immediate)) {
+                f.pay(payment);
+                f.fulfill(id(order(payment, "M03")), "M03", true);
+                f.asRealPayment(payment);
+            }
+            long completed = System.currentTimeMillis() - Duration.ofMinutes(45).toMillis();
+            db.update("UPDATE business_order SET completed_at=? WHERE id IN (?,?)", completed, updatedId, existingId);
+            db.update("UPDATE business_order SET completed_at=? WHERE id=?", System.currentTimeMillis() - 1000, immediateId);
+            f.scan();
+
+            assertTrue(snapshots(existingId).isEmpty());
+            var merchant = snapshots(updatedId).getFirst();
+            assertEquals(1, snapshots(updatedId).size());
+            assertEquals("settlement_credit", merchant.get("event_type"));
+            assertEquals(30, number(merchant, "settlement_wait_minutes"));
+            assertEquals(completed + Duration.ofMinutes(30).toMillis(), number(merchant, "eligible_at"));
+            assertEquals(2, snapshots(immediateId).size());
+            assertTrue(snapshots(immediateId).stream().allMatch(snapshot -> number(snapshot, "settlement_wait_minutes") == 0));
+            assertEquals(409, assertThrows(ResponseStatusException.class,
+                () -> f.refunds.apply(f.user, updatedId, Map.of("type", "full", "reason", "商户已提前入账")))
+                .getStatusCode().value());
+
+            long olderCompletion = System.currentTimeMillis() - Duration.ofMinutes(135).toMillis();
+            db.update("UPDATE business_order SET completed_at=? WHERE id=?", olderCompletion, updatedId);
+            f.scan();
+            var rider = snapshots(updatedId).stream()
+                .filter(snapshot -> "rider_settlement_credit".equals(snapshot.get("event_type"))).findFirst().orElseThrow();
+            assertEquals(120, number(rider, "settlement_wait_minutes"));
+            assertEquals(olderCompletion + Duration.ofMinutes(120).toMillis(), number(rider, "eligible_at"));
+        });
+    }
+
+    @Test
+    void refundRestartsEachLockedWaitingTimeAtTheLastSuccessfulRefund() {
+        scenario(f -> {
+            newDefault(2000, 200, 80);
+            setSettlementWaits(20, 60);
+            var payment = f.single(false, 2400);
+            String id = id(order(payment, "M03"));
+            f.pay(payment);
+            f.fulfill(id, "M03", false);
+            f.refund(payment, id, "partial", 500);
+            f.refund(payment, id, "partial", 300);
+            f.asRealPayment(payment);
+            newDefault(2000, 200, 80);
+            setSettlementWaits(0, 0);
+            db.update("UPDATE business_order SET completed_at=? WHERE id=?", AGED, id);
+            f.scan();
+            assertTrue(snapshots(id).isEmpty());
+
+            long refundAt = System.currentTimeMillis() - Duration.ofMinutes(30).toMillis();
+            db.update("UPDATE business_order SET last_refund_at=? WHERE id=?", refundAt, id);
+            f.scan();
+            assertEquals(1, snapshots(id).size());
+            assertEquals(refundAt + Duration.ofMinutes(20).toMillis(), number(snapshots(id).getFirst(), "eligible_at"));
+
+            long olderRefund = System.currentTimeMillis() - Duration.ofMinutes(70).toMillis();
+            db.update("UPDATE business_order SET last_refund_at=? WHERE id=?", olderRefund, id);
+            f.scan();
+            var rider = snapshots(id).stream()
+                .filter(snapshot -> "rider_settlement_credit".equals(snapshot.get("event_type"))).findFirst().orElseThrow();
+            assertEquals(olderRefund + Duration.ofMinutes(60).toMillis(), number(rider, "eligible_at"));
+        });
+    }
+
+    private static void setSettlementWaits(int merchant, int rider) {
+        db.update("""
+            UPDATE operations_config SET merchant_settlement_wait_minutes=?,rider_settlement_wait_minutes=?
+            ORDER BY id DESC LIMIT 1
+            """, merchant, rider);
+    }
+
     private static void scenario(Consumer<Fixture> run) {
         new TransactionTemplate(manager).executeWithoutResult(status -> {
             run.accept(new Fixture());

@@ -1,6 +1,5 @@
 package com.campusfood.user;
 
-import java.time.Duration;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -10,7 +9,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 class MerchantSettlement {
-    private static final long WAIT_MILLIS = Duration.ofHours(24).toMillis();
+    private static final String ELIGIBLE_AT = """
+        (CASE WHEN o.fulfill_status='CLOSED' THEN o.last_refund_at ELSE o.completed_at END)
+        + d.merchant_settlement_wait_minutes * 60000
+        """.strip();
     private static final String ELIGIBLE = """
         FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
         JOIN payment_order p ON p.id=o.payment_id
@@ -23,13 +25,13 @@ class MerchantSettlement {
           AND NOT EXISTS (SELECT 1 FROM refund_record r WHERE r.order_id=o.id
                 AND r.status IN ('AWAITING_MERCHANT_DECISION','NEGOTIATING','REFUND_PROCESSING',
                                  'REFUND_VERIFYING','REFUND_QUEUED','PLATFORM_REVIEW','REFUND_FAILED'))
-          AND ((o.fulfill_status='COMPLETED' AND o.completed_at<? AND o.refunded_cents=0
+          AND ((o.fulfill_status='COMPLETED' AND o.refunded_cents=0
                 AND o.settlement_status='PENDING_SETTLEMENT' AND o.refund_status IN ('NO_AFTER_SALE','AFTER_SALE_ENDED'))
-            OR (o.fulfill_status='CLOSED' AND o.last_refund_at<?
+            OR (o.fulfill_status='CLOSED'
                 AND o.refunded_cents>0 AND o.refunded_cents<o.paid_cents
                 AND o.settlement_status='SETTLEMENT_HELD'
                 AND o.refund_status IN ('REFUND_SUCCEEDED','OFFLINE_RESOLVED','AFTER_SALE_ENDED')))
-        """;
+        """ + " AND (" + ELIGIBLE_AT + ") <= ?";
 
     private final JdbcTemplate db;
     private final TransactionTemplate transactions;
@@ -41,22 +43,25 @@ class MerchantSettlement {
 
     @Scheduled(fixedDelayString = "${app.merchant-settlement-scan-ms:60000}", initialDelay = 15000)
     void scan() {
-        long cutoff = System.currentTimeMillis() - WAIT_MILLIS;
-        var due = db.queryForList("SELECT o.id " + ELIGIBLE + " ORDER BY COALESCE(o.last_refund_at,o.completed_at),o.id LIMIT 50", String.class, cutoff, cutoff);
+        long scanAt = System.currentTimeMillis();
+        var due = db.queryForList("SELECT o.id " + ELIGIBLE + " ORDER BY " + ELIGIBLE_AT + ",o.id LIMIT 50",
+            String.class, scanAt);
         for (String order : due) {
-            transactions.executeWithoutResult(status -> credit(order, cutoff));
+            transactions.executeWithoutResult(status -> credit(order, scanAt));
         }
     }
 
-    private void credit(String id, long cutoff) {
+    private void credit(String id, long scanAt) {
         var rows = db.queryForList("""
             SELECT o.merchant_id,o.food_cents,o.delivery_cents,o.paid_cents,o.refunded_cents,o.food_refunded_cents,
-                   d.rider_commission_cents
-            """ + ELIGIBLE + " AND o.id=? FOR UPDATE", cutoff, cutoff, id);
+                   d.rider_commission_cents,d.merchant_settlement_wait_minutes AS wait_minutes,
+                   %s AS eligible_at
+            """.formatted(ELIGIBLE_AT) + ELIGIBLE + " AND o.id=? FOR UPDATE", scanAt, id);
         if (rows.isEmpty()) return;
         var order = rows.getFirst();
         String merchant = order.get("merchant_id").toString();
         var settlement = OrderPricing.settlement(db, id, order);
+        var timing = OrderPricing.Timing.from(order);
         long net = settlement.merchantDue();
         long now = System.currentTimeMillis();
         db.update("UPDATE finance_account SET balance_cents=balance_cents+? WHERE id=?", net, merchant);
@@ -64,7 +69,7 @@ class MerchantSettlement {
             INSERT INTO account_journal(account_id,event_type,reference_id,available_delta,frozen_delta)
             VALUES(?,'settlement_credit',?,?,0)
             """, merchant, id, net);
-        OrderPricing.recordSettlement(db, id, "settlement_credit", merchant, settlement, net, now);
+        OrderPricing.recordSettlement(db, id, "settlement_credit", merchant, settlement, net, now, timing);
         recoverAdvances(merchant, id);
         db.update("UPDATE business_order SET settlement_status='WITHDRAWABLE' WHERE id=?", id);
         db.update("UPDATE user_order_detail SET merchant_settled_cents=?,merchant_settled_at=? WHERE order_id=?",

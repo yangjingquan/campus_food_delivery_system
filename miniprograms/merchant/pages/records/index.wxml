@@ -23,6 +23,8 @@
         <view class="kv"><text>餐品已退款</text><text>{{item.refunded}}</text></view>
         <view wx:if="{{item.foodRefundedCents}}" class="kv"><text>剩余餐品金额</text><text>{{item.foodBase}}</text></view>
         <view wx:if="{{item.settlementBaseAt}}" class="kv"><text>结算计时起点</text><text>{{item.time}}</text></view>
+        <view wx:if="{{item.settlementBaseAt && item.settlementWaitMinutes != null}}" class="kv"><text>等待时长</text><text>{{item.settlementWaitMinutes}} 分钟</text></view>
+        <view wx:if="{{item.eligibleAt && !item.settledAt}}" class="kv"><text>预计可提现</text><text>{{item.eligibleTime}}</text></view>
         <view wx:if="{{item.foodRule}}" class="kv"><text>餐品抽成规则</text><text>{{item.foodRule}}</text></view>
         <view wx:if="{{item.foodCommission}}" class="kv"><text>餐品实际抽成</text><text>{{item.foodCommission}}</text></view>
         <view wx:if="{{item.status === 'CLOSED' && !item.net}}" class="kv"><text>商户应得</text><text>¥0.00</text></view>

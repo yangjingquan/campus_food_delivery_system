@@ -54,7 +54,10 @@ public interface BusinessDao extends BaseMapper<BusinessOrder> {
                                @Param("serviceStart") String serviceStart, @Param("serviceEnd") String serviceEnd,
                                @Param("peakStart") String peakStart, @Param("peakEnd") String peakEnd,
                                @Param("acceptTimeout") int acceptTimeout,
-                               @Param("reminderInterval") int reminderInterval, @Param("actor") String actor);
+                               @Param("reminderInterval") int reminderInterval,
+                               @Param("merchantSettlementWaitMinutes") int merchantSettlementWaitMinutes,
+                               @Param("riderSettlementWaitMinutes") int riderSettlementWaitMinutes,
+                               @Param("actor") String actor);
 
     default Integer countRecordById(String table, String id) {
         if (!"business_order".equals(table)) throw new IllegalArgumentException("Invalid order table");

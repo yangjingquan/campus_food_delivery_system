@@ -50,7 +50,15 @@ public class FinanceService {
                            IF(d.merchant_settled_cents IS NULL,NULL,o.food_cents-o.food_refunded_cents-d.merchant_settled_cents)) AS foodCommissionCents,
                        d.merchant_settled_cents AS settledCents,d.merchant_settled_at AS settledAt,
                        IF(o.refunded_cents>0 AND o.refunded_cents=o.paid_cents,'CLOSED',o.settlement_status) AS status,
-                       COALESCE(o.last_refund_at,o.completed_at) AS settlementBaseAt
+                       (CASE WHEN o.fulfill_status='CLOSED' THEN o.last_refund_at ELSE o.completed_at END) AS settlementBaseAt,
+                       d.merchant_settlement_wait_minutes AS settlementWaitMinutes,
+                       CASE WHEN o.payment_status='PAYMENT_SUCCEEDED' AND NOT o.pending_refund AND NOT o.locking
+                              AND ((o.fulfill_status='COMPLETED' AND o.refunded_cents=0
+                                    AND o.refund_status IN ('NO_AFTER_SALE','AFTER_SALE_ENDED'))
+                                OR (o.fulfill_status='CLOSED' AND o.refunded_cents>0 AND o.refunded_cents<o.paid_cents
+                                    AND o.refund_status IN ('REFUND_SUCCEEDED','OFFLINE_RESOLVED','AFTER_SALE_ENDED')))
+                            THEN (CASE WHEN o.fulfill_status='CLOSED' THEN o.last_refund_at ELSE o.completed_at END)
+                                + d.merchant_settlement_wait_minutes * 60000 END AS eligibleAt
                 FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
                 LEFT JOIN order_pricing_rule r ON r.order_id=o.id
                 LEFT JOIN order_settlement_snapshot s ON s.order_id=o.id AND s.event_type='settlement_credit'

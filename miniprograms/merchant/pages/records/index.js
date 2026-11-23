@@ -59,6 +59,7 @@ Page({
         foodCommission: item.foodCommissionCents == null ? '' : ui.money(item.foodCommissionCents),
         net: item.settledCents == null ? '' : ui.money(item.settledCents),
         netTime: ui.date(item.settledAt),
+        eligibleTime: ui.date(item.eligibleAt),
         riderAmount: ui.money(item.riderDueCents),
         advance: ui.money(item.advanceCents), recovered: ui.money(item.recoveredCents),
         debt: ui.money(item.advanceCents - item.recoveredCents),

@@ -28,7 +28,10 @@ public class RiderOrders {
                    WHEN o.pending_refund OR o.locking OR o.refund_status NOT IN ('NO_AFTER_SALE','AFTER_SALE_ENDED','REFUND_SUCCEEDED','OFFLINE_RESOLVED') THEN 'SETTLEMENT_HELD'
                    ELSE 'PENDING_SETTLEMENT'
                END AS incomeStatus,
-               COALESCE(o.last_refund_at,o.completed_at)+86400000 AS eligibleAt
+               d.rider_settlement_wait_minutes AS settlementWaitMinutes,
+               CASE WHEN o.payment_status='PAYMENT_SUCCEEDED'
+                    THEN (CASE WHEN o.fulfill_status='CLOSED' THEN o.last_refund_at ELSE o.completed_at END)
+                        + d.rider_settlement_wait_minutes * 60000 END AS eligibleAt
         FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
         """.formatted(FEE, COMMISSION, DUE, DUE) + SETTLEMENT_JOIN;
 
