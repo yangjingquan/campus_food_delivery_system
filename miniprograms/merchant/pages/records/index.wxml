@@ -9,8 +9,8 @@
       <block wx:if="{{kind === 'withdrawals'}}">
         <view class="row summary"><text class="price">{{item.amount}}</text><text class="badge">{{item.status}}</text></view>
         <view class="hint">{{item.time}}</view>
-        <view class="kv"><text>申请编号</text><text class="mono" selectable>{{item.id}}</text></view>
-        <view wx:if="{{item.reason}}" class="notice">{{item.reason}}</view>
+        <view class="kv withdrawal-id"><text>申请编号</text><text class="mono" selectable>{{item.id}}</text></view>
+        <view wx:if="{{item.reason && item.reason !== '微信已受理，请商户在小程序内确认收款'}}" class="notice">{{item.reason}}</view>
         <button wx:if="{{item.canConfirm}}" class="btn primary separator" data-id="{{item.id}}"
           disabled="{{!!confirmingId}}" loading="{{confirmingId === item.id}}" bindtap="confirmWithdrawal">
           确认收款

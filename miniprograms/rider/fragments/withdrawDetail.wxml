@@ -8,8 +8,7 @@
   <view class="big-money withdraw-amount"><text class="small">¥</text>{{withdrawal.amount}}</view>
   <text class="small muted">{{withdrawal.status === '待审核' ? '已提交申请，等待管理员审核' : '可在下方查看处理进度'}}</text>
 </view>
-<template wx:if="{{withdrawal.reason || withdrawal.transferReason}}" is="note"
-  data="{{label: withdrawal.transferReason || withdrawal.reason, tone: 'warn'}}"/>
+<template wx:if="{{withdrawal.notice}}" is="note" data="{{label: withdrawal.notice, tone: 'warn'}}"/>
 <view class="card">
   <template is="pairs" data="{{rows: [{label:'申请单号',value:withdrawal.id},{label:'收款账户',value:'当前微信账户'},
     {label:'申请时间',value:withdrawal.time},{label:'金额状态',value:withdrawal.status === '打款成功' ? '已支出' :
@@ -23,5 +22,8 @@
     </view>
   </view>
 </view>
-<button wx:if="{{withdrawal.confirmation}}" class="btn primary full" bindtap="confirmReceipt" hover-class="pressed">微信确认收款</button>
-<view class="top-space"><template is="action" data="{{page: 'withdrawals', label: '返回提现记录'}}"/></view>
+<view class="withdrawal-actions">
+  <template is="action" data="{{page: 'withdrawals', label: '返回提现记录', style: 'receipt-back'}}"/>
+  <button wx:if="{{withdrawal.confirmation}}" class="btn primary receipt-confirm"
+    bindtap="confirmReceipt" hover-class="pressed">微信确认收款</button>
+</view>

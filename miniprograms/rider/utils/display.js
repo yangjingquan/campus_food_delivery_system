@@ -50,8 +50,10 @@ function finance(data) {
 }
 
 function withdrawal(data) {
+  const notice = data.transferReason || data.reason;
   return {
     ...data,
+    notice: notice?.startsWith('微信已受理') ? '' : notice,
     amount: money(data.amountCents),
     time: date(data.createdAt),
     timeline: (data.timeline || []).map(item => ({ ...item, time: date(item.createdAt) }))

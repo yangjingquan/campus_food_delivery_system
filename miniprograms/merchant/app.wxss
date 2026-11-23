@@ -198,6 +198,9 @@ textarea.field { height: 64px; }
 .record-card { border-left: 4px solid var(--green); }
 .record-card.debts { border-left-color: #c68b42; }
 .record-card.withdrawals { border-left-color: #8c75b2; }
+.withdrawal-id > text { white-space: nowrap; }
+.withdrawal-id > text:first-child { flex-shrink: 0; }
+.withdrawal-id > text:last-child { overflow: hidden; text-overflow: ellipsis; }
 .record-card.ledger { border-left-color: #608ba4; }
 .devices-screen .tile-heading .icon { box-sizing: content-box; padding: 6px; border-radius: 9px; background: var(--tint); }
 .devices-screen .card .hint { margin-top: 7px; }

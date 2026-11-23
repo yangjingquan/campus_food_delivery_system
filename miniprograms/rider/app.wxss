@@ -168,6 +168,15 @@ button[loading]::before { margin-right: 5px; }
 .amount { color: var(--green); font-size: 18px; font-weight: 750; }
 .card-actions { display: flex; gap: 8px; margin-top: 12px; }
 .card-actions .btn { flex: 1; min-width: 0; }
+.withdrawal-actions { display: flex; gap: 8px; margin-top: 12px; }
+.page .withdrawal-actions .btn { min-height: 46px; padding: 8px; font-size: 14px; }
+.page .withdrawal-actions .receipt-back {
+  flex: 1;
+  border-color: #d9e6de;
+  background: var(--segment);
+  color: var(--ink);
+}
+.withdrawal-actions .receipt-confirm { flex: 1.25; }
 .note {
   display: flex;
   align-items: flex-start;
