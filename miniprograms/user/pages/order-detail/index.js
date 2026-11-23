@@ -2,17 +2,17 @@ const api = require('../../utils/api');
 const { money, time } = require('../../utils/display');
 const { availability } = require('../../utils/aftersale');
 
-const stages = ['待商户接单', '商户出餐中', '已到暂存点 / 待领取', '配送中', '已完成'];
+const stages = ['AWAITING_MERCHANT', 'PREPARING_FOOD', 'AWAITING_RIDER', 'DELIVERING', 'COMPLETED'];
 const steps = ['待接单', '出餐中', '已到点', '配送中', '已完成'];
-const pickupStages = ['待商户接单', '商户出餐中', '待自取', '已完成'];
+const pickupStages = ['AWAITING_MERCHANT', 'PREPARING_FOOD', 'AWAITING_PICKUP', 'COMPLETED'];
 const statusNotes = {
-  待支付: '付款确认后，商户将收到订单。',
-  待商户接单: '订单已付款，等待商户接单。',
-  商户出餐中: '商户正在准备你的餐品。',
-  '已到暂存点 / 待领取': '餐品已到校园暂存点，等待骑手领取。',
-  配送中: '骑手已领取餐品，正为你配送。',
-  已完成: '餐品已送达。',
-  已关闭: '订单已结束。若申请过售后，可查看处理记录。'
+  PENDING_PAYMENT: '付款确认后，商户将收到订单。',
+  AWAITING_MERCHANT: '订单已付款，等待商户接单。',
+  PREPARING_FOOD: '商户正在准备你的餐品。',
+  'AWAITING_RIDER': '餐品已到校园暂存点，等待骑手领取。',
+  DELIVERING: '骑手已领取餐品，正为你配送。',
+  COMPLETED: '餐品已送达。',
+  CLOSED: '订单已结束。若申请过售后，可查看处理记录。'
 };
 
 Page({
@@ -33,8 +33,8 @@ Page({
         order: data, items, aftersales, pickup, loading: false,
         steps: pickup ? ['待接单', '出餐中', '待自取', '已完成'] : steps,
         stepIndex: (pickup ? pickupStages : stages).indexOf(data.fulfillStatus),
-        statusNote: pickup && data.fulfillStatus === '待自取' ? '餐品已备好，请凭取餐号到店领取。'
-          : pickup && data.fulfillStatus === '已完成' ? '商户已确认取餐。' : statusNotes[data.fulfillStatus] || '',
+        statusNote: pickup && data.fulfillStatus === 'AWAITING_PICKUP' ? '餐品已备好，请凭取餐号到店领取。'
+          : pickup && data.fulfillStatus === 'COMPLETED' ? '商户已确认取餐。' : statusNotes[data.fulfillStatus] || '',
         paidAtText: time(data.paidAt),
         refund: availability(data), amountText: money(data.paidCents), foodText: money(data.foodCents),
         feeText: money(data.deliveryFeeCents), refundedText: money(data.refundedCents)

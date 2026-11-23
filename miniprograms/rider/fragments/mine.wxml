@@ -1,3 +1,4 @@
+<wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="profilehead">
   <view class="avatar">{{profile.initial}}</view>
@@ -5,7 +6,7 @@
     <view class="h2">{{profile.name || '校园骑手'}}</view>
     <text class="small muted">学生骑手</text>
   </view>
-  <template is="chip" data="{{label: profile.auditStatus, tone: approved ? '' : 'amber'}}"/>
+  <template is="chip" data="{{label: states.label(profile.auditStatus), tone: approved ? '' : 'amber'}}"/>
 </view>
 <view class="card profile-stats" wx:if="{{approved}}">
   <view class="row">

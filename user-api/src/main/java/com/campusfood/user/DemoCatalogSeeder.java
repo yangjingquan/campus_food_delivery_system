@@ -20,9 +20,9 @@ public class DemoCatalogSeeder {
         Integer ready = db.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='merchant'", Integer.class);
         if (ready == null || ready != 1) return;
         db.update("INSERT IGNORE INTO merchant(id,name,contact,phone,address,audit_status,business_status,order_count,joined_at,audit_reason) VALUES(?,?,?,?,?,?,?,?,?,NULL)",
-            "M03", "巷口小碗饭", "演示商户", "000-000-0000", "校外示例街 1 号", "已通过", "营业中", 0, "2026-11-07 00:00");
+            "M03", "巷口小碗饭", "演示商户", "000-000-0000", "校外示例街 1 号", "APPROVED", "STORE_OPEN", 0, "2026-11-07 00:00");
         db.update("INSERT IGNORE INTO merchant(id,name,contact,phone,address,audit_status,business_status,order_count,joined_at,audit_reason) VALUES(?,?,?,?,?,?,?,?,?,NULL)",
-            "M04", "禾风面馆", "演示商户", "000-000-0000", "校外示例街 2 号", "已通过", "营业中", 0, "2026-11-07 00:00");
+            "M04", "禾风面馆", "演示商户", "000-000-0000", "校外示例街 2 号", "APPROVED", "STORE_OPEN", 0, "2026-11-07 00:00");
         product("P-M03-001", "M03", "香煎鸡腿饭", "外酥里嫩的香煎鸡腿，搭配米饭与时蔬。", "米饭", 2000, 60, "rice", "#eaeedb", 1);
         product("P-M03-002", "M03", "照烧鸡肉饭", "照烧鸡肉、热米饭与时蔬。", "米饭", 1800, 48, "rice", "#f6ecdc", 2);
         product("P-M04-001", "M04", "招牌牛肉拌面", "手作面条搭配牛肉与香葱酱汁。", "面食", 1600, 60, "noodle", "#f5eadb", 1);

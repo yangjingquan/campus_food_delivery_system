@@ -149,7 +149,7 @@ public class WechatService {
                 actor, current.get("user_secret_id"), current.get("merchant_secret_id"), current.get("rider_secret_id"),
                 current.get("api_v3_secret_id"), current.get("merchant_private_secret_id"),
                 current.get("wechat_public_secret_id"));
-        db.insertAudit(actor, type, previousVersion, "旧版本", "新版本",
+        db.insertAudit(actor, type, previousVersion, "PREVIOUS_VERSION", "NEW_VERSION",
                 reason.isEmpty() ? "仅记录字段变更，不含材料内容" : reason);
         return Map.of("ok", true);
     }

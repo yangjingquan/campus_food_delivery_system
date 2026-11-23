@@ -1,9 +1,10 @@
+<wxs module="states" src="../../utils/states.wxs"/>
 <view class="page aftersale-page">
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{item && !loading && !loadError}}">
     <view class="statusbig">
       <view class="subheading">AFTER-SALES SERVICE</view>
-      <view class="h2">{{item.status}}</view>
+      <view class="h2">{{states.label(item.status)}}</view>
       <view class="muted">{{stateHint}}</view>
     </view>
     <view wx:if="{{item.originalOnlineFailure}}" class="hint orange">原线上记录：{{item.originalOnlineFailure}}</view>
@@ -21,12 +22,12 @@
       <view class="h3">处理记录</view>
       <view class="timeline timeline-space">
         <view wx:for="{{events}}" wx:key="key" class="event">
-          <view>{{item.status}}</view>
+          <view>{{states.event(item.status)}}</view>
           <view class="small">{{item.message}}</view>
           <view wx:if="{{item.timeText}}" class="small">{{item.timeText}}</view>
         </view>
         <view class="event">
-          <view>{{item.status}}</view>
+          <view>{{states.label(item.status)}}</view>
           <view class="small">当前处理状态</view>
         </view>
       </view>

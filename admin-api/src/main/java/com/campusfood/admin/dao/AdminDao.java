@@ -1,5 +1,7 @@
 package com.campusfood.admin.dao;
 
+import com.campusfood.domain.BusinessStates.Audit;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.campusfood.admin.entity.AdminUser;
@@ -88,6 +90,6 @@ public interface AdminDao extends BaseMapper<AdminUser> {
     }
 
     int insertAudit(@Param("actor") String actor, @Param("action") String action, @Param("targetId") Object targetId,
-                    @Param("beforeState") String beforeState, @Param("afterState") String afterState,
+                    @Param("beforeState") Audit beforeState, @Param("afterState") Audit afterState,
                     @Param("reason") String reason);
 }

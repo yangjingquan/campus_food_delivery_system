@@ -8,35 +8,36 @@
         refund_status AS refundStatus,settlement_status AS settlementStatus,accepted,pending_refund AS pendingRefund,
         locking,payment_count AS paymentCount,paid_at AS paidAt,completed_at AS completedAt,closed_at AS closedAt,
         last_refund_at AS lastRefundAt,payment_last_refund_at AS paymentLastRefundAt,intervene,
-        intervene_reason AS interveneReason FROM business_order ORDER BY paid_at DESC
+        intervene_code AS interveneCode,intervene_reason AS interveneReason FROM business_order ORDER BY paid_at DESC
     </select>
 
     <!-- 数据库时间按 UTC 保存，此处将协调记录时间转换为北京时间。 -->
-    <select id="listOrderNotes" resultType="java.lang.String">
-        SELECT CONCAT(DATE_FORMAT(CONVERT_TZ(created_at,'+00:00','+08:00'),'%Y-%m-%d %H:%i:%s'),
-        ' · ',actor,' · ',note) FROM order_note WHERE order_id=#{orderId} ORDER BY id DESC
+    <select id="listOrderNotes" resultType="map">
+        SELECT id,DATE_FORMAT(CONVERT_TZ(created_at,'+00:00','+08:00'),'%Y-%m-%d %H:%i:%s') AS time,
+        actor,actor_code AS actorCode,note,previous_status AS previousStatus,next_status AS nextStatus
+        FROM order_note WHERE order_id=#{orderId} ORDER BY id DESC
     </select>
 
     <select id="sumPaid" resultType="java.lang.Long">
-        SELECT COALESCE(SUM(paid_cents),0) FROM business_order WHERE payment_status='支付成功'
+        SELECT COALESCE(SUM(paid_cents),0) FROM business_order WHERE payment_status='PAYMENT_SUCCEEDED'
     </select>
 
     <select id="listRefunds" resultType="map">
         SELECT id,order_id AS orderId,payment_id AS paymentId,reason,type,amount_cents AS amountCents,
-        status,channel_status AS channelStatus,channel_reason AS channelReason,created_at AS createdAt,
-        operator FROM refund_record ORDER BY created_at DESC
+        status,channel_status AS channelStatus,channel_detail AS channelDetail,channel_reason AS channelReason,created_at AS createdAt,
+        operator_code AS operatorCode,operator FROM refund_record ORDER BY created_at DESC
     </select>
 
     <select id="listWithdrawals" resultType="map">
         SELECT w.id,w.applicant,w.applicant_type AS applicantType,w.amount_cents AS amountCents,
-        w.status_label AS status,w.created_at AS createdAt,w.reason,
+        w.status AS status,w.created_at AS createdAt,w.reason,
         CASE WHEN w.status='PENDING_REVIEW'
             AND NOT EXISTS (SELECT 1 FROM admin_audit_log a
               WHERE a.action_name='withdrawal.review' AND a.target_id=w.id)
             AND NOT EXISTS (SELECT 1 FROM withdrawal_transfer t WHERE t.withdrawal_id=w.id)
             THEN 1 ELSE 0 END AS reviewable,
         CASE WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION')
-              AND w.reason='微信转账提交异常：HTTP 403 / NOT_ENOUGH'
+              AND w.reason_code='WECHAT_FUNDS_INSUFFICIENT'
               AND t.status IN ('PROCESSING','UNKNOWN') AND t.channel_reference IS NULL AND NOT t.retry_requested
             THEN 'original'
             WHEN w.status='PAYOUT_FAILED' AND t.status='FAILED' AND t.channel_reference IS NOT NULL
@@ -44,10 +45,9 @@
             THEN 'new' END AS retryMode,
         COALESCE(t.retry_requested,0) AS retryRequested,
         original.id AS originalWithdrawalId
-        FROM withdrawal_request_display w LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
-        JOIN withdrawal_request current_request ON current_request.id=w.id
-        LEFT JOIN withdrawal_request original ON current_request.request_key LIKE 'payout-retry-%'
-            AND original.id=SUBSTRING(current_request.request_key,LENGTH('payout-retry-')+1)
+        FROM withdrawal_request w LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
+        LEFT JOIN withdrawal_request original ON w.request_key LIKE 'payout-retry-%'
+            AND original.id=SUBSTRING(w.request_key,LENGTH('payout-retry-')+1)
         ORDER BY w.created_at DESC,w.id
     </select>
 
@@ -58,7 +58,7 @@
     <select id="listLedger" resultType="map">
         SELECT id,order_id AS orderId,subject,type,CONCAT('¥',FORMAT(food_cents/100,2)) AS foodAmount,
         CONCAT('¥',FORMAT(delivery_cents/100,2)) AS deliveryAmount,CONCAT('¥',FORMAT(paid_cents/100,
-        2)) AS paidAmount,CONCAT('¥',FORMAT(refund_cents/100,2)) AS refundAmount,settlement,created_at AS time FROM finance_ledger ORDER BY created_at DESC
+        2)) AS paidAmount,CONCAT('¥',FORMAT(refund_cents/100,2)) AS refundAmount,settlement,settlement_detail AS settlementDetail,created_at AS time FROM finance_ledger ORDER BY created_at DESC
     </select>
 
     <select id="listJournal" resultType="map">
@@ -102,7 +102,7 @@
     </insert>
 
     <insert id="insertAudit">
-        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_state,reason) VALUES(#{actor},
+        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_status,reason) VALUES(#{actor},
         #{action},#{targetId},#{beforeState},#{afterState},#{reason})
     </insert>
 

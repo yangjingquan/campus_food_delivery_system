@@ -1,5 +1,7 @@
 package com.campusfood.admin.dao;
 
+import com.campusfood.domain.BusinessStates.Fulfillment;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.campusfood.admin.entity.BusinessOrder;
@@ -15,7 +17,7 @@ import org.apache.ibatis.annotations.Param;
 public interface BusinessDao extends BaseMapper<BusinessOrder> {
     List<Map<String, Object>> listOrders();
 
-    List<String> listOrderNotes(@Param("orderId") Object orderId);
+    List<Map<String, Object>> listOrderNotes(@Param("orderId") Object orderId);
 
     Long sumPaid();
 
@@ -71,7 +73,7 @@ public interface BusinessDao extends BaseMapper<BusinessOrder> {
 
     default Integer countDeliveringOrders() {
         return Math.toIntExact(selectCount(Wrappers.<BusinessOrder>lambdaQuery()
-                .in(BusinessOrder::getFulfillStatus, "配送中", "已到暂存点 / 待领取")));
+                .in(BusinessOrder::getFulfillStatus, Fulfillment.DELIVERING, Fulfillment.AWAITING_RIDER)));
     }
 
     default Integer countInterventionOrders() {

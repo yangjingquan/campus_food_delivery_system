@@ -30,7 +30,7 @@ public class FinanceService {
             """, merchant, from);
         var account = db.queryForList("""
             SELECT balance_cents AS availableCents,frozen_cents AS frozenCents
-            FROM finance_account WHERE id=? AND type='商户'
+            FROM finance_account WHERE id=? AND type='MERCHANT'
             """, merchant).stream().findFirst().orElse(Map.of("availableCents", 0, "frozenCents", 0));
         var debt = db.queryForObject("""
             SELECT COALESCE(SUM(platform_advance_cents-recovered_cents),0)
@@ -60,15 +60,15 @@ public class FinanceService {
                 """;
             case "withdrawals" -> """
                 SELECT w.id,w.amount_cents AS amountCents,w.created_at AS createdAt,w.reason,
-                       CASE WHEN w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM' THEN '待收款确认'
-                            WHEN w.status='TRANSFERRING' AND c.channel_state='UNKNOWN' THEN '结果待确认'
-                            ELSE w.status_label END AS status,
+                       CASE WHEN w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM' THEN 'AWAITING_CONFIRMATION'
+                            WHEN w.status='TRANSFERRING' AND c.channel_state='UNKNOWN' THEN 'CONFIRMATION_UNKNOWN'
+                            ELSE w.status END AS status,
                        (w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM'
                             AND c.package_info IS NOT NULL AND c.checked_at>=
                                 UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3))*1000-120000) AS canConfirm
-                FROM withdrawal_request_display w
+                FROM withdrawal_request w
                 LEFT JOIN merchant_transfer_channel c ON c.withdrawal_id=w.id
-                WHERE w.account_id=? AND w.applicant_type='商户' ORDER BY w.created_at DESC,w.id DESC LIMIT 100
+                WHERE w.account_id=? AND w.applicant_type='MERCHANT' ORDER BY w.created_at DESC,w.id DESC LIMIT 100
                 """;
             default -> throw Inputs.invalid("未知财务记录类型");
         };
@@ -82,7 +82,7 @@ public class FinanceService {
             JOIN withdrawal_request w ON w.id=c.withdrawal_id
             JOIN merchant_identity i ON i.merchant_id=w.account_id
                 AND i.app_id=c.app_id AND i.open_id=c.recipient_open_id
-            WHERE w.id=? AND w.account_id=? AND i.id=? AND w.applicant_type='商户'
+            WHERE w.id=? AND w.account_id=? AND i.id=? AND w.applicant_type='MERCHANT'
                 AND w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM'
                 AND c.package_info IS NOT NULL AND c.checked_at>=?
             """, withdrawalId, merchant, identityId, System.currentTimeMillis() - 120_000L)

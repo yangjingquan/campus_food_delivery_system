@@ -1,21 +1,22 @@
+<wxs module="states" src="../../utils/states.wxs"/>
 <view class="page order-detail-page">
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{order && !loading && !loadError}}">
     <view class="statusbig">
       <view class="subheading">{{order.merchantName}}</view>
-      <view class="h2">{{order.fulfillStatus}}</view>
+      <view class="h2">{{states.label(order.fulfillStatus)}}</view>
       <view class="muted" wx:if="{{statusNote}}">{{statusNote}}</view>
     </view>
 
     <view wx:if="{{stepIndex >= 0}}" class="card">
       <view class="h3">{{pickup ? '自取进度' : '配送进度'}}</view>
-      <view class="progress" aria-label="当前进度 {{order.fulfillStatus}}">
+      <view class="progress" aria-label="当前进度 {{states.label(order.fulfillStatus)}}">
         <view wx:for="{{steps}}" wx:key="*this" class="step {{index <= stepIndex ? 'done' : ''}} {{index === stepIndex ? 'current' : ''}}">
           <view class="step-dot"></view><text>{{item}}</text>
         </view>
       </view>
       <view wx:if="{{!pickup}}" class="split">
-        <view class="small">{{order.locationAvailable ? '骑手已领取，可查看本订单的配送位置。' : order.fulfillStatus === '已完成' ? '订单已完成，位置共享已结束。' : '骑手尚未领取，暂不展示位置。'}}</view>
+        <view class="small">{{order.locationAvailable ? '骑手已领取，可查看本订单的配送位置。' : order.fulfillStatus === 'COMPLETED' ? '订单已完成，位置共享已结束。' : '骑手尚未领取，暂不展示位置。'}}</view>
       </view>
     </view>
     <button wx:if="{{order.locationAvailable}}" class="btn outline wide map-link" bindtap="map">查看配送位置</button>
@@ -23,7 +24,7 @@
     <button wx:for="{{aftersales}}" wx:key="id" class="card wide aftersale-link" data-id="{{item.id}}" bindtap="afterSale">
       <view class="row">
         <view>
-          <view class="h3">售后 · {{item.status}}</view>
+          <view class="h3">售后 · {{states.label(item.status)}}</view>
           <view class="small aftersale-amount">本次退款金额 {{item.amountText}}</view>
         </view>
         <text>›</text>
@@ -38,7 +39,7 @@
       <view class="split">
         <view class="kv"><text class="label">餐品金额</text><text>{{foodText}}</text></view>
         <view wx:if="{{!pickup}}" class="kv"><text class="label">固定配送费</text><text>{{feeText}}</text></view>
-        <view class="kv"><text class="label">{{order.mergedPaymentStatus === '支付成功' ? '订单实付' : '订单金额'}}</text><text>{{amountText}}</text></view>
+        <view class="kv"><text class="label">{{order.mergedPaymentStatus === 'PAYMENT_SUCCEEDED' ? '订单实付' : '订单金额'}}</text><text>{{amountText}}</text></view>
         <view wx:if="{{order.refundedCents}}" class="kv"><text class="label">累计已退</text><text>{{refundedText}}</text></view>
       </view>
     </view>
@@ -53,7 +54,7 @@
       <view wx:if="{{paidAtText}}" class="kv"><text class="label">付款时间</text><text>{{paidAtText}}</text></view>
     </view>
     <button class="btn outline wide copy-link" data-value="{{order.id}}" bindtap="copy">复制订单号</button>
-    <button wx:if="{{order.mergedPaymentStatus === '未支付'}}" class="btn wide" bindtap="pay">查看支付单</button>
+    <button wx:if="{{order.mergedPaymentStatus === 'UNPAID'}}" class="btn wide" bindtap="pay">查看支付单</button>
     <button wx:elif="{{refund.allowed}}" class="btn outline wide" bindtap="refund">申请退款 / 售后</button>
     <view wx:elif="{{refund.reason}}" class="hint">{{refund.reason}}</view>
   </block>

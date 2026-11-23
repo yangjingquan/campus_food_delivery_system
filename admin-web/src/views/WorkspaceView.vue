@@ -8,6 +8,7 @@ import ListPagination from '../components/ListPagination.vue'
 import { useListPagination } from '../domain/useListPagination'
 import { useAuthStore } from '../stores/auth'
 import { money } from '../domain/rules'
+import { interventionLabel, stateLabel } from '../domain/businessStates'
 import type { FinanceSection } from '../router'
 import type { Order, SectionKey } from '../domain/types'
 
@@ -101,18 +102,9 @@ const columns = computed(() => {
 })
 
 const currentRows = computed(() => financeSection.value ? finance.value[financeSection.value] : rows.value)
-const withdrawalStatusLabels: Record<string, string> = {
-  PENDING_REVIEW: '待审核',
-  REVIEW_REJECTED: '审核拒绝',
-  PENDING_PAYOUT: '待打款',
-  TRANSFERRING: '打款中',
-  AWAITING_CONFIRMATION: '待收款确认',
-  PAID: '打款成功',
-  PAYOUT_FAILED: '打款失败',
-}
 
 function withdrawalDisplayRow(row: Row): Row {
-  const status = withdrawalStatusLabels[row.status] ?? row.status
+  const status = row.status
   const reviewable = Number(row.reviewable) === 1
   if (row.retryRequested === true || Number(row.retryRequested) === 1) {
     return { ...row, status, reviewable, reason: '重试已提交，等待微信查单' }
@@ -120,14 +112,14 @@ function withdrawalDisplayRow(row: Row): Row {
   if (row.retryMode === 'original') {
     return { ...row, status, reviewable, reason: '微信运营账户余额不足，充值到账后可重试' }
   }
-  if (status === '待审核' && row.reviewable != null && Number(row.reviewable) === 0) {
+  if (status === 'PENDING_REVIEW' && row.reviewable != null && Number(row.reviewable) === 0) {
     return { ...row, status, reviewable, reason: '已有审核或转账记录，请核对原记录' }
   }
   return { ...row, status, reviewable }
 }
 
 function canReviewWithdrawal(row: Row) {
-  return auth.can('withdrawal.review') && row.status === '待审核' && row.reviewable === true
+  return auth.can('withdrawal.review') && row.status === 'PENDING_REVIEW' && row.reviewable === true
 }
 
 function canRetryWithdrawal(row: Row) {
@@ -138,7 +130,7 @@ const statusFields: Record<string, string> = { merchants: 'auditStatus', riders:
 const statusKey = computed(() => statusFields[section.value] || 'status')
 const statusOptions = computed(() => [...new Set(currentRows.value.map((row) => String(row[statusKey.value] ?? '')).filter(Boolean))])
 const filteredRows = computed(() => currentRows.value.filter((row) => {
-  const text = Object.values(row).filter((value) => typeof value === 'string' || typeof value === 'number').join(' ').toLowerCase()
+  const text = Object.keys(row).map((key) => displayValue(row, key)).filter((value) => typeof value === 'string' || typeof value === 'number').join(' ').toLowerCase()
   return (!keyword.value || text.includes(keyword.value.toLowerCase())) && (!statusFilter.value || row[statusKey.value] === statusFilter.value)
 }))
 const { page, pageSize, total, pageRows } = useListPagination(() => filteredRows.value)
@@ -212,16 +204,25 @@ async function savePrinter() {
   }
 }
 
+const stateFields = new Set(['auditStatus', 'businessStatus', 'paymentStatus', 'fulfillStatus', 'refundStatus',
+  'settlementStatus', 'status', 'settlement', 'type', 'applicantType', 'gender', 'availability'])
+
 function displayValue(row: Row, key: string) {
   const value = row[key]
+  if (key === 'settlement' && value === 'LEGACY_DETAIL') return row.settlementDetail || '—'
+  if (stateFields.has(key)) return stateLabel(value)
+  if (key === 'availableTime') return row.availability === 'CUSTOM' ? value : stateLabel(row.availability)
+  if (key === 'channelStatus') return value === 'LEGACY_DETAIL' ? row.channelDetail : stateLabel(value)
+  if (key === 'interveneReason') return row.interveneCode ? interventionLabel(row.interveneCode) : value
+  if (key === 'operator' && row.operatorCode) return value || stateLabel(row.operatorCode)
   if (['paidCents', 'amountCents', 'balanceCents', 'frozenCents', 'availableDelta', 'frozenDelta'].includes(key)) return money(Number(value || 0))
   if (key === 'eventType') return ({ debt_recover: '欠款扣回', debt_receive: '平台收回垫付', withdraw_freeze: '提现冻结', withdraw_unfreeze: '审核拒绝解冻', transfer_failed_unfreeze: '转账失败解冻', transfer_success: '转账成功' } as Record<string,string>)[value] || value
   return value === undefined || value === null || value === '' ? '—' : value
 }
 function statusType(value: string) {
-  if (['已通过', '已完成', '退款成功', '线下已处理', '可提现', '打款成功', '营业中'].includes(value)) return 'success'
-  if (['待审核', '待支付', '待商户处理', '退款处理中', '结果未知', '协商中', '待结算', '打款中', '待打款', '售后暂缓'].includes(value)) return 'warning'
-  if (['已驳回', '退款失败', '审核拒绝', '打款失败', '已关闭', '休息中'].includes(value)) return 'danger'
+  if (['APPROVED', 'COMPLETED', 'REFUND_SUCCEEDED', 'OFFLINE_RESOLVED', 'WITHDRAWABLE', 'PAID', 'STORE_OPEN'].includes(value)) return 'success'
+  if (['PENDING_REVIEW', 'PENDING_PAYMENT', 'AWAITING_MERCHANT_DECISION', 'REFUND_PROCESSING', 'REFUND_RESULT_UNKNOWN', 'NEGOTIATING', 'PENDING_SETTLEMENT', 'TRANSFERRING', 'PENDING_PAYOUT', 'SETTLEMENT_HELD'].includes(value)) return 'warning'
+  if (['REJECTED', 'REFUND_FAILED', 'REVIEW_REJECTED', 'PAYOUT_FAILED', 'CLOSED', 'STORE_CLOSED'].includes(value)) return 'danger'
   return 'info'
 }
 function clearPhoto() {
@@ -249,7 +250,11 @@ async function openDetails(row: Row) {
   }
 }
 function keyLabel(key: string) { return keyNames[key] || key }
-function detailValue(value: unknown, key: string) {
+function detailValue(row: Row, key: string) {
+  const value = row[key]
+  if (stateFields.has(key) || ['availableTime', 'channelStatus', 'interveneReason', 'operator'].includes(key)) {
+    return displayValue(row, key) || '—'
+  }
   if (typeof value === 'number' && /Cents$/.test(key)) return money(value)
   if (value && typeof value === 'object') return JSON.stringify(value)
   if (typeof value === 'boolean') return value ? '是' : '否'
@@ -337,8 +342,8 @@ function handlePrimary(row: Row) {
   else if (section.value === 'withdrawals') openDetails(row)
 }
 function rowActionText(row: Row) {
-  if (section.value === 'merchants') return row.auditStatus === '待审核' ? '审核资料' : '查看资料'
-  if (section.value === 'riders') return row.auditStatus === '待审核' ? '审核资料' : '查看资料'
+  if (section.value === 'merchants') return row.auditStatus === 'PENDING_REVIEW' ? '审核资料' : '查看资料'
+  if (section.value === 'riders') return row.auditStatus === 'PENDING_REVIEW' ? '审核资料' : '查看资料'
   if (section.value === 'orders') return '订单详情'
   if (section.value === 'aftersales') return '售后详情'
   return '查看详情'
@@ -362,7 +367,7 @@ function runRowAction(row: Row) {
       </div>
       <el-table :key="financeSection" :data="pageRows" row-key="id" v-loading="loading" stripe class="data-table">
         <el-table-column v-for="column in columns" :key="column.key" :prop="column.key" :label="column.label" :min-width="column.minWidth || 110" show-overflow-tooltip>
-          <template #default="scope"><el-tag v-if="column.key === 'settlement' || column.key === 'status'" :type="statusType(String(scope.row[column.key]))" effect="light" round>{{ scope.row[column.key] }}</el-tag><span v-else>{{ displayValue(scope.row, column.key) }}</span></template>
+          <template #default="scope"><el-tag v-if="column.key === 'settlement' || column.key === 'status'" :type="statusType(String(scope.row[column.key]))" effect="light" round>{{ displayValue(scope.row, column.key) }}</el-tag><span v-else>{{ displayValue(scope.row, column.key) }}</span></template>
         </el-table-column>
         <el-table-column v-if="financeSection === 'debts'" label="操作" width="220" fixed="right"><template #default="scope"><el-button link type="primary" @click="openDetails(scope.row)">查看去向</el-button></template></el-table-column>
         <template #empty><el-empty description="没有符合条件的记录" /></template>
@@ -375,7 +380,7 @@ function runRowAction(row: Row) {
     <div class="panel-toolbar">
       <div class="filter-set">
         <el-input v-model="keyword" clearable placeholder="搜索编号、名称或说明" aria-label="搜索编号、名称或说明" class="toolbar-search" :prefix-icon="Search" @keyup.enter="searchList" />
-        <el-select v-model="statusFilter" clearable placeholder="全部状态" aria-label="筛选状态" class="status-select"><el-option v-for="status in statusOptions" :key="status" :label="status" :value="status" /></el-select>
+        <el-select v-model="statusFilter" clearable placeholder="全部状态" aria-label="筛选状态" class="status-select"><el-option v-for="status in statusOptions" :key="status" :label="stateLabel(status)" :value="status" /></el-select>
         <el-button @click="searchList"><el-icon><Search /></el-icon>查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
       </div>
@@ -384,7 +389,7 @@ function runRowAction(row: Row) {
       <el-table-column v-if="section === 'orders'" label="介入提醒" width="125" fixed="left"><template #default="scope"><el-tag v-if="scope.row.intervene" type="warning" effect="light" round>待管理员介入</el-tag><span v-else class="muted">—</span></template></el-table-column>
       <el-table-column v-for="column in columns" :key="column.key" :prop="column.key" :label="column.label" :min-width="column.minWidth || 110" show-overflow-tooltip>
         <template #default="scope">
-          <el-tag v-if="['auditStatus','businessStatus','fulfillStatus','refundStatus','settlementStatus','status'].includes(column.key)" :type="statusType(String(scope.row[column.key]))" effect="light" round>{{ scope.row[column.key] || '无售后' }}</el-tag>
+          <el-tag v-if="['auditStatus','businessStatus','fulfillStatus','refundStatus','settlementStatus','status'].includes(column.key)" :type="statusType(String(scope.row[column.key]))" effect="light" round>{{ displayValue(scope.row, column.key) }}</el-tag>
           <span v-else-if="column.key === 'amountCents' || column.key === 'paidCents' || column.key === 'balanceCents'">{{ money(Number(scope.row[column.key] || 0)) }}</span>
           <span v-else>{{ displayValue(scope.row, column.key) }}</span>
         </template>
@@ -395,7 +400,7 @@ function runRowAction(row: Row) {
             <el-button link type="primary" @click="runRowAction(scope.row)">{{ rowActionText(scope.row) }}</el-button>
             <el-button v-if="section === 'merchants' && auth.can('merchant.printer.edit') && !String(scope.row.id).startsWith('revision:')"
               link type="primary" :loading="printerLoadingId === scope.row.id" @click="openPrinter(scope.row)">打印机设置</el-button>
-            <template v-if="scope.row.auditStatus === '待审核' && auth.can(section === 'merchants' ? 'merchant.audit' : 'rider.audit')"><el-button link type="success" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === '资料变更' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'approve')">通过</el-button><el-button link type="danger" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === '资料变更' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'reject')">驳回</el-button></template>
+            <template v-if="scope.row.auditStatus === 'PENDING_REVIEW' && auth.can(section === 'merchants' ? 'merchant.audit' : 'rider.audit')"><el-button link type="success" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === 'PROFILE_REVISION' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'approve')">通过</el-button><el-button link type="danger" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === 'PROFILE_REVISION' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'reject')">驳回</el-button></template>
           </template>
           <template v-else-if="section === 'orders'"><el-button link type="primary" @click="handlePrimary(scope.row)">订单详情</el-button><el-button v-if="scope.row.intervene && auth.can('order.coordinate')" link type="warning" @click="coordinate(scope.row as unknown as Order)">记录协调</el-button></template>
           <template v-else-if="section === 'aftersales'"><el-button link type="primary" @click="openDetails(scope.row)">详情</el-button></template>
@@ -440,7 +445,7 @@ function runRowAction(row: Row) {
         <img v-if="merchantPhoto" :src="merchantPhoto" alt="待审核或当前店铺图片" style="display:block;max-width:100%;max-height:240px;object-fit:contain">
         <p v-else class="muted">{{ photoError }}</p>
       </div>
-      <div class="drawer-intro"><el-tag :type="statusType(String(activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || 'info'))" effect="light" round>{{ activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || '信息记录' }}</el-tag></div>
+      <div class="drawer-intro"><el-tag :type="statusType(String(activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || 'info'))" effect="light" round>{{ stateLabel(activeRow.auditStatus || activeRow.status || activeRow.fulfillStatus || '信息记录') }}</el-tag></div>
       <div v-if="section === 'riders'" class="detail-section">
         <h3>学生身份材料</h3>
         <img v-if="merchantPhoto" :src="merchantPhoto" alt="骑手提交的学生证照片"
@@ -448,22 +453,25 @@ function runRowAction(row: Row) {
         <p v-else class="muted">{{ photoError || (activeRow.hasPhoto ? '正在加载照片…' : '暂无学生证照片') }}</p>
       </div>
       <div class="detail-grid">
-        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot','hasPhoto','reviewable','retryMode','retryRequested'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow[key], key) }}</strong></div></template>
+        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot','hasPhoto','reviewable','retryMode','retryRequested','availability','interveneCode','operatorCode','channelDetail'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow, key) }}</strong></div></template>
       </div>
       <div v-if="section === 'withdrawals' && canRetryWithdrawal(activeRow)" class="detail-section">
         <el-button type="primary" :loading="retryingWithdrawalId === activeRow.id"
           @click="retryWithdrawal(activeRow)">重试打款</el-button>
       </div>
       <template v-if="section === 'orders'">
-        <div class="detail-section"><h3>合并支付单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.paymentId === activeRow?.paymentId)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ linked.fulfillStatus }} · {{ money(linked.paidCents) }}</span></div></div>
+        <div class="detail-section"><h3>合并支付单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.paymentId === activeRow?.paymentId)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ stateLabel(linked.fulfillStatus) }} · {{ money(linked.paidCents) }}</span></div></div>
         <div v-if="activeRow.intervene && auth.can('order.coordinate')" class="detail-section"><el-button type="primary" plain @click="coordinateFromDrawer">记录协调备注</el-button></div>
-        <div class="detail-section"><h3>协调记录</h3><p v-for="note in activeRow.coordinationNotes || []" :key="note">{{ note }}</p><p v-if="!activeRow.coordinationNotes?.length" class="muted">暂无协调备注</p></div>
+        <div class="detail-section"><h3>协调记录</h3><p v-for="note in activeRow.coordinationNotes || []" :key="note.id">
+          {{ note.time }} · {{ note.actorCode ? stateLabel(note.actorCode) : note.actor }} ·
+          {{ note.previousStatus && note.nextStatus ? stateLabel(note.previousStatus) + ' → ' + stateLabel(note.nextStatus) : note.note }}
+        </p><p v-if="!activeRow.coordinationNotes?.length" class="muted">暂无协调备注</p></div>
       </template>
       <template v-if="section === 'merchants'">
-        <div class="detail-section"><h3>本店订单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.merchant === activeRow?.name).slice(0, 4)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.fulfillStatus }}</strong><span>{{ money(linked.paidCents) }}</span></div><p v-if="!relatedOrders.some((order) => order.merchant === activeRow?.name)" class="muted">暂无关联订单</p><el-button v-if="auth.can('order.view')" link type="primary" @click="router.push('/orders')">进入订单列表</el-button></div>
+        <div class="detail-section"><h3>本店订单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.merchant === activeRow?.name).slice(0, 4)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ stateLabel(linked.fulfillStatus) }}</strong><span>{{ money(linked.paidCents) }}</span></div><p v-if="!relatedOrders.some((order) => order.merchant === activeRow?.name)" class="muted">暂无关联订单</p><el-button v-if="auth.can('order.view')" link type="primary" @click="router.push('/orders')">进入订单列表</el-button></div>
       </template>
       <template v-if="section === 'riders'">
-        <div class="detail-section"><h3>配送记录</h3><div v-for="linked in relatedOrders.filter((order) => order.rider === activeRow?.name).slice(0, 5)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ linked.fulfillStatus }}</span></div><p v-if="!relatedOrders.some((order) => order.rider === activeRow?.name)" class="muted">暂无已分配的配送订单</p></div>
+        <div class="detail-section"><h3>配送记录</h3><div v-for="linked in relatedOrders.filter((order) => order.rider === activeRow?.name).slice(0, 5)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ stateLabel(linked.fulfillStatus) }}</span></div><p v-if="!relatedOrders.some((order) => order.rider === activeRow?.name)" class="muted">暂无已分配的配送订单</p></div>
       </template>
     </template>
   </el-drawer>

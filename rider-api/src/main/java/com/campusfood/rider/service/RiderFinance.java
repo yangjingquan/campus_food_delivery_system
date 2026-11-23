@@ -1,5 +1,7 @@
 package com.campusfood.rider.service;
 
+import com.campusfood.domain.BusinessStates.Withdrawal;
+
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -10,17 +12,16 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class RiderFinance {
     private static final String WITHDRAWAL_STATUS = """
-        CASE WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='WAIT_USER_CONFIRM' THEN '待收款确认'
-             WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='UNKNOWN' THEN '结果待确认'
-             ELSE w.status_label END
+        CASE WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='WAIT_USER_CONFIRM' THEN 'AWAITING_CONFIRMATION'
+             WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.channel_state='UNKNOWN' THEN 'CONFIRMATION_UNKNOWN'
+             ELSE w.status END
         """.strip();
     private static final String WITHDRAWALS = """
         SELECT w.id,w.amount_cents AS amountCents,%s AS status,w.created_at AS createdAt,w.reason,
-               CASE t.status WHEN 'PROCESSING' THEN '处理中' WHEN 'UNKNOWN' THEN '未知'
-                    WHEN 'SUCCEEDED' THEN '成功' WHEN 'FAILED' THEN '失败' END AS transferStatus,t.reason AS transferReason
-        FROM withdrawal_request_display w LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
+               t.status AS transferStatus,t.reason AS transferReason
+        FROM withdrawal_request w LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
         LEFT JOIN rider_transfer_channel c ON c.withdrawal_id=w.id
-        WHERE w.account_id=? AND w.applicant_type='骑手'
+        WHERE w.account_id=? AND w.applicant_type='RIDER'
         """.formatted(WITHDRAWAL_STATUS);
     private final JdbcTemplate db;
 
@@ -34,27 +35,27 @@ public class RiderFinance {
                    COALESCE(SUM(d.rider_commission_cents),0) AS commissionCents,
                    COALESCE(SUM(o.delivery_cents-d.rider_commission_cents),0) AS dueCents,
                    COALESCE(SUM(IF(d.rider_settled_at IS NULL AND (o.pending_refund OR o.locking OR
-                       o.refund_status NOT IN ('无售后','已结束','退款成功','线下已处理')),
+                       o.refund_status NOT IN ('NO_AFTER_SALE','AFTER_SALE_ENDED','REFUND_SUCCEEDED','OFFLINE_RESOLVED')),
                        o.delivery_cents-d.rider_commission_cents,0)),0) AS heldCents,
                    COALESCE(SUM(IF(d.rider_settled_at IS NULL AND NOT (o.pending_refund OR o.locking OR
-                       o.refund_status NOT IN ('无售后','已结束','退款成功','线下已处理')),
+                       o.refund_status NOT IN ('NO_AFTER_SALE','AFTER_SALE_ENDED','REFUND_SUCCEEDED','OFFLINE_RESOLVED')),
                        o.delivery_cents-d.rider_commission_cents,0)),0) AS pendingCents,
-                   COALESCE(SUM(o.completed_at>=? AND o.fulfill_status='已完成'),0) AS todayCompleted
+                   COALESCE(SUM(o.completed_at>=? AND o.fulfill_status='COMPLETED'),0) AS todayCompleted
             FROM user_order_detail d JOIN business_order o ON o.id=d.order_id WHERE d.pickup_rider_id=?
             """, java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"))
                 .atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant().toEpochMilli(), rider);
         totals.putAll(db.queryForList("""
             SELECT balance_cents AS availableCents,frozen_cents AS frozenCents
-            FROM finance_account WHERE id=? AND type='骑手'
+            FROM finance_account WHERE id=? AND type='RIDER'
             """, rider).stream().findFirst().orElse(Map.of("availableCents", 0, "frozenCents", 0)));
         totals.put("paidOutCents", db.queryForObject("""
             SELECT COALESCE(SUM(amount_cents),0) FROM withdrawal_request
-            WHERE account_id=? AND applicant_type='骑手' AND status='PAID'
+            WHERE account_id=? AND applicant_type='RIDER' AND status='PAID'
             """, Long.class, rider));
         totals.put("pendingReceiptCount", db.queryForObject("""
-            SELECT COUNT(*) FROM withdrawal_request_display w
+            SELECT COUNT(*) FROM withdrawal_request w
             LEFT JOIN rider_transfer_channel c ON c.withdrawal_id=w.id
-            WHERE w.account_id=? AND w.applicant_type='骑手' AND (%s)='待收款确认'
+            WHERE w.account_id=? AND w.applicant_type='RIDER' AND (%s)='AWAITING_CONFIRMATION'
             """.formatted(WITHDRAWAL_STATUS), Long.class, rider));
         return totals;
     }
@@ -62,7 +63,7 @@ public class RiderFinance {
     public List<Map<String, Object>> withdrawals(String rider, int offset) {
         return db.queryForList("""
             SELECT records.* FROM (%s) records
-            ORDER BY (records.status='待收款确认') DESC,records.createdAt DESC,records.id DESC
+            ORDER BY (records.status='AWAITING_CONFIRMATION') DESC,records.createdAt DESC,records.id DESC
             LIMIT 30 OFFSET ?
             """.formatted(WITHDRAWALS), rider, Math.max(0, offset));
     }
@@ -74,11 +75,11 @@ public class RiderFinance {
         }
         var result = rows.getFirst();
         result.put("timeline", db.queryForList("""
-            SELECT after_state AS status,reason,UNIX_TIMESTAMP(created_at)*1000 AS createdAt
+            SELECT COALESCE(after_status,after_state) AS status,reason,UNIX_TIMESTAMP(created_at)*1000 AS createdAt
             FROM admin_audit_log WHERE target_id=? AND action_name IN ('withdrawal.review','withdrawal.channel')
             ORDER BY id
             """, id));
-        if ("待收款确认".equals(result.get("status"))) {
+        if (Withdrawal.AWAITING_CONFIRMATION.is(result.get("status"))) {
             var parameters = db.queryForList("""
                 SELECT c.app_id AS appId,c.merchant_no AS mchId,c.package_info AS package
                 FROM rider_transfer_channel c JOIN withdrawal_request w ON w.id=c.withdrawal_id

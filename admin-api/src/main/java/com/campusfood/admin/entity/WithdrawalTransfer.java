@@ -1,5 +1,7 @@
 package com.campusfood.admin.entity;
 
+import com.campusfood.domain.BusinessStates;
+
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -9,7 +11,7 @@ public class WithdrawalTransfer {
     @TableId
     private String id;
     private String withdrawalId;
-    private WithdrawalStates.Transfer status;
+    private BusinessStates.WithdrawalTransfer status;
     private String channelReference;
     private String reason;
     private Boolean retryRequested;
@@ -22,7 +24,7 @@ public class WithdrawalTransfer {
         return withdrawalId;
     }
 
-    public WithdrawalStates.Transfer getStatus() {
+    public BusinessStates.WithdrawalTransfer getStatus() {
         return status;
     }
 

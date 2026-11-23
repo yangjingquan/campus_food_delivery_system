@@ -1,5 +1,8 @@
 package com.campusfood.merchant.service;
 
+import com.campusfood.domain.BusinessStates.Audit;
+import com.campusfood.domain.BusinessStates.Business;
+
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -61,38 +64,38 @@ public class StoreService {
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
             db.update("""
                 INSERT INTO merchant(id,name,contact,phone,address,audit_status,business_status,joined_at)
-                VALUES(?,?,?,?,?,'待审核','休息中',?)
+                VALUES(?,?,?,?,?,'PENDING_REVIEW','STORE_CLOSED',?)
                 """, id, name, contact, phone, address, now);
             db.update("UPDATE merchant_identity SET merchant_id=? WHERE id=?", id, identity.id());
-            db.update("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES(?,?,'商户',0,'正常')", id, name);
+            db.update("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES(?,?,'MERCHANT',0,'ACCOUNT_ACTIVE')", id, name);
             savePhoto(id, photo);
             return;
         }
 
         String status = db.queryForObject("SELECT audit_status FROM merchant WHERE id=? FOR UPDATE", String.class, id);
-        if ("已驳回".equals(status)) {
+        if (Audit.REJECTED.is(status)) {
             db.update("""
-                UPDATE merchant SET name=?,contact=?,phone=?,address=?,audit_status='待审核',audit_reason=NULL
+                UPDATE merchant SET name=?,contact=?,phone=?,address=?,audit_status='PENDING_REVIEW',audit_reason=NULL
                 WHERE id=?
                 """, name, contact, phone, address, id);
             if (photo != null) savePhoto(id, photo);
-            db.update("UPDATE finance_account SET name=? WHERE id=? AND type='商户'", name, id);
+            db.update("UPDATE finance_account SET name=? WHERE id=? AND type='MERCHANT'", name, id);
             return;
         }
-        if (!"已通过".equals(status)) {
+        if (!Audit.APPROVED.is(status)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "入驻资料正在审核，请等待结果");
         }
 
         // 待审资料独立保存，审核期间继续使用当前营业档案。
         String revision = db.query("SELECT status FROM merchant_profile_revision WHERE merchant_id=?",
             (row, n) -> row.getString(1), id).stream().findFirst().orElse("");
-        if ("待审核".equals(revision)) {
+        if (Audit.PENDING_REVIEW.is(revision)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "资料变更正在审核，请等待结果");
         }
         db.update("DELETE FROM merchant_profile_revision WHERE merchant_id=?", id);
         db.update("""
             INSERT INTO merchant_profile_revision(merchant_id,name,contact,phone,address,image_data,media_type,status)
-            VALUES(?,?,?,?,?,?,?,'待审核')
+            VALUES(?,?,?,?,?,?,?,'PENDING_REVIEW')
             """, id, name, contact, phone, address, photo == null ? null : photo.data(),
             photo == null ? null : photo.mediaType());
     }
@@ -104,13 +107,13 @@ public class StoreService {
     }
 
     public void businessStatus(String id, Map<String, Object> body) {
-        db.update("UPDATE merchant SET business_status=? WHERE id=? AND audit_status='已通过'",
-            Inputs.flag(body, "open", "营业状态") ? "营业中" : "休息中", id);
+        db.update("UPDATE merchant SET business_status=? WHERE id=? AND audit_status='APPROVED'",
+            Inputs.flag(body, "open", "营业状态") ? Business.STORE_OPEN.name() : Business.STORE_CLOSED.name(), id);
     }
 
     public void minimumOrder(String id, Map<String, Object> body) {
         long cents = Inputs.integer(body, "minimumOrderCents", "起送价（分）", 0, 99_999_999_999L);
-        db.update("UPDATE merchant SET minimum_order_cents=? WHERE id=? AND audit_status='已通过'", cents, id);
+        db.update("UPDATE merchant SET minimum_order_cents=? WHERE id=? AND audit_status='APPROVED'", cents, id);
     }
 
     private void savePhoto(String id, UploadedPhoto photo) {

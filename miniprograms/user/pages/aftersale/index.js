@@ -2,14 +2,14 @@ const api = require('../../utils/api');
 const { money, time } = require('../../utils/display');
 
 const hints = {
-  待商户处理: '商户将在规定时限内处理，超时由平台介入。',
-  拒绝退款: '可申请平台介入，或结束这次售后。',
-  等待退款提交: '同一支付单需间隔提交退款，请等待处理。',
-  退款处理中: '退款申请正在处理，确认到账前仍可查看进度。',
-  退款失败: '退款渠道明确失败，平台将核实后续处理方式。',
-  退款结果核实中: '平台正在与退款渠道核对结果，请勿重复申请。',
-  退款成功: '退款已确认，相关商户订单已关闭。',
-  线下已处理: '平台已确认线下退款，原线上退款记录仍可查看。'
+  AWAITING_MERCHANT_DECISION: '商户将在规定时限内处理，超时由平台介入。',
+  REFUND_REJECTED: '可申请平台介入，或结束这次售后。',
+  REFUND_QUEUED: '同一支付单需间隔提交退款，请等待处理。',
+  REFUND_PROCESSING: '退款申请正在处理，确认到账前仍可查看进度。',
+  REFUND_FAILED: '退款渠道明确失败，平台将核实后续处理方式。',
+  REFUND_VERIFYING: '平台正在与退款渠道核对结果，请勿重复申请。',
+  REFUND_SUCCEEDED: '退款已确认，相关商户订单已关闭。',
+  OFFLINE_RESOLVED: '平台已确认线下退款，原线上退款记录仍可查看。'
 };
 
 Page({
@@ -29,9 +29,9 @@ Page({
       this.setData({
         item: data, events, loading: false, amountText: money(data.amountCents), createdAtText: time(data.createdAt),
         stateHint: hints[data.status] || '请查看处理记录。',
-        canIntervene: ['拒绝退款', '待商户处理'].includes(data.status)
-          || (data.status === '退款结果核实中' && !data.platformIntervened),
-        canEnd: data.status === '拒绝退款'
+        canIntervene: ['REFUND_REJECTED', 'AWAITING_MERCHANT_DECISION'].includes(data.status)
+          || (data.status === 'REFUND_VERIFYING' && !data.platformIntervened),
+        canEnd: data.status === 'REFUND_REJECTED'
       });
     } catch (error) {
       this.setData({ loading: false, loadError: error.message });

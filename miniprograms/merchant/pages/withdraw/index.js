@@ -49,7 +49,7 @@ Page({
       }
       wx.removeStorageSync(storageKey);
       this.setData({ pending: false });
-      if (result.status !== '已受理') {
+      if (result.status !== 'ACCEPTED') {
         await this.refresh();
         throw new Error('扣回欠款后的可提现余额不足，请核对账户');
       }

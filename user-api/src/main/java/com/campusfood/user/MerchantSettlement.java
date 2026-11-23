@@ -16,11 +16,11 @@ class MerchantSettlement {
     private static final String ELIGIBLE = """
         FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
         JOIN payment_order p ON p.id=o.payment_id
-        JOIN finance_account a ON a.id=o.merchant_id AND a.type='商户' AND a.status='正常'
-        WHERE o.payment_status='支付成功' AND p.status='支付成功' AND p.payment_mode='wechat'
-          AND o.fulfill_status='已完成' AND o.completed_at<?
-          AND o.settlement_status='待结算' AND o.refunded_cents=0 AND o.pending_refund=FALSE
-          AND o.locking=FALSE AND o.refund_status IN ('无售后','已结束')
+        JOIN finance_account a ON a.id=o.merchant_id AND a.type='MERCHANT' AND a.status='ACCOUNT_ACTIVE'
+        WHERE o.payment_status='PAYMENT_SUCCEEDED' AND p.status='PAYMENT_SUCCEEDED' AND p.payment_mode='wechat'
+          AND o.fulfill_status='COMPLETED' AND o.completed_at<?
+          AND o.settlement_status='PENDING_SETTLEMENT' AND o.refunded_cents=0 AND o.pending_refund=FALSE
+          AND o.locking=FALSE AND o.refund_status IN ('NO_AFTER_SALE','AFTER_SALE_ENDED')
           AND d.food_rate_snapshot BETWEEN 0 AND 100 AND d.merchant_settled_at IS NULL
         """;
 
@@ -60,7 +60,7 @@ class MerchantSettlement {
             VALUES(?,'settlement_credit',?,?,0)
             """, credit.merchant(), id, net);
         recoverAdvances(credit.merchant(), id);
-        db.update("UPDATE business_order SET settlement_status='可提现' WHERE id=?", id);
+        db.update("UPDATE business_order SET settlement_status='WITHDRAWABLE' WHERE id=?", id);
         db.update("UPDATE user_order_detail SET merchant_settled_cents=?,merchant_settled_at=? WHERE order_id=?",
             net, now, id);
     }

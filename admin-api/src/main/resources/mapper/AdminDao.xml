@@ -19,17 +19,17 @@
         order_count AS orderCount,joined_at AS joinedAt,audit_reason AS auditReason,
         EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=merchant.id) AS hasPhoto FROM merchant
         UNION ALL
-        SELECT CONCAT('revision:',m.id),r.name,r.contact,r.phone,r.address,r.status,'资料变更',
+        SELECT CONCAT('revision:',m.id),r.name,r.contact,r.phone,r.address,r.status,'PROFILE_REVISION',
                m.order_count,m.joined_at,r.reason,r.image_data IS NOT NULL
                    OR EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=m.id)
         FROM merchant_profile_revision r JOIN merchant m ON m.id=r.merchant_id
-        WHERE r.status='待审核'
+        WHERE r.status='PENDING_REVIEW'
         ORDER BY id
     </select>
 
     <select id="listRiders" resultType="map">
-        SELECT id,name,phone,gender,available_time AS availableTime,audit_status AS auditStatus,
-        deliveries,COALESCE((SELECT a.balance_cents FROM finance_account a WHERE a.id=r.id AND a.type='骑手'),r.balance_cents) AS balanceCents,
+        SELECT id,name,phone,gender,availability,available_time AS availableTime,audit_status AS auditStatus,
+        deliveries,COALESCE((SELECT a.balance_cents FROM finance_account a WHERE a.id=r.id AND a.type='RIDER'),r.balance_cents) AS balanceCents,
         joined_at AS joinedAt,audit_reason AS auditReason,
         EXISTS(SELECT 1 FROM rider_student_card c WHERE c.rider_id=r.id) AS hasPhoto FROM rider r ORDER BY id
     </select>
@@ -60,7 +60,7 @@
     </insert>
 
     <insert id="insertAudit">
-        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_state,reason) VALUES (#{actor},
+        INSERT INTO admin_audit_log(actor,action_name,target_id,before_status,after_status,reason) VALUES (#{actor},
         #{action},#{targetId},#{beforeState},#{afterState},#{reason})
     </insert>
 </mapper>

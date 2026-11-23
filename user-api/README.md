@@ -29,7 +29,7 @@ The mini program uses `POST /payments/{id}/prepare` to open WeChat checkout and 
 ## Checks
 
 ```bash
-mvn -o test
+mvn -o -f ../pom.xml -pl user-api -am test
 python3 ../scripts/check-user-integration.py
 ```
 

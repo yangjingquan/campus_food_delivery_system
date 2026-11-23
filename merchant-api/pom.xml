@@ -9,6 +9,11 @@
   </parent>
   <artifactId>merchant-api</artifactId>
   <dependencies>
+      <dependency>
+          <groupId>com.campusfood</groupId>
+          <artifactId>domain-model</artifactId>
+          <version>${project.version}</version>
+      </dependency>
     <dependency>
       <groupId>com.google.zxing</groupId>
       <artifactId>core</artifactId>

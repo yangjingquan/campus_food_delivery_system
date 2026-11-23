@@ -28,9 +28,9 @@ test('扫码自取走单店免配送结算，发起一次支付并保留外卖�
       requests.push({ path, data });
       let body;
       if (path.startsWith('/catalog')) body = { merchants: [merchant] };
-      if (path === '/checkout') body = { payment: { id: 'pay', status: '未支付' } };
+      if (path === '/checkout') body = { payment: { id: 'pay', status: 'UNPAID' } };
       if (path === '/payments/pay') body = {
-        status: '未支付', expiresAt: Date.now() + 60_000, amountCents: 700, mode: 'wechat',
+        status: 'UNPAID', expiresAt: Date.now() + 60_000, amountCents: 700, mode: 'wechat',
         merchantOrders: [{ fulfillmentType: 'pickup', amountCents: 700 }]
       };
       if (path === '/payments/pay/prepare') body = {};

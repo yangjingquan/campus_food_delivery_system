@@ -1,12 +1,13 @@
+<wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="details-title order-status">
-  <template is="chip" data="{{label: order.status, tone: order.status === '配送中' ? '' : 'gray'}}"/>
-  <view class="h2">{{order.status === '已关闭' ? '订单已关闭' : order.status === '已完成' ? '已送达，辛苦了' : '正在配送，请注意安全'}}</view>
+  <template is="chip" data="{{label: states.label(order.status), tone: order.status === 'DELIVERING' ? '' : 'gray'}}"/>
+  <view class="h2">{{order.status === 'CLOSED' ? '订单已关闭' : order.status === 'COMPLETED' ? '已送达，辛苦了' : '正在配送，请注意安全'}}</view>
   <text class="small muted">独立商户订单 #{{order.id}}</text>
 </view>
-<template wx:if="{{order.status === '已关闭'}}" is="note"
+<template wx:if="{{order.status === 'CLOSED'}}" is="note"
   data="{{label: '该订单已停止配送。已领取订单的原应得报酬保留。', tone: 'warn'}}"/>
-<template wx:if="{{order.refundStatus !== '无售后'}}" is="note" data="{{label: order.refundStatus, tone: 'warn'}}"/>
+<template wx:if="{{order.refundStatus !== 'NO_AFTER_SALE'}}" is="note" data="{{label: states.label(order.refundStatus), tone: 'warn'}}"/>
 <view class="card delivery-destination">
   <view class="shop"><template is="icon" data="{{name: 'pin', size: 'icon-small'}}"/>配送目的地</view>
   <view class="destination">{{order.building}} <text class="em">{{order.room}}</text></view>
@@ -50,18 +51,18 @@
   <view class="timeline-item" wx:if="{{order.arrivedAt}}"><text class="strong">到达暂存点</text><text class="span">{{order.arrivedTime}}</text></view>
   <view class="timeline-item" wx:if="{{order.pickedUpAt}}"><text class="strong">扫码领取</text><text class="span">{{order.pickupTime}}</text></view>
   <view class="timeline-item current" wx:if="{{order.closedAt || order.completedAt}}">
-    <text class="strong">{{order.status}}</text><text class="span">{{order.endTime}}</text>
+    <text class="strong">{{states.label(order.status)}}</text><text class="span">{{order.endTime}}</text>
   </view>
 </view>
 <view class="card" wx:if="{{order.refunds.length}}">
   <view class="sectiontitle timeline-title">售后记录</view>
   <view class="timeline-item" wx:for="{{order.refunds}}" wx:key="index">
-    <text class="strong">{{item.status}} · ¥{{item.amount}}</text>
-    <text class="span">{{item.time}} · {{item.channelStatus}}</text>
+    <text class="strong">{{states.label(item.status)}} · ¥{{item.amount}}</text>
+    <text class="span">{{item.time}} · {{item.channelStatus === 'LEGACY_DETAIL' ? item.channelDetail : states.label(item.channelStatus)}}</text>
     <view wx:if="{{item.reason}}" class="small muted">{{item.reason}}</view>
   </view>
 </view>
-<block wx:if="{{order.status === '配送中'}}">
+<block wx:if="{{order.status === 'DELIVERING'}}">
   <template is="action" data="{{page: 'map', id: order.id, label: '打开地图导航', icon: 'nav'}}"/>
   <button class="btn outline full" bindtap="openModal" data-topic="complete" data-id="{{order.id}}"
     data-address="{{order.address}}" hover-class="pressed">确认已送达</button>

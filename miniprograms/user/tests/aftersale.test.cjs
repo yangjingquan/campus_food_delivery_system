@@ -5,7 +5,7 @@ const { availability } = require('../utils/aftersale');
 const hour = 60 * 60 * 1000;
 const order = {
   paidCents: 1800, refundedCents: 500, foodCents: 1600, foodRefundedCents: 500,
-  accepted: true, fulfillStatus: '已关闭', mergedPaymentStatus: '支付成功', firstClosedAt: hour
+  accepted: true, fulfillStatus: 'CLOSED', mergedPaymentStatus: 'PAYMENT_SUCCEEDED', firstClosedAt: hour
 };
 
 test('部分退款关闭后，首关时限内仍可申请剩余退款', () => {

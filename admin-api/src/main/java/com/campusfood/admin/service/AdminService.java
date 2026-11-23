@@ -1,5 +1,8 @@
 package com.campusfood.admin.service;
 
+import com.campusfood.domain.BusinessStates.Audit;
+import com.campusfood.domain.BusinessStates.AdminAudit;
+
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
@@ -143,7 +146,7 @@ public class AdminService {
         if (!passwords.matches(oldPassword, hash))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "原密码错误");
         db.changePasswordByUsername(passwords.encode(newPassword), username);
-        db.insertSimpleAudit(username, "admin.password", username, "已更新");
+        db.insertSimpleAudit(username, "admin.password", username, AdminAudit.UPDATED.name());
         return Map.of("ok", true);
     }
 
@@ -227,7 +230,7 @@ public class AdminService {
         db.setAdministratorEnabled(enabled, id);
         roles.deleteRoles(id);
         db.assignRoleById(id, role);
-        db.insertSimpleAudit(actor, "admin.access", users.get(0).get("username"), role + (enabled ? "/启用" : "/停用"));
+        db.insertSimpleAudit(actor, "admin.access", users.get(0).get("username"), role + "/" + (enabled ? AdminAudit.ENABLED.name() : AdminAudit.DISABLED.name()));
         return Map.of("ok", true);
     }
 
@@ -240,7 +243,7 @@ public class AdminService {
         List<String> names = db.lockUsernameById(id);
         if (names.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "管理员不存在");
         db.resetPasswordById(passwords.encode(password), id);
-        db.insertSimpleAudit(actor, "admin.password-reset", names.get(0), "已重置");
+        db.insertSimpleAudit(actor, "admin.password-reset", names.get(0), AdminAudit.RESET.name());
         return Map.of("ok", true);
     }
 
@@ -302,7 +305,7 @@ public class AdminService {
         if ((!decision.equals("approve") && !decision.equals("reject")) ||
                 (decision.equals("reject") && reason.isBlank()) || reason.length() > 500)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审核决定或驳回原因无效");
-        String result = decision.equals("approve") ? "已通过" : "已驳回";
+        Audit result = decision.equals("approve") ? Audit.APPROVED : Audit.REJECTED;
         int changed;
         if (type.equals("merchant.audit") && id.startsWith("revision:")) {
             String storeId = id.substring("revision:".length());
@@ -318,7 +321,7 @@ public class AdminService {
                 : riders.updatePendingAudit(result, reason.isBlank() ? null : reason, id);
         }
         if (changed != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "记录不存在或已处理");
-        db.insertAudit(username, type, id, "待审核", result, reason);
+        db.insertAudit(username, type, id, Audit.PENDING_REVIEW, result, reason);
         return Map.of("ok", true);
     }
 }

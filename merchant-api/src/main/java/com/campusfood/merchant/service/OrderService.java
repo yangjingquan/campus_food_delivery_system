@@ -1,5 +1,7 @@
 package com.campusfood.merchant.service;
 
+import com.campusfood.domain.BusinessStates.Fulfillment;
+
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -22,7 +24,7 @@ public class OrderService {
                o.settlement_status AS settlementStatus,o.fulfillment_type AS fulfillmentType,
                o.pickup_number AS pickupNumber,
                CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) AS pickupCode,o.accepted,o.pending_refund AS pendingRefund,o.intervene,
-               o.intervene_reason AS interveneReason,o.paid_at AS paidAt,d.arrived_at AS arrivedAt,
+               o.intervene_code AS interveneCode,o.intervene_reason AS interveneReason,o.paid_at AS paidAt,d.arrived_at AS arrivedAt,
                d.batch_alert_at AS batchAlertAt,o.completed_at AS completedAt,o.closed_at AS closedAt,
                o.paid_at+(SELECT accept_timeout FROM operations_config ORDER BY id DESC LIMIT 1)*60000 AS acceptDeadlineAt
         FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
@@ -31,7 +33,7 @@ public class OrderService {
 
     private static final String REFUNDS = """
         SELECT r.id,r.order_id AS orderId,r.type,r.reason,r.amount_cents AS amountCents,r.status,
-               r.channel_status AS channelStatus,r.channel_reason AS channelReason,r.created_at AS createdAt,
+               r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,
                r.offline_channel AS offlineChannel,r.offline_actual_at AS offlineActualAt
         FROM refund_record r JOIN business_order o ON o.id=r.order_id JOIN user_order_detail d ON d.order_id=o.id
         WHERE o.merchant_id=? AND o.paid_at>0
@@ -45,6 +47,13 @@ public class OrderService {
     }
 
     public Map<String, Object> list(String merchant, String status, String keyword, int page) {
+        if (!status.isEmpty()) {
+            try {
+                status = Fulfillment.valueOf(status).name();
+            } catch (IllegalArgumentException e) {
+                throw Inputs.invalid("履约状态无效");
+            }
+        }
         String term = "%" + keyword.trim() + "%";
         long offset = (long) Math.max(0, page) * ORDER_PAGE_SIZE;
         var rows = db.queryForList(BASE + """
@@ -53,10 +62,10 @@ public class OrderService {
             ORDER BY o.paid_at DESC,o.id DESC LIMIT ? OFFSET ?
             """, merchant, status, status, term, term, term, ORDER_PAGE_SIZE + 1, offset);
         var counts = db.queryForMap("""
-            SELECT COUNT(CASE WHEN o.fulfill_status='待商户接单' AND o.pending_refund=FALSE
-                          AND o.refund_status NOT IN ('退款失败','平台介入')
+            SELECT COUNT(CASE WHEN o.fulfill_status='AWAITING_MERCHANT' AND o.pending_refund=FALSE
+                          AND o.refund_status NOT IN ('REFUND_FAILED','PLATFORM_REVIEW')
                           AND o.paid_at+(SELECT accept_timeout FROM operations_config ORDER BY id DESC LIMIT 1)*60000>? THEN 1 END) AS waiting,
-                   COUNT(CASE WHEN o.refund_status='待商户处理' THEN 1 END) AS aftersales
+                   COUNT(CASE WHEN o.refund_status='AWAITING_MERCHANT_DECISION' THEN 1 END) AS aftersales
             FROM business_order o JOIN user_order_detail d ON d.order_id=o.id WHERE o.merchant_id=? AND o.paid_at>0
             """, System.currentTimeMillis(), merchant);
         return Map.of("rows", rows.subList(0, Math.min(rows.size(), ORDER_PAGE_SIZE)),
@@ -84,7 +93,7 @@ public class OrderService {
     @Transactional
     public Map<String, Object> ticket(String merchant, String id) {
         Map<String, Object> order = owned(merchant, id);
-        if (!Boolean.TRUE.equals(order.get("accepted")) || "已关闭".equals(order.get("status"))) {
+        if (!Boolean.TRUE.equals(order.get("accepted")) || Fulfillment.CLOSED.is(order.get("status"))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "接单后且订单未关闭时可查看小票");
         }
         var ticket = receipt(merchant, id);
@@ -106,7 +115,7 @@ public class OrderService {
 
     public Map<String, Object> receipt(String merchant, String id) {
         Map<String, Object> order = owned(merchant, id);
-        if (!Boolean.TRUE.equals(order.get("accepted")) || "已关闭".equals(order.get("status"))) {
+        if (!Boolean.TRUE.equals(order.get("accepted")) || Fulfillment.CLOSED.is(order.get("status"))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "接单后且订单未关闭时可打印小票");
         }
         var ticket = new LinkedHashMap<>(order);

@@ -48,7 +48,7 @@ async function sample(refreshAfterCurrent = false) {
   busy = true;
   try {
     const profile = await api.request('/profile');
-    const orders = profile.auditStatus === '已通过' ? await api.request('/orders?scope=active') : [];
+    const orders = profile.auditStatus === 'APPROVED' ? await api.request('/orders?scope=active') : [];
     if (run !== generation) return;
     if (!orders.length) {
       publish({ message: '暂无配送中订单，已停止为订单采集位置。', available: false });

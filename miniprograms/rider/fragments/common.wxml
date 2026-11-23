@@ -1,3 +1,4 @@
+<wxs module="states" src="../utils/states.wxs"/>
 <template name="icon">
   <image class="icon {{size}}" mode="aspectFit" src="/assets/{{name}}-{{tone || 'green'}}.png" aria-hidden="true"/>
 </template>
@@ -77,7 +78,7 @@
         <text>{{order.merchant}}</text>
         <text wx:if="{{order.pickupNumber}}" class="order-pickup-number">#W{{order.pickupNumber}}</text>
       </view>
-      <template is="chip" data="{{label: order.status, tone: order.status === '配送中' ? '' : 'gray'}}"/>
+      <template is="chip" data="{{label: states.label(order.status), tone: order.status === 'DELIVERING' ? '' : 'gray'}}"/>
     </view>
     <button class="order-link full" data-page="detail" data-id="{{order.id}}" bindtap="go" hover-class="pressed">
       <view class="destination">{{order.building}} <text class="em">{{order.room}}</text></view>
@@ -86,8 +87,8 @@
     </button>
     <view class="divider"/>
     <view class="row"><text class="small muted">骑手应得</text><text class="amount">¥ {{order.due}}</text></view>
-    <template wx:if="{{order.refundStatus !== '无售后'}}" is="note" data="{{label: order.refundStatus, tone: 'warn'}}"/>
-    <view class="card-actions" wx:if="{{actions && order.status === '配送中'}}">
+    <template wx:if="{{order.refundStatus !== 'NO_AFTER_SALE'}}" is="note" data="{{label: states.label(order.refundStatus), tone: 'warn'}}"/>
+    <view class="card-actions" wx:if="{{actions && order.status === 'DELIVERING'}}">
       <template is="action" data="{{page: 'map', id: order.id, label: '导航', icon: 'nav', style: 'outline slim'}}"/>
       <button class="btn slim" data-topic="complete" data-id="{{order.id}}" data-address="{{order.address}}"
         bindtap="openModal" hover-class="pressed">确认送达</button>

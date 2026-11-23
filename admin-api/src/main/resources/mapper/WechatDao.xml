@@ -13,8 +13,8 @@
     </select>
 
     <select id="listAudits" resultType="map">
-        SELECT actor,action_name AS actionName,target_id AS targetId,before_state AS beforeState,
-        after_state AS afterState,reason,created_at AS createdAt FROM admin_audit_log WHERE action_name LIKE 'wechat.%' ORDER BY id DESC LIMIT 100
+        SELECT actor,action_name AS actionName,target_id AS targetId,COALESCE(before_status,before_state) AS beforeState,
+        COALESCE(after_status,after_state) AS afterState,reason,created_at AS createdAt FROM admin_audit_log WHERE action_name LIKE 'wechat.%' ORDER BY id DESC LIMIT 100
     </select>
 
     <insert id="insertSecret">
@@ -37,7 +37,7 @@
     </insert>
 
     <insert id="insertAudit">
-        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_state,reason) VALUES(#{actor},
+        INSERT INTO admin_audit_log(actor,action_name,target_id,before_status,after_status,reason) VALUES(#{actor},
         #{action},#{targetId},#{beforeState},#{afterState},#{reason})
     </insert>
 </mapper>

@@ -1,5 +1,7 @@
 package com.campusfood.user;
 
+import com.campusfood.domain.BusinessStates.WithdrawalReason;
+
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -39,7 +41,6 @@ class RiderTransferService {
     private static final String OUTCOME_UNKNOWN = "渠道结果待核实，继续查询原转账单";
     private static final String BILL_NOT_FOUND = "微信查无原转账单，资金仍冻结，需核对首次提交结果";
     private static final String SUBMIT_ERROR_PREFIX = "微信转账提交异常：";
-    private static final String FUNDS_INSUFFICIENT = SUBMIT_ERROR_PREFIX + "HTTP 403 / NOT_ENOUGH";
     private static final long REAL_NAME_THRESHOLD = 200_000;
     private enum Party {
         RIDER("骑手", "rider_transfer_channel", "rider_identity i ON i.id=w.account_id",
@@ -114,23 +115,23 @@ class RiderTransferService {
                 ? MATERIAL_REQUIRED.replace("骑手", party.label)
                 : SCENE_REQUIRED + "（" + party.label + "）";
             db.update("""
-                UPDATE withdrawal_request SET reason=?
+                UPDATE withdrawal_request SET reason=?,reason_code=NULL
                 WHERE applicant_type=? AND status='PENDING_PAYOUT' AND NOT (reason <=> ?)
-                """, reason, party.label, reason);
+                """, reason, party.name(), reason);
             if (db.queryForList("SELECT 1 FROM " + party.channel + " LIMIT 1", Integer.class).isEmpty()) return;
         } else {
             String reason = IDENTITY_REQUIRED.replace("骑手", party.label);
             db.update("""
                 UPDATE withdrawal_request w
                 LEFT JOIN %s
-                SET w.reason=?
+                SET w.reason=?,w.reason_code=NULL
                 WHERE w.applicant_type=? AND w.status='PENDING_PAYOUT'
                     AND (i.id IS NULL OR %s='' OR i.app_id<>?) AND NOT (w.reason <=> ?)
-                """.formatted(party.identity, party.openId), reason, party.label, current.appId(), reason);
+                """.formatted(party.identity, party.openId), reason, party.name(), current.appId(), reason);
             if (forMerchant) {
                 db.update("""
-                    UPDATE withdrawal_request SET reason=?
-                    WHERE applicant_type='商户' AND status='PENDING_PAYOUT' AND amount_cents>=?
+                    UPDATE withdrawal_request SET reason=?,reason_code=NULL
+                    WHERE applicant_type='MERCHANT' AND status='PENDING_PAYOUT' AND amount_cents>=?
                         AND NOT (reason <=> ?)
                     """, MERCHANT_NAME_REQUIRED, REAL_NAME_THRESHOLD, MERCHANT_NAME_REQUIRED);
             }
@@ -156,15 +157,14 @@ class RiderTransferService {
                 OR ((%s) AND i.app_id=? AND %s<>'' %s))
             AND (c.checked_at IS NULL OR c.checked_at<=?)
             ORDER BY CASE WHEN t.retry_requested THEN 0 ELSE 1 END,
-                CASE WHEN w.reason IN (?,?) AND c.checked_at IS NULL THEN 1 ELSE 0 END,
+                CASE WHEN w.reason_code IN ('SUBMISSION_BLOCKED','INVALID_APPLICATION_TIME') AND c.checked_at IS NULL THEN 1 ELSE 0 END,
                 COALESCE(c.checked_at,0),w.created_at,w.id LIMIT 20
             """.formatted(party.name, party.openId, party.openId,
                 party.identity, forMerchant ? "" : "LEFT JOIN rider r ON r.id=i.id", party.channel, trackedScope,
                 newOrderScope, party.openId, forMerchant ? "AND w.amount_cents<" + REAL_NAME_THRESHOLD
                     + " AND (c.withdrawal_id IS NULL OR (c.app_id=i.app_id AND c.recipient_open_id=i.open_id))"
-                    + " AND EXISTS (SELECT 1 FROM merchant m WHERE m.id=w.account_id AND m.audit_status='已通过')" : ""),
-            party.label, current == null ? null : current.appId(), System.currentTimeMillis() - 25_000,
-            SUBMIT_BLOCKED, APPLICATION_TIME_INVALID);
+                    + " AND EXISTS (SELECT 1 FROM merchant m WHERE m.id=w.account_id AND m.audit_status='APPROVED')" : ""),
+            party.name(), current == null ? null : current.appId(), System.currentTimeMillis() - 25_000);
         for (var order : orders) {
             String id = order.get("id").toString();
             boolean retry = truthy(order.get("retry_requested"));
@@ -179,7 +179,7 @@ class RiderTransferService {
                 }
             } catch (DateTimeParseException exception) {
                 if (retry) clearRetry(id);
-                pendingReason(id, APPLICATION_TIME_INVALID);
+                pendingReason(id, WithdrawalReason.INVALID_APPLICATION_TIME, APPLICATION_TIME_INVALID);
             } catch (RuntimeException exception) {
                 // 超时或签名未通过时只查询原单。继续冻结，避免二次付款或误解冻。
                 int tracked = db.update("""
@@ -190,14 +190,14 @@ class RiderTransferService {
                     System.currentTimeMillis(), id);
                 if (exception instanceof WechatPayClient.TransferResponseException response
                         && !retry && (order.get("config_version") == null || "PREPARING".equals(order.get("channel_state")))) {
-                    processingReason(id, SUBMIT_ERROR_PREFIX + response.getMessage(), false);
+                    recordSubmissionError(id, response);
                     log.warn("WeChat transfer submission for {} returned {}", id, response.getMessage());
                 } else if ("PREPARING".equals(order.get("channel_state"))) {
-                    pendingReason(id, SUBMIT_BLOCKED);
+                    pendingReason(id, WithdrawalReason.SUBMISSION_BLOCKED, SUBMIT_BLOCKED);
                 } else if (tracked > 0) {
                     processingReason(id, OUTCOME_UNKNOWN, true);
                 } else {
-                    int changed = pendingReason(id, SUBMIT_BLOCKED);
+                    int changed = pendingReason(id, WithdrawalReason.SUBMISSION_BLOCKED, SUBMIT_BLOCKED);
                     if (changed > 0) log.warn("Withdrawal transfer preparation failed for {} ({})", id,
                         exception.getClass().getSimpleName());
                 }
@@ -296,28 +296,28 @@ class RiderTransferService {
             UPDATE %s c JOIN withdrawal_transfer t ON t.withdrawal_id=c.withdrawal_id
             JOIN withdrawal_request w ON w.id=c.withdrawal_id JOIN finance_account a ON a.id=w.account_id
             SET t.retry_requested=FALSE,c.channel_state='SUBMITTING',c.checked_at=?,c.request_payload=?,
-                c.recipient_open_id=?,w.reason='已发起原单重试，等待微信结果'
-            WHERE w.id=? AND w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND w.reason=?
+                c.recipient_open_id=?,w.reason='已发起原单重试，等待微信结果',w.reason_code=NULL
+            WHERE w.id=? AND w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND w.reason_code='WECHAT_FUNDS_INSUFFICIENT'
                 AND c.channel_state='UNKNOWN' AND c.package_info IS NULL AND t.retry_requested
                 AND t.status IN ('PROCESSING','UNKNOWN') AND t.channel_reference IS NULL
                 AND a.frozen_cents>=w.amount_cents
                 AND (SELECT SUM(j.frozen_delta) FROM account_journal j
                      WHERE j.reference_id=w.id AND j.account_id=w.account_id)=w.amount_cents
             """.formatted(party.channel), System.currentTimeMillis(), json.writeValueAsString(payload),
-            order.get("openid"), id, FUNDS_INSUFFICIENT);
+            order.get("openid"), id);
         if (claimed == 0) {
             db.update("""
                 UPDATE withdrawal_transfer t JOIN withdrawal_request w ON w.id=t.withdrawal_id
-                SET t.retry_requested=FALSE,w.reason='重试条件已变化，请核对原单及冻结流水'
-                WHERE w.id=? AND w.reason=? AND t.retry_requested
-                """, id, FUNDS_INSUFFICIENT);
+                SET t.retry_requested=FALSE,w.reason='重试条件已变化，请核对原单及冻结流水',w.reason_code=NULL
+                WHERE w.id=? AND w.reason_code='WECHAT_FUNDS_INSUFFICIENT' AND t.retry_requested
+                """, id);
             return;
         }
         try {
             apply(party, id, bill, wechat.transfer(credentials, payload));
         } catch (WechatPayClient.TransferResponseException response) {
             db.update("UPDATE " + party.channel + " SET channel_state='UNKNOWN' WHERE withdrawal_id=? AND channel_state='SUBMITTING'", id);
-            processingReason(id, SUBMIT_ERROR_PREFIX + response.getMessage(), false);
+            recordSubmissionError(id, response);
             log.warn("WeChat original transfer retry for {} returned {}", id, response.getMessage());
         }
     }
@@ -343,10 +343,15 @@ class RiderTransferService {
     }
 
     private int pendingReason(String id, String reason) {
+        return pendingReason(id, null, reason);
+    }
+
+    private int pendingReason(String id, WithdrawalReason code, String reason) {
+        String reasonCode = code == null ? null : code.name();
         return db.update("""
-            UPDATE withdrawal_request SET reason=?
-            WHERE id=? AND status='PENDING_PAYOUT' AND NOT (reason <=> ?)
-            """, reason, id, reason);
+            UPDATE withdrawal_request SET reason=?,reason_code=?
+            WHERE id=? AND status='PENDING_PAYOUT' AND (NOT (reason <=> ?) OR NOT (reason_code <=> ?))
+            """, reason, reasonCode, id, reason, reasonCode);
     }
 
     private void query(Party party, Map<String, Object> order, String id) {
@@ -419,12 +424,24 @@ class RiderTransferService {
         }
     }
 
+    private void recordSubmissionError(String id, WechatPayClient.TransferResponseException error) {
+        WithdrawalReason code = error.insufficientFunds()
+            ? WithdrawalReason.WECHAT_FUNDS_INSUFFICIENT : WithdrawalReason.WECHAT_SUBMISSION_ERROR;
+        processingReason(id, code, SUBMIT_ERROR_PREFIX + error.getMessage(), false);
+    }
+
     private void processingReason(String id, String reason, boolean preserveSubmitError) {
+        processingReason(id, null, reason, preserveSubmitError);
+    }
+
+    private void processingReason(String id, WithdrawalReason code, String reason, boolean preserveSubmitError) {
+        String reasonCode = code == null ? null : code.name();
         db.update("""
-            UPDATE withdrawal_request SET reason=?
-            WHERE id=? AND status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND NOT (reason <=> ?)
-                AND (?=FALSE OR COALESCE(reason,'') NOT LIKE ?)
-            """, reason, id, reason, preserveSubmitError, SUBMIT_ERROR_PREFIX + "%");
+            UPDATE withdrawal_request SET reason=?,reason_code=?
+            WHERE id=? AND status IN ('TRANSFERRING','AWAITING_CONFIRMATION')
+                AND (NOT (reason <=> ?) OR NOT (reason_code <=> ?))
+                AND (?=FALSE OR reason_code IS NULL OR reason_code NOT IN ('WECHAT_FUNDS_INSUFFICIENT','WECHAT_SUBMISSION_ERROR'))
+            """, reason, reasonCode, id, reason, reasonCode, preserveSubmitError);
     }
 
     private static String billNumber(String id) {

@@ -1,0 +1,59 @@
+var labels = {
+  UNPAID: '未支付',
+  PAYMENT_SUCCEEDED: '支付成功',
+  MOCK_PAYMENT_SUCCEEDED: '本地模拟支付成功',
+  CLOSED: '已关闭',
+  PENDING_PAYMENT: '待支付',
+  AWAITING_MERCHANT: '待商户接单',
+  PREPARING_FOOD: '商户出餐中',
+  AWAITING_RIDER: '已到暂存点 / 待领取',
+  AWAITING_PICKUP: '待自取',
+  DELIVERING: '配送中',
+  COMPLETED: '已完成',
+  NO_AFTER_SALE: '无售后',
+  AFTER_SALE_ENDED: '已结束',
+  REFUND_SUCCEEDED: '退款成功',
+  OFFLINE_RESOLVED: '线下已处理',
+  REFUND_FAILED: '退款失败',
+  PLATFORM_REVIEW: '平台介入',
+  AWAITING_MERCHANT_DECISION: '待商户处理',
+  REFUND_PROCESSING: '退款处理中',
+  REFUND_VERIFYING: '退款结果核实中',
+  REFUND_QUEUED: '等待退款提交',
+  REFUND_REJECTED: '拒绝退款',
+  NEGOTIATING: '协商中',
+  PENDING_SETTLEMENT: '待结算',
+  WITHDRAWABLE: '可提现',
+  SETTLED: '已结算',
+  WITHDRAWN: '已提现',
+  SETTLEMENT_HELD: '售后暂缓',
+  PENDING_CREDIT: '待入账',
+  AFTER_SALE_REQUESTED: '提交售后申请',
+  MERCHANT_REFUND_DECLINED: '商户拒绝退款',
+  MERCHANT_REFUND_APPROVED: '商户同意退款',
+  USER_ESCALATED: '用户申请平台介入',
+  ONLINE_REFUND_FAILED: '线上退款失败',
+  REFUND_VERIFICATION_REQUIRED: '退款结果待核实',
+  MERCHANT_TIMEOUT_ESCALATED: '商户超时，平台介入',
+  MERCHANT_REFUND_CONFIRMED: '商户确认退款',
+  ORDER_TIMEOUT_REFUND_REQUESTED: '商户接单超时，自动发起退款',
+  REFUND_CHANNEL_UNCONFIGURED: '渠道未配置',
+  REFUND_SUCCEEDED_ORDER_CLOSED: '退款成功，订单已关闭',
+  ALL: '全部',
+  IN_PROGRESS: '进行中',
+  AFTER_SALE: '售后',
+  PICKUP_OVERDUE: '暂存点已跨两个配送批次仍未领取',
+  REFUND_FAILED_OFFLINE_REQUIRED: '退款失败，需线下核实',
+  MERCHANT_REFUND_TIMEOUT: '商户超过 3 小时未处理售后',
+  REFUND_LIMIT_REACHED: '合并支付单退款次数达到上限'
+};
+
+function label(code) {
+  return labels[code] || code || '';
+}
+
+function event(code) {
+  return code === 'AFTER_SALE_ENDED' ? '售后结束' : label(code);
+}
+
+module.exports = { label: label, event: event };

@@ -1,5 +1,9 @@
 package com.campusfood.rider.service;
 
+import com.campusfood.domain.BusinessStates.Audit;
+import com.campusfood.domain.BusinessStates.Availability;
+import com.campusfood.domain.BusinessStates.Gender;
+
 import com.campusfood.rider.dao.RiderDao;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -12,7 +16,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -75,28 +78,25 @@ public class RiderIdentityService {
     public Map<String, Object> profile(String id) {
         var profile = riders.profile(id);
         if (profile.get("auditStatus") == null) {
-            profile.put("auditStatus", "未入驻");
+            profile.put("auditStatus", Audit.NOT_ENROLLED.name());
         }
         return profile;
     }
 
     public void requireApproved(String id) {
-        if (!"已通过".equals(profile(id).get("auditStatus"))) {
+        if (!Audit.APPROVED.is(profile(id).get("auditStatus"))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "学生身份审核通过后才能开展配送");
         }
     }
 
     @Transactional
-    public Map<String, Object> apply(String id, String name, String phone, String gender,
-                                     String availableTime, MultipartFile studentCard) throws IOException {
+    public Map<String, Object> apply(String id, String name, String phone, Gender gender,
+                                     Availability availability, String availableTime, MultipartFile studentCard) throws IOException {
         name = Inputs.required(name, 80, "姓名");
         phone = Inputs.required(phone, 20, "手机号");
-        availableTime = DeliveryAvailability.validate(Inputs.required(availableTime, 160, "可送餐时间"));
+        availableTime = DeliveryAvailability.validate(availability, availableTime);
         if (!phone.matches("1[3-9]\\d{9}")) {
             throw Inputs.invalid("请输入有效的手机号");
-        }
-        if (!List.of("男", "女", "不便透露").contains(gender)) {
-            throw Inputs.invalid("请选择性别");
         }
         if (studentCard.isEmpty() || studentCard.getSize() > 4 * 1024 * 1024) {
             throw Inputs.invalid("请上传 4 MB 以内的学生证照片");
@@ -111,18 +111,18 @@ public class RiderIdentityService {
             String now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"))
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
             db.update("""
-                INSERT INTO rider(id,name,phone,gender,available_time,audit_status,joined_at)
-                VALUES(?,?,?,?,?,'待审核',?)
-                """, id, name, phone, gender, availableTime, now);
-            db.update("INSERT INTO finance_account(id,name,type,status) VALUES(?,?,'骑手','正常')", id, name);
+                INSERT INTO rider(id,name,phone,gender,availability,available_time,audit_status,joined_at)
+                VALUES(?,?,?,?,?,?,'PENDING_REVIEW',?)
+                """, id, name, phone, gender.name(), availability.name(), availableTime, now);
+            db.update("INSERT INTO finance_account(id,name,type,status) VALUES(?,?,'RIDER','ACCOUNT_ACTIVE')", id, name);
         } else {
-            if (!"已驳回".equals(statuses.getFirst())) {
+            if (!Audit.REJECTED.is(statuses.getFirst())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "当前审核状态不可重复提交");
             }
             db.update("""
-                UPDATE rider SET name=?,phone=?,gender=?,available_time=?,audit_status='待审核',audit_reason=NULL
+                UPDATE rider SET name=?,phone=?,gender=?,availability=?,available_time=?,audit_status='PENDING_REVIEW',audit_reason=NULL
                 WHERE id=?
-                """, name, phone, gender, availableTime, id);
+                """, name, phone, gender.name(), availability.name(), availableTime, id);
             db.update("UPDATE finance_account SET name=? WHERE id=?", name, id);
         }
         db.update("""

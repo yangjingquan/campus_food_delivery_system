@@ -11,9 +11,9 @@ Page({
     try {
       if (!api.token()) return;
       const { store, revision } = await api.request('/profile');
-      const form = (revision && revision.status === '已驳回' ? revision : store) || this.data.form;
-      const editable = !store || store.auditStatus === '已驳回' ||
-        (store.auditStatus === '已通过' && this.edit && (!revision || revision.status !== '待审核'));
+      const form = (revision && revision.status === 'REJECTED' ? revision : store) || this.data.form;
+      const editable = !store || store.auditStatus === 'REJECTED' ||
+        (store.auditStatus === 'APPROVED' && this.edit && (!revision || revision.status !== 'PENDING_REVIEW'));
       this.setData({ store, revision, form, editable, photo: '', photoError: '' });
       if (store && store.hasPhoto) {
         try { this.setData({ photo: await api.photo() }); }

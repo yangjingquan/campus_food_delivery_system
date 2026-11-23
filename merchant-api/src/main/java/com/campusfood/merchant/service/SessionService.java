@@ -1,5 +1,7 @@
 package com.campusfood.merchant.service;
 
+import com.campusfood.domain.BusinessStates.Audit;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,7 +25,7 @@ public class SessionService {
 
     public record Identity(long id, String merchantId, String auditStatus) {
         public String approvedStore() {
-            if (!"已通过".equals(auditStatus)) {
+            if (!Audit.APPROVED.is(auditStatus)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "店铺通过审核后可使用该功能");
             }
             return merchantId;

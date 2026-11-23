@@ -1,3 +1,4 @@
+<wxs module="states" src="../../utils/states.wxs"/>
 <import src="../../fragments/states.wxml" />
 <view class="screen products-screen tab-screen">
   <view class="row top page-header">
@@ -22,7 +23,7 @@
           <view class="hint">{{item.category}} · 可售 {{item.availableStock}} 份 · 预占 {{item.reserved}} 份</view>
           <view class="price">{{item.price}}</view>
         </view>
-        <text class="badge {{item.status !== '在售' ? 'warn' : ''}}">{{item.status}}</text>
+        <text class="badge {{item.status !== 'PRODUCT_AVAILABLE' ? 'warn' : ''}}">{{states.label(item.status)}}</text>
       </view>
       <view class="actions split-actions">
         <button class="btn plain" data-id="{{item.id}}" bindtap="edit" hover-class="pressed">编辑／库存记录</button>

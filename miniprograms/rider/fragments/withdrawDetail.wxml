@@ -1,24 +1,25 @@
+<wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="details-title">
   <view class="successcircle">
-    <template is="icon" data="{{name: withdrawal.status === '打款成功' ? 'check' : withdrawal.status === '打款失败' ? 'info' : 'clock',
+    <template is="icon" data="{{name: withdrawal.status === 'PAID' ? 'check' : withdrawal.status === 'PAYOUT_FAILED' ? 'info' : 'clock',
       size: 'icon-large'}}"/>
   </view>
-  <view class="h2">{{withdrawal.status}}</view>
+  <view class="h2">{{states.label(withdrawal.status)}}</view>
   <view class="big-money withdraw-amount"><text class="small">¥</text>{{withdrawal.amount}}</view>
-  <text class="small muted">{{withdrawal.status === '待审核' ? '已提交申请，等待管理员审核' : '可在下方查看处理进度'}}</text>
+  <text class="small muted">{{withdrawal.status === 'PENDING_REVIEW' ? '已提交申请，等待管理员审核' : '可在下方查看处理进度'}}</text>
 </view>
 <template wx:if="{{withdrawal.notice}}" is="note" data="{{label: withdrawal.notice, tone: 'warn'}}"/>
 <view class="card">
   <template is="pairs" data="{{rows: [{label:'申请单号',value:withdrawal.id},{label:'收款账户',value:'当前微信账户'},
-    {label:'申请时间',value:withdrawal.time},{label:'金额状态',value:withdrawal.status === '打款成功' ? '已支出' :
-      (withdrawal.status === '审核拒绝' || withdrawal.status === '打款失败') ? '已解除冻结' : '申请金额已冻结'}]}}"/>
+    {label:'申请时间',value:withdrawal.time},{label:'金额状态',value:withdrawal.status === 'PAID' ? '已支出' :
+      (withdrawal.status === 'REVIEW_REJECTED' || withdrawal.status === 'PAYOUT_FAILED') ? '已解除冻结' : '申请金额已冻结'}]}}"/>
   <view class="divider"/>
   <view class="timeline">
     <view class="timeline-item"><text class="strong">已提交申请</text><text class="span">{{withdrawal.time}}</text></view>
     <view class="timeline-item {{index === withdrawal.timeline.length - 1 ? 'current' : ''}}"
       wx:for="{{withdrawal.timeline}}" wx:key="index">
-      <text class="strong">{{item.status}}</text><text class="span">{{item.time}}</text>
+      <text class="strong">{{states.label(item.status)}}</text><text class="span">{{item.time}}</text>
     </view>
   </view>
 </view>

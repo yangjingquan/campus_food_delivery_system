@@ -119,7 +119,7 @@ Page({
     try {
       const { data } = await api.post('/checkout', { ...fulfillment, requestKey: attempt.requestKey, expectedTotalCents, items });
       const payment = data.payment;
-      if (payment.status === '已关闭') {
+      if (payment.status === 'CLOSED') {
         wx.removeStorageSync(attemptKey);
         this.setData({ submitError: '上一笔支付单已关闭，请重新提交。' });
         return;
@@ -130,7 +130,7 @@ Page({
         fulfillmentType: pickup ? 'pickup' : 'delivery',
         items: this.items.map(({ productId, quantity, lineKey }) => ({ productId, quantity, lineKey: lineKey || '' }))
       });
-      const page = payment.status === '支付成功' ? 'payment-result' : 'payment';
+      const page = payment.status === 'PAYMENT_SUCCEEDED' ? 'payment-result' : 'payment';
       wx.navigateTo({ url: `/pages/${page}/index?id=${encodeURIComponent(payment.id)}${pickup && page === 'payment' ? '&autoPay=1' : ''}` });
     } catch (error) {
       this.setData({ submitError: error.message || '提交结果暂未确认，请重试' });

@@ -1,5 +1,7 @@
 package com.campusfood.admin.entity;
 
+import com.campusfood.domain.BusinessStates.Audit;
+
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -8,14 +10,14 @@ import com.baomidou.mybatisplus.annotation.TableName;
 public class Rider {
     @TableId
     private String id;
-    private String auditStatus;
+    private Audit auditStatus;
     private String auditReason;
 
     public String getId() {
         return id;
     }
 
-    public String getAuditStatus() {
+    public Audit getAuditStatus() {
         return auditStatus;
     }
 

@@ -13,11 +13,11 @@ class RiderSettlement {
     private static final String ELIGIBLE = """
         FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
         JOIN payment_order p ON p.id=o.payment_id
-        WHERE p.payment_mode='wechat' AND p.status='支付成功'
+        WHERE p.payment_mode='wechat' AND p.status='PAYMENT_SUCCEEDED'
           AND d.pickup_rider_id IS NOT NULL AND d.rider_settled_at IS NULL
           AND o.pending_refund=FALSE AND o.locking=FALSE
-          AND ((o.fulfill_status='已完成' AND o.refund_status IN ('无售后','已结束') AND o.completed_at<?)
-               OR (o.fulfill_status='已关闭' AND o.refund_status IN ('退款成功','线下已处理','已结束') AND o.last_refund_at<?))
+          AND ((o.fulfill_status='COMPLETED' AND o.refund_status IN ('NO_AFTER_SALE','AFTER_SALE_ENDED') AND o.completed_at<?)
+               OR (o.fulfill_status='CLOSED' AND o.refund_status IN ('REFUND_SUCCEEDED','OFFLINE_RESOLVED','AFTER_SALE_ENDED') AND o.last_refund_at<?))
         """;
 
     private final JdbcTemplate db;
@@ -55,7 +55,7 @@ class RiderSettlement {
         String rider = order.get("pickup_rider_id").toString();
         long commission = number(order, "commission");
         long due = number(order, "delivery_cents") - commission;
-        var riderAccount = db.queryForList("SELECT id FROM finance_account WHERE id=? AND type='骑手' FOR UPDATE",
+        var riderAccount = db.queryForList("SELECT id FROM finance_account WHERE id=? AND type='RIDER' FOR UPDATE",
             String.class, rider);
         if (riderAccount.isEmpty()) {
             return;
@@ -71,7 +71,7 @@ class RiderSettlement {
 
     private void chargeMerchant(Map<String, Object> order, String id, long due) {
         String merchant = order.get("merchant_id").toString();
-        long balance = db.queryForList("SELECT balance_cents FROM finance_account WHERE id=? AND type='商户' FOR UPDATE",
+        long balance = db.queryForList("SELECT balance_cents FROM finance_account WHERE id=? AND type='MERCHANT' FOR UPDATE",
             Long.class, merchant).stream().findFirst().orElse(0L);
         long debit = Math.min(balance, due);
         if (debit > 0) {

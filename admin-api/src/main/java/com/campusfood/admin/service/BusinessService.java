@@ -135,7 +135,7 @@ public class BusinessService {
             if (countById("business_order", id) == 0)
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
             db.insertOrderNote(id, actor, note);
-            audit(actor, type, id, "", "", note);
+            audit(actor, type, id, "", null, note);
             return Map.of("ok", true);
         }
         if (type.equals("withdrawal.review")) {
@@ -166,7 +166,7 @@ public class BusinessService {
             db.insertOperationsConfig(fee, food, delivery, regular, peak, start, end, ps, pe, accept, reminder, actor);
             long configId = operations.lockLatestVersion();
             for (var period : periods) db.insertPeakPeriod(configId, period.get("start"), period.get("end"));
-            audit(actor, type, current, current, "新版本", "");
+            audit(actor, type, current, current, "NEW_VERSION", "");
             return Map.of("ok", true);
         }
         throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,

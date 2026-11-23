@@ -1,5 +1,7 @@
 package com.campusfood.admin.dao;
 
+import com.campusfood.domain.BusinessStates.Refund;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.campusfood.admin.entity.RefundRecord;
@@ -9,6 +11,6 @@ import org.apache.ibatis.annotations.Mapper;
 @Mapper
 public interface RefundRecordMapper extends BaseMapper<RefundRecord> {
     default Integer countFailed() {
-        return Math.toIntExact(selectCount(Wrappers.<RefundRecord>lambdaQuery().eq(RefundRecord::getStatus, "退款失败")));
+        return Math.toIntExact(selectCount(Wrappers.<RefundRecord>lambdaQuery().eq(RefundRecord::getStatus, Refund.REFUND_FAILED)));
     }
 }

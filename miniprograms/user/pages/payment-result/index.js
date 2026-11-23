@@ -20,7 +20,7 @@ Page({
       const { data: saved } = await api.get(`/payments/${this.paymentId}`);
       let payment = saved;
       let syncError = '';
-      if (saved.mode === 'wechat' && saved.status === '未支付') {
+      if (saved.mode === 'wechat' && saved.status === 'UNPAID') {
         try {
           const { data } = await api.post(`/payments/${this.paymentId}/sync`, {});
           payment = data;
@@ -30,8 +30,8 @@ Page({
       }
       const orders = (payment.merchantOrders || []).map(item => ({ ...item, amountText: money(item.amountCents) }));
       this.setData({ payment, orders, pickup: orders[0]?.fulfillmentType === 'pickup', amountText: money(payment.amountCents), syncError });
-      if (payment.status === '支付成功') this.removePaidItems(user.id);
-      if (this.visible && payment.mode === 'wechat' && payment.status === '未支付' && (this.checks || 0) < 3) {
+      if (payment.status === 'PAYMENT_SUCCEEDED') this.removePaidItems(user.id);
+      if (this.visible && payment.mode === 'wechat' && payment.status === 'UNPAID' && (this.checks || 0) < 3) {
         this.checks = (this.checks || 0) + 1;
         this.retry = setTimeout(() => this.load(), 3000);
       }

@@ -1,5 +1,7 @@
 package com.campusfood.admin.entity;
 
+import com.campusfood.domain.BusinessStates.Refund;
+
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -8,13 +10,13 @@ import com.baomidou.mybatisplus.annotation.TableName;
 public class RefundRecord {
     @TableId
     private String id;
-    private String status;
+    private Refund status;
 
     public String getId() {
         return id;
     }
 
-    public String getStatus() {
+    public Refund getStatus() {
         return status;
     }
 }

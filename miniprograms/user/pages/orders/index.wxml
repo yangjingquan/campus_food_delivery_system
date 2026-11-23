@@ -1,9 +1,10 @@
+<wxs module="states" src="../../utils/states.wxs"/>
 <view class="page tab-page orders-page">
   <view class="h2">每一份，都有进度</view>
   <scroll-view class="filters" scroll-x="{{true}}" show-scrollbar="{{false}}">
     <view class="filter-rail">
       <button wx:for="{{filters}}" wx:key="*this" class="chip {{filter === item ? 'on' : ''}}"
-        data-value="{{item}}" bindtap="chooseFilter">{{item}}</button>
+        data-value="{{item}}" bindtap="chooseFilter">{{states.label(item)}}</button>
     </view>
   </scroll-view>
   <include src="../../templates/load-state.wxml"/>
@@ -11,11 +12,11 @@
     <view wx:for="{{visible}}" wx:key="id" class="card ordercard">
       <view class="order-head">
         <view class="h3 order-name">{{item.merchantName}}</view>
-        <view class="orderstate">{{item.displayStatus}}</view>
+        <view class="orderstate">{{states.label(item.displayStatus)}}</view>
       </view>
       <view wx:if="{{item.fulfillmentType === 'pickup'}}" class="small order-note">到店自取</view>
       <view class="muted order-summary">{{item.displayItems}}</view>
-      <view wx:if="{{!item.isPayment && item.note}}" class="small order-note">{{item.note}}</view>
+      <view wx:if="{{!item.isPayment && item.note}}" class="small order-note">{{item.refundStatus && item.refundStatus !== 'NO_AFTER_SALE' ? '售后：' + states.label(item.refundStatus) : item.note}}</view>
       <view class="order-footer">
         <view class="order-total">
           <text class="small">{{item.isPayment ? '应付金额' : '订单金额'}}</text>

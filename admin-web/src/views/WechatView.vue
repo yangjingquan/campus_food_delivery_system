@@ -3,11 +3,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '../api/admin'
 import { useAuthStore } from '../stores/auth'
+import { stateLabel } from '../domain/businessStates'
 
 type AppKind = 'user' | 'merchant' | 'rider'
 type Config = { version:number; userAppId:string; merchantAppId:string; riderAppId:string; merchantNo:string; serialNo:string; publicKeyId:string; paymentCallback:string; refundCallback:string; transferCallback:string; userSecretSet:boolean; merchantSecretSet:boolean; riderSecretSet:boolean; apiV3KeySet:boolean; merchantPrivateKeySet:boolean; wechatPublicKeySet:boolean; enabled:boolean; operator:string; createdAt:string }
 const auth=useAuthStore()
-type Audit = { actor:string; actionName:string; targetId:string; reason:string; createdAt:string }
+type Audit = { actor:string; actionName:string; targetId:string; beforeState?:string; afterState?:string; reason:string; createdAt:string }
 const settings=ref<Config>(), history=ref<Config[]>([]), audits=ref<Audit[]>([]), loading=ref(false), saving=ref(false)
 const activeTab=ref('apps'), appType=ref<AppKind>('user')
 const versionOpen=ref(false), versionDetail=ref<Config>()
@@ -62,7 +63,7 @@ onMounted(load)
             <h2>配置审计</h2>
             <el-empty v-if="!audits.length" description="暂无操作记录" :image-size="70" />
             <div v-for="(item, index) in audits" :key="index" class="wechat-version-row">
-              <div><strong>{{ item.actionName }}</strong><p>{{ item.actor }} · {{ displayTime(item.createdAt) }}</p><small>{{ item.reason }}</small></div>
+              <div><strong>{{ item.actionName }}</strong><p>{{ item.actor }} · {{ displayTime(item.createdAt) }}</p><small v-if="item.beforeState && item.afterState">{{ stateLabel(item.beforeState) }} → {{ stateLabel(item.afterState) }} · </small><small>{{ item.reason }}</small></div>
             </div>
           </section>
         </div>

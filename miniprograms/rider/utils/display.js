@@ -53,7 +53,7 @@ function withdrawal(data) {
   const notice = data.transferReason || data.reason;
   return {
     ...data,
-    notice: notice?.startsWith('微信已受理') ? '' : notice,
+    notice: data.status === 'AWAITING_CONFIRMATION' ? data.transferReason : notice,
     amount: money(data.amountCents),
     time: date(data.createdAt),
     timeline: (data.timeline || []).map(item => ({ ...item, time: date(item.createdAt) }))

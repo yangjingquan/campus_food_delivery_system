@@ -1,6 +1,6 @@
 export type SectionKey = 'merchants' | 'riders' | 'orders' | 'aftersales' | 'finance' | 'withdrawals' | 'config' | 'wechat'
-export type AuditStatus = '待审核' | '已通过' | '已驳回'
-export type RefundStatus = '待商户处理' | '协商中' | '退款处理中' | '结果未知' | '退款成功' | '退款失败' | '线下已处理' | '拒绝退款'
+export type AuditStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED'
+export type RefundStatus = 'NO_AFTER_SALE' | 'AFTER_SALE_ENDED' | 'REFUND_SUCCEEDED' | 'OFFLINE_RESOLVED' | 'REFUND_FAILED' | 'PLATFORM_REVIEW' | 'AWAITING_MERCHANT_DECISION' | 'REFUND_PROCESSING' | 'REFUND_VERIFYING' | 'REFUND_QUEUED' | 'REFUND_REJECTED' | 'NEGOTIATING'
 export type AppType = 'user' | 'merchant' | 'rider'
 
 export interface Merchant {
@@ -10,7 +10,7 @@ export interface Merchant {
   phone: string
   address: string
   auditStatus: AuditStatus
-  businessStatus: '营业中' | '休息中'
+  businessStatus: 'STORE_CLOSED' | 'STORE_OPEN' | 'PROFILE_REVISION'
   orderCount: number
   joinedAt: string
   auditReason?: string
@@ -20,7 +20,8 @@ export interface Rider {
   id: string
   name: string
   phone: string
-  gender: '男' | '女'
+  gender: 'MALE' | 'FEMALE' | 'UNDISCLOSED'
+  availability: 'MIDDAY' | 'EVENING' | 'MIDDAY_AND_EVENING' | 'CUSTOM'
   availableTime: string
   auditStatus: AuditStatus
   deliveries: number
@@ -41,10 +42,10 @@ export interface Order {
   paidCents: number
   refundedCents: number
   foodRefundedCents: number
-  paymentStatus: '支付成功' | '支付关闭' | '未支付'
-  fulfillStatus: string
-  refundStatus: RefundStatus | '无售后'
-  settlementStatus: '待结算' | '售后暂缓' | '可提现'
+  paymentStatus: 'UNPAID' | 'PAYMENT_SUCCEEDED' | 'MOCK_PAYMENT_SUCCEEDED' | 'CLOSED'
+  fulfillStatus: 'PENDING_PAYMENT' | 'AWAITING_MERCHANT' | 'PREPARING_FOOD' | 'AWAITING_RIDER' | 'AWAITING_PICKUP' | 'DELIVERING' | 'COMPLETED' | 'CLOSED'
+  refundStatus: RefundStatus
+  settlementStatus: 'PENDING_PAYMENT' | 'PENDING_SETTLEMENT' | 'WITHDRAWABLE' | 'SETTLED' | 'WITHDRAWN' | 'CLOSED' | 'SETTLEMENT_HELD' | 'PENDING_CREDIT'
   accepted: boolean
   pendingRefund: boolean
   locking: boolean
@@ -56,7 +57,16 @@ export interface Order {
   lastRefundAt?: number
   intervene: boolean
   interveneReason?: string
-  coordinationNotes: string[]
+  interveneCode?: string
+  coordinationNotes: Array<{
+    id: number
+    time: string
+    actor: string
+    actorCode?: string
+    note: string
+    previousStatus?: string
+    nextStatus?: string
+  }>
 }
 
 export interface RefundRecord {
@@ -64,7 +74,7 @@ export interface RefundRecord {
   orderId: string
   paymentId: string
   reason: string
-  type: '全额' | '部分' | '线下'
+  type: 'full' | 'partial'
   amountCents: number
   status: RefundStatus
   channelStatus: string
@@ -83,9 +93,9 @@ export interface RefundRecord {
 export interface Withdrawal {
   id: string
   applicant: string
-  applicantType: '商户' | '骑手'
+  applicantType: 'MERCHANT' | 'RIDER'
   amountCents: number
-  status: '待审核' | '审核拒绝' | '打款中' | '打款成功' | '打款失败'
+  status: 'PENDING_REVIEW' | 'REVIEW_REJECTED' | 'PENDING_PAYOUT' | 'TRANSFERRING' | 'AWAITING_CONFIRMATION' | 'PAID' | 'PAYOUT_FAILED'
   createdAt: string
   reason?: string
 }

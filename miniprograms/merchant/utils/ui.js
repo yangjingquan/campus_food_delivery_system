@@ -26,7 +26,7 @@ async function access() {
   try {
     const profile = await api.request('/profile');
     const store = profile.store;
-    return { store, blocked: store && store.auditStatus === '已通过' ? '' : '店铺通过审核后即可使用工作台' };
+    return { store, blocked: store && store.auditStatus === 'APPROVED' ? '' : '店铺通过审核后即可使用工作台' };
   } catch (error) {
     if (error.status === 401) return { blocked: '登录已过期，请重新登录' };
     throw error;

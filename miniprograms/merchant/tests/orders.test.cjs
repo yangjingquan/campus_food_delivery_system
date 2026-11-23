@@ -80,7 +80,7 @@ test('续页失败保留列表，重试相同页码', async () => {
 test('切换状态从第 0 页查询，忽略旧筛选的迟到续页', async () => {
   let finish;
   const { page, calls } = workbench(({ status, page }) => {
-    if (status === '待商户接单') return orders(['waiting'], false);
+    if (status === 'AWAITING_MERCHANT') return orders(['waiting'], false);
     if (page === 0) return orders(['first'], true);
     return new Promise(resolve => { finish = resolve; });
   });
@@ -89,7 +89,7 @@ test('切换状态从第 0 页查询，忽略旧筛选的迟到续页', async ()
   await page.filter({ currentTarget: { dataset: { index: 1 } } });
   finish(orders(['stale'], true));
   await loading;
-  assert.deepEqual(calls.at(-1), { status: '待商户接单', q: '', page: 0 });
+  assert.deepEqual(calls.at(-1), { status: 'AWAITING_MERCHANT', q: '', page: 0 });
   assert.deepEqual(idsOf(page), ['waiting']);
   assert.equal(page.data.hasMore, false);
 });

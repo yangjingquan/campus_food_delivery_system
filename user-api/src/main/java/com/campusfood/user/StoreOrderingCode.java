@@ -52,7 +52,7 @@ class StoreOrderingCode {
     Map<String, String> image(String merchant) {
         // 商户编号即场景参数，历史短编号和当前 32 位编号都可用于同一个小程序页面。
         if (!merchant.matches("[A-Za-z0-9_-]{1,32}") || db.queryForList(
-                "SELECT id FROM merchant WHERE id=? AND audit_status='已通过'", String.class, merchant).isEmpty()) {
+                "SELECT id FROM merchant WHERE id=? AND audit_status='APPROVED'", String.class, merchant).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "店铺不存在或尚未通过审核");
         }
         var credentials = configuration.credentials();

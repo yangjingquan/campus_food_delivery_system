@@ -63,7 +63,7 @@ public class AddressService {
                 SET d.destination_latitude=?,d.destination_longitude=?
                 WHERE d.user_id=? AND d.address_id=? AND CAST(d.building AS BINARY)=CAST(? AS BINARY) AND CAST(d.room AS BINARY)=CAST(? AS BINARY)
                   AND d.destination_latitude IS NULL AND d.destination_longitude IS NULL
-                  AND o.fulfill_status NOT IN ('已完成','已关闭')
+                  AND o.fulfill_status NOT IN ('COMPLETED','CLOSED')
                 """, coordinates.latitude(), coordinates.longitude(), userId, id, address.building(), address.room());
     }
 

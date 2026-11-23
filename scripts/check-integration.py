@@ -120,9 +120,9 @@ try:
     for section in ('orders','riders','aftersales','withdrawals','config'):
         check(200,call('GET','/api/admin/v1/workspace?section='+section,token=token),'workspace '+section)
     check(200,action('merchant.audit',{'id':'M01','decision':'approve'},token),'merchant audit')
-    assert sql("SELECT audit_status FROM merchant WHERE id='M01'")=='已通过'
+    assert sql("SELECT audit_status FROM merchant WHERE id='M01'")=='APPROVED'
     check(200,action('rider.audit',{'id':'R02','decision':'reject','reason':'资料不完整'},token),'rider audit')
-    assert sql("SELECT CONCAT(audit_status,':',audit_reason) FROM rider WHERE id='R02'")=='已驳回:资料不完整'
+    assert sql("SELECT CONCAT(audit_status,':',audit_reason) FROM rider WHERE id='R02'")=='REJECTED:资料不完整'
     config=check(200,call('GET','/api/admin/v1/workspace?section=config',token=token),'current config')['config']
     check(200,action('config.save',{'patch':config},token),'save operations config')
     assert sql('SELECT COUNT(*) FROM operations_config')=='2'
@@ -166,19 +166,19 @@ try:
     ops_id=next(x['id'] for x in users if x['username']=='test_ops')
     check(200,call('PUT','/api/admin/v1/administrators/'+str(ops_id)+'/password',{'password':'reset-password-789'},token),'administrator password reset')
     check(401,call('GET','/api/admin/v1/workspace?section=merchants',token=ops_new),'reset session revoked')
-    sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('MTEST','测试商户','商户',10000,'正常'),('RTEST','测试骑手','骑手',10000,'正常'); INSERT INTO finance_debt(id,order_id,merchant,rider,rider_due_cents,merchant_balance_cents,platform_advance_cents,recovered_cents,merchant_account_id) VALUES('DTEST','OTEST','测试商户','测试骑手',3000,10000,3000,0,'MTEST');")
+    sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('MTEST','测试商户','MERCHANT',10000,'ACCOUNT_ACTIVE'),('RTEST','测试骑手','RIDER',10000,'ACCOUNT_ACTIVE'); INSERT INTO finance_debt(id,order_id,merchant,rider,rider_due_cents,merchant_balance_cents,platform_advance_cents,recovered_cents,merchant_account_id) VALUES('DTEST','OTEST','测试商户','测试骑手',3000,10000,3000,0,'MTEST');")
     p={'accountId':'MTEST','requestKey':'test-debt-0001','amountCents':8000}
     first=check(200,call('POST','/internal/v1/withdrawals',p,internal=True),'debt offset')
-    assert first['status']=='余额不足' and first['recoveredCents']==3000 and first['availableCents']==7000,first
+    assert first['status']=='INSUFFICIENT_FUNDS' and first['recoveredCents']==3000 and first['availableCents']==7000,first
     again=check(200,call('POST','/internal/v1/withdrawals',p,internal=True),'idempotent retry')
     assert again['recoveredCents']==3000 and sql("SELECT balance_cents FROM finance_account WHERE id='SYSTEM_PLATFORM'")=='3000'
     p={'accountId':'MTEST','requestKey':'test-freeze-001','amountCents':7000}
-    freeze=check(200,call('POST','/internal/v1/withdrawals',p,internal=True),'freeze'); assert freeze['status']=='已受理'
+    freeze=check(200,call('POST','/internal/v1/withdrawals',p,internal=True),'freeze'); assert freeze['status']=='ACCEPTED'
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='MTEST'")=='0,7000'
     wid=freeze['withdrawalId'];check(200,action('withdrawal.review',{'id':wid,'decision':'reject','reason':'测试拒绝'},token),'reject')
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='MTEST'")=='7000,0'
     check(409,action('withdrawal.review',{'id':wid,'decision':'reject','reason':'重复'},token),'repeat review')
-    sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('MMULTI','多笔欠款测试','商户',10000,'正常'); "
+    sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('MMULTI','多笔欠款测试','MERCHANT',10000,'ACCOUNT_ACTIVE'); "
         "INSERT INTO finance_debt(id,order_id,merchant,rider,rider_due_cents,merchant_balance_cents,platform_advance_cents,recovered_cents,merchant_account_id) VALUES "
         "('D01','O1','多笔欠款测试','骑手',3000,10000,3000,1000,'MMULTI'),"
         "('D02','O2','多笔欠款测试','骑手',2000,10000,2000,2000,'MMULTI'),"
@@ -189,37 +189,37 @@ try:
     assert sql("SELECT COUNT(*) FROM account_journal WHERE account_id='MMULTI' AND event_type='debt_recover'")=='2'
     check(200,action('withdrawal.review',{'id':multi['withdrawalId'],'decision':'reject','reason':'测试拒绝'},token),'unfreeze after debt recovery')
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='MMULTI'")=='6000,0'
-    sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('RERR','冻结异常测试','骑手',1000,'正常')")
+    sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('RERR','冻结异常测试','RIDER',1000,'ACCOUNT_ACTIVE')")
     guarded=check(200,call('POST','/internal/v1/withdrawals',{'accountId':'RERR','requestKey':'test-guarded-001','amountCents':1000},internal=True),'guarded withdrawal')
     sql("UPDATE finance_account SET frozen_cents=0 WHERE id='RERR'")
     check(409,action('withdrawal.review',{'id':guarded['withdrawalId'],'decision':'reject','reason':'测试冻结余额不足'},token),'insufficient frozen balance')
     assert sql("SELECT status FROM withdrawal_request WHERE id='"+guarded['withdrawalId']+"'")=='PENDING_REVIEW'
     assert sql("SELECT balance_cents FROM finance_account WHERE id='RERR'")=='0'
-    sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('RIDEMP','幂等并发测试','骑手',6000,'正常')")
+    sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('RIDEMP','幂等并发测试','RIDER',6000,'ACCOUNT_ACTIVE')")
     idem_payload={'accountId':'RIDEMP','requestKey':'test-idempotent-concurrent','amountCents':5000}
     with concurrent.futures.ThreadPoolExecutor(4) as pool:
         retries=list(pool.map(lambda _: check(200,call('POST','/internal/v1/withdrawals',idem_payload,internal=True),'concurrent identical request'),range(4)))
-    assert all(item['status']=='已受理' for item in retries) and len({item['withdrawalId'] for item in retries})==1,retries
+    assert all(item['status']=='ACCEPTED' for item in retries) and len({item['withdrawalId'] for item in retries})==1,retries
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='RIDEMP'")=='1000,5000'
     assert sql("SELECT COUNT(*) FROM withdrawal_request WHERE account_id='RIDEMP'")=='1'
     pending_rows=check(200,call('GET','/api/admin/v1/workspace?section=withdrawals',token=finance),'reviewable pending withdrawal')['rows']
     pending_row=next(row for row in pending_rows if row['id']==retries[0]['withdrawalId'])
-    assert pending_row['status']=='待审核' and pending_row['reviewable']==1
+    assert pending_row['status']=='PENDING_REVIEW' and pending_row['reviewable']==1
     check(409,call('POST','/internal/v1/withdrawals',{'accountId':'RIDEMP','requestKey':'test-idempotent-concurrent','amountCents':1000},internal=True),'idempotency payload conflict')
     def withdraw(n):return call('POST','/internal/v1/withdrawals',{'accountId':'RTEST','requestKey':'test-rider-00'+str(n),'amountCents':8000},internal=True)[1]
     with concurrent.futures.ThreadPoolExecutor(2) as pool: outcomes=list(pool.map(withdraw,[1,2]))
-    assert sorted(x['status'] for x in outcomes)==['余额不足','已受理'],outcomes
+    assert sorted(x['status'] for x in outcomes)==['ACCEPTED','INSUFFICIENT_FUNDS'],outcomes
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='RTEST'")=='2000,8000'
-    riderwid=next(x['withdrawalId'] for x in outcomes if x['status']=='已受理')
+    riderwid=next(x['withdrawalId'] for x in outcomes if x['status']=='ACCEPTED')
     check(200,action('withdrawal.review',{'id':riderwid,'decision':'approve'},finance),'finance review')
     assert sql("SELECT status FROM withdrawal_request WHERE id='"+riderwid+"'")=='PENDING_PAYOUT'
     assert sql("SELECT status FROM withdrawal_intent WHERE withdrawal_id='"+riderwid+"'")=='ACCEPTED'
     withdrawals=check(200,call('GET','/api/admin/v1/workspace?section=withdrawals',token=finance),'withdrawal labels')['rows']
-    assert next(row for row in withdrawals if row['id']==riderwid)['status']=='待打款'
+    assert next(row for row in withdrawals if row['id']==riderwid)['status']=='PENDING_PAYOUT'
     sql("UPDATE withdrawal_request SET status='PENDING_REVIEW' WHERE id='"+riderwid+"'")
     withdrawals=check(200,call('GET','/api/admin/v1/workspace?section=withdrawals',token=finance),'manually reset withdrawal')['rows']
     reset_row=next(row for row in withdrawals if row['id']==riderwid)
-    assert reset_row['status']=='待审核' and reset_row['reviewable']==0
+    assert reset_row['status']=='PENDING_REVIEW' and reset_row['reviewable']==0
     check(409,action('withdrawal.review',{'id':riderwid,'decision':'approve'},finance),'already approved cannot be approved again')
     check(409,action('withdrawal.review',{'id':riderwid,'decision':'reject','reason':'测试'},finance),'already approved cannot be rejected after a manual reset')
     assert sql("SELECT frozen_cents FROM finance_account WHERE id='RTEST'")=='8000'

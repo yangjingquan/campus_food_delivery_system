@@ -1,10 +1,11 @@
+<wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="sectiontitle no-top">每笔配送，明明白白</view>
 <template is="filters" data="{{filters, filter}}"/>
 <view class="card flush">
   <template wx:for="{{visibleItems}}" wx:key="id" is="row" data="{{page: 'incomeDetail', id: item.id,
-    icon: 'money', label: item.address + ' · ' + item.merchant, description: '订单 #' + item.code + ' · ' + item.status,
-    value: '+ ' + item.due, status: item.incomeStatus}}"/>
+    icon: 'money', label: item.address + ' · ' + item.merchant, description: '订单 #' + item.code + ' · ' + states.label(item.status),
+    value: '+ ' + item.due, status: states.label(item.incomeStatus)}}"/>
   <view wx:if="{{!visibleItems.length}}" class="empty-list small muted">暂无此类结算记录</view>
 </view>
 <button wx:if="{{hasMore}}" class="btn outline full" bindtap="more" loading="{{busy}}" disabled="{{busy}}">查看更多</button>

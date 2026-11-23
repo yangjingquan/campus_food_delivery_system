@@ -30,7 +30,7 @@ test('购物车实时显示全车预估金额，只结算达标商户', async ()
       if (url.endsWith('/addresses')) body = { rows: [address] };
       if (url.endsWith('/checkout')) {
         submissions.push(data);
-        body = { payment: { id: 'payment', status: '未支付' } };
+        body = { payment: { id: 'payment', status: 'UNPAID' } };
       }
       success({ statusCode: 200, data: body });
     }

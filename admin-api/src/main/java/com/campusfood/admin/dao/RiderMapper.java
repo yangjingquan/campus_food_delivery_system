@@ -1,5 +1,7 @@
 package com.campusfood.admin.dao;
 
+import com.campusfood.domain.BusinessStates.Audit;
+
 import java.util.Map;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -11,14 +13,14 @@ import org.apache.ibatis.annotations.Mapper;
 /** 骑手审核及待办统计。 */
 @Mapper
 public interface RiderMapper extends BaseMapper<Rider> {
-    default int updatePendingAudit(String status, String reason, String id) {
+    default int updatePendingAudit(Audit status, String reason, String id) {
         return update(null, Wrappers.<Rider>lambdaUpdate()
                 .set(Rider::getAuditStatus, status).set(Rider::getAuditReason, reason)
-                .eq(Rider::getId, id).eq(Rider::getAuditStatus, "待审核"));
+                .eq(Rider::getId, id).eq(Rider::getAuditStatus, Audit.PENDING_REVIEW));
     }
 
     default Integer countPending() {
-        return Math.toIntExact(selectCount(Wrappers.<Rider>lambdaQuery().eq(Rider::getAuditStatus, "待审核")));
+        return Math.toIntExact(selectCount(Wrappers.<Rider>lambdaQuery().eq(Rider::getAuditStatus, Audit.PENDING_REVIEW)));
     }
     @Select("""
         SELECT media_type,image_data FROM rider_student_card WHERE rider_id=#{id}

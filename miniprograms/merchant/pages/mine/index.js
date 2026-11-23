@@ -56,7 +56,7 @@ Page({
   },
   business() {
     ui.action(this, async () => {
-      const open = this.data.store.businessStatus !== '营业中';
+      const open = this.data.store.businessStatus !== 'STORE_OPEN';
       if (!await ui.confirm(open ? '开始营业' : '确认打烊', open ? '营业后用户可下单。' : '打烊后暂停新单，已有订单仍可处理。')) return;
       await api.request('/profile/business-status', { open }, 'PUT');
       await this.refresh();

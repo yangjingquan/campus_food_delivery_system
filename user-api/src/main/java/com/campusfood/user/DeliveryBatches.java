@@ -1,5 +1,8 @@
 package com.campusfood.user;
 
+import com.campusfood.domain.BusinessStates.Fulfillment;
+import com.campusfood.domain.BusinessStates.Intervention;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -15,8 +18,7 @@ import org.springframework.stereotype.Service;
 @Service
 class DeliveryBatches {
     private static final ZoneId CAMPUS_ZONE = ZoneId.of("Asia/Shanghai");
-    static final String OVERDUE = "暂存点已跨两个配送批次仍未领取";
-    private static final String WAITING = "已到暂存点 / 待领取";
+    private static final String WAITING = Fulfillment.AWAITING_RIDER.name();
     private final JdbcTemplate db;
 
     DeliveryBatches(JdbcTemplate db) {
@@ -84,9 +86,9 @@ class DeliveryBatches {
             """, String.class, now, WAITING);
         for (String orderId : orderIds) {
             db.update("""
-                UPDATE business_order SET intervene=TRUE,intervene_reason=?
+                UPDATE business_order SET intervene=TRUE,intervene_code=?,intervene_reason=NULL
                 WHERE id=? AND fulfill_status=? AND intervene=FALSE
-                """, OVERDUE, orderId, WAITING);
+                """, Intervention.PICKUP_OVERDUE.name(), orderId, WAITING);
         }
     }
 }

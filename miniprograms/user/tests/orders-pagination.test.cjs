@@ -35,10 +35,10 @@ test('订单触底追加、失败重试，刷新或切换筛选不会混入旧�
   }
 
   const first = page.load();
-  respond(await request('全部', 1), ['a', 'b'], true);
+  respond(await request('ALL', 1), ['a', 'b'], true);
   await first;
   const more = page.onReachBottom();
-  const second = await request('全部', 2);
+  const second = await request('ALL', 2);
   assert.equal(page.onReachBottom(), undefined);
   second.fail();
   await more;
@@ -46,13 +46,13 @@ test('订单触底追加、失败重试，刷新或切换筛选不会混入旧�
   assert.deepEqual(page.data.visible.map(row => row.id), ['a', 'b']);
 
   const retry = page.loadMore();
-  respond(await request('全部', 2), ['b', 'c'], true);
+  respond(await request('ALL', 2), ['b', 'c'], true);
   await retry;
   assert.deepEqual(page.data.visible.map(row => row.id), ['a', 'b', 'c']);
   const stale = page.onReachBottom();
-  const third = await request('全部', 3);
-  const filter = page.chooseFilter({ currentTarget: { dataset: { value: '售后' } } });
-  respond(await request('售后', 1), ['refund'], false);
+  const third = await request('ALL', 3);
+  const filter = page.chooseFilter({ currentTarget: { dataset: { value: 'AFTER_SALE' } } });
+  respond(await request('AFTER_SALE', 1), ['refund'], false);
   await filter;
   respond(third, ['old'], false);
   await stale;
@@ -61,7 +61,7 @@ test('订单触底追加、失败重试，刷新或切换筛选不会混入旧�
   assert.equal(requests.length, 0);
 
   const refresh = page.onPullDownRefresh();
-  respond(await request('售后', 1), ['new'], false);
+  respond(await request('AFTER_SALE', 1), ['new'], false);
   await refresh;
   assert.equal(refreshStopped, true);
   assert.deepEqual(page.data.visible.map(row => row.id), ['new']);

@@ -1,3 +1,4 @@
+<wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="audit-illustration"><template is="icon" data="{{name: audit[2], size: 'icon-large'}}"/></view>
 <view class="center">
@@ -5,12 +6,12 @@
   <view class="small muted">{{audit[1]}}</view>
 </view>
 <template wx:if="{{profile.auditReason}}" is="note" data="{{label: profile.auditReason, tone: 'warn'}}"/>
-<view wx:if="{{profile.auditStatus !== '未入驻'}}" class="card">
+<view wx:if="{{profile.auditStatus !== 'NOT_ENROLLED'}}" class="card">
   <template is="pairs" data="{{rows: [{label:'姓名',value:profile.name},{label:'联系方式',value:profile.displayPhone},
-    {label:'可送餐时间',value:profile.availableTime},{label:'学生证',value:'已提交审核'}]}}"/>
+    {label:'可送餐时间',value:states.availability(profile)},{label:'学生证',value:'已提交审核'}]}}"/>
 </view>
 <view class="top-space">
   <template wx:if="{{approved}}" is="action" data="{{page: 'home', label: '进入配送台'}}"/>
-  <template wx:elif="{{profile.auditStatus === '待审核'}}" is="action" data="{{page: 'mine', label: '返回我的', style: 'outline full'}}"/>
-  <template wx:else is="action" data="{{page: 'join', label: profile.auditStatus === '已驳回' ? '修改入驻资料' : '填写入驻资料'}}"/>
+  <template wx:elif="{{profile.auditStatus === 'PENDING_REVIEW'}}" is="action" data="{{page: 'mine', label: '返回我的', style: 'outline full'}}"/>
+  <template wx:else is="action" data="{{page: 'join', label: profile.auditStatus === 'REJECTED' ? '修改入驻资料' : '填写入驻资料'}}"/>
 </view>

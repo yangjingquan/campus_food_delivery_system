@@ -1,5 +1,12 @@
 package com.campusfood.user;
 
+import com.campusfood.domain.BusinessStates.Business;
+import com.campusfood.domain.BusinessStates.Fulfillment;
+import com.campusfood.domain.BusinessStates.OrderFilter;
+import com.campusfood.domain.BusinessStates.Payment;
+import com.campusfood.domain.BusinessStates.Refund;
+import com.campusfood.domain.BusinessStates.Settlement;
+
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -124,7 +131,7 @@ public class OrderService {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(Math.max(1, unpaidTimeoutMinutes) * 60L);
         db.update("INSERT INTO payment_order(id,user_id,request_key,request_fingerprint,amount_cents,status,payment_mode,expires_at) VALUES(?,?,?,?,?,?,?,?)",
-            paymentId, userId, requestKey, fingerprint, total, "未支付", paymentMode, Timestamp.from(expiresAt));
+            paymentId, userId, requestKey, fingerprint, total, Payment.UNPAID.name(), paymentMode, Timestamp.from(expiresAt));
 
         if (realPayment) {
             db.update("UPDATE payment_order SET wechat_config_version=? WHERE id=?", configurationVersion, paymentId);
@@ -165,9 +172,9 @@ public class OrderService {
             }
             merchantOrders.add(Map.of("id", orderId, "merchantId", entry.getKey(), "merchantName", first.merchantName(),
                 "foodCents", foodCents, "deliveryFeeCents", feePerMerchant, "amountCents", merchantTotal,
-                "status", "待支付", "fulfillmentType", fulfillmentType, "itemCount", merchantLines.stream().mapToInt(OrderLine::quantity).sum()));
+                "status", "PENDING_PAYMENT", "fulfillmentType", fulfillmentType, "itemCount", merchantLines.stream().mapToInt(OrderLine::quantity).sum()));
         }
-        return Map.of("payment", Map.of("id", paymentId, "amountCents", total, "status", "未支付", "expiresAt", expiresAt.toEpochMilli(), "mode", paymentMode),
+        return Map.of("payment", Map.of("id", paymentId, "amountCents", total, "status", "UNPAID", "expiresAt", expiresAt.toEpochMilli(), "mode", paymentMode),
             "merchantOrders", merchantOrders, "foodCents", foodTotal, "deliveryFeeCents", deliveryTotal, "totalCents", total,
             "merchantCount", merchantOrders.size());
     }
@@ -188,7 +195,8 @@ public class OrderService {
                         locking,payment_count,paid_at,fulfillment_type)
                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                     """, orderId, paymentId, merchant.merchantId(), merchant.merchantName(), summary, foodCents, fee,
-                    total, "未支付", "待支付", "无售后", "待支付", false, false, false, 0, 0L, fulfillmentType);
+                    total, Payment.UNPAID.name(), Fulfillment.PENDING_PAYMENT.name(), Refund.NO_AFTER_SALE.name(),
+                Settlement.PENDING_PAYMENT.name(), false, false, false, 0, 0L, fulfillmentType);
                 return orderId;
             } catch (DuplicateKeyException collision) {
                 // 本表的唯一键是订单号，重新生成随机尾号后再尝试。
@@ -213,13 +221,13 @@ public class OrderService {
         if (!"mock".equalsIgnoreCase(paymentMode)) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "当前支付渠道未配置，不能模拟或确认支付");
         Map<String, Object> payment = paymentRow(userId, paymentId, true);
         if (!"mock".equals(payment.get("payment_mode"))) throw WechatConfigurationService.paymentUnavailable();
-        if ("支付成功".equals(payment.get("status"))) return payment(userId, paymentId);
-        if (!"未支付".equals(payment.get("status"))) throw new ResponseStatusException(HttpStatus.CONFLICT, "支付单已处理");
+        if (Payment.PAYMENT_SUCCEEDED.is(payment.get("status"))) return payment(userId, paymentId);
+        if (!Payment.UNPAID.is(payment.get("status"))) throw new ResponseStatusException(HttpStatus.CONFLICT, "支付单已处理");
         long now = System.currentTimeMillis();
         Timestamp expires = (Timestamp) payment.get("expires_at");
         if (expires.toInstant().toEpochMilli() <= now) {
             expireUnpaid(paymentId, now);
-            return Map.of("id", paymentId, "status", "已关闭", "amountCents", payment.get("amount_cents"), "merchantOrders", List.of());
+            return Map.of("id", paymentId, "status", "CLOSED", "amountCents", payment.get("amount_cents"), "merchantOrders", List.of());
         }
         markPaid(payment, "LOCAL-" + paymentId, now, true);
         return payment(userId, paymentId);
@@ -251,7 +259,7 @@ public class OrderService {
     }
 
     private void checkCanPrepare(Map<String, Object> row) {
-        if (!"wechat".equals(row.get("payment_mode")) || !"未支付".equals(row.get("status"))
+        if (!"wechat".equals(row.get("payment_mode")) || !Payment.UNPAID.is(row.get("status"))
                 || !Instant.now().isBefore(((Timestamp) row.get("expires_at")).toInstant())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "支付单已处理或超时，请刷新支付状态");
         }
@@ -260,7 +268,7 @@ public class OrderService {
     @Transactional
     public Map<String, Object> syncPayment(long userId, String id) {
         Map<String, Object> row = paymentRow(userId, id, true);
-        if (Boolean.TRUE.equals(row.get("wechat_started")) && "未支付".equals(row.get("status"))) {
+        if (Boolean.TRUE.equals(row.get("wechat_started")) && Payment.UNPAID.is(row.get("status"))) {
             var config = paymentConfig(row);
             reconcile(row, config, wechatPay.query(config, id));
         }
@@ -305,18 +313,18 @@ public class OrderService {
 
     private void markPaid(Map<String, Object> row, String transactionId, long now, boolean mock) {
         String paymentId = (String) row.get("id");
-        if ("支付成功".equals(row.get("status")) && transactionId.equals(row.get("transaction_id"))) return;
+        if (Payment.PAYMENT_SUCCEEDED.is(row.get("status")) && transactionId.equals(row.get("transaction_id"))) return;
         int changed = db.update("""
-                UPDATE payment_order SET status='支付成功',paid_at=?,transaction_id=?
-                WHERE id=? AND status='未支付'
+                UPDATE payment_order SET status='PAYMENT_SUCCEEDED',paid_at=?,transaction_id=?
+                WHERE id=? AND status='UNPAID'
                 """, now, transactionId, paymentId);
         if (changed != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "支付状态已变化，请刷新订单");
         List<String> orderIds = db.queryForList("SELECT id FROM business_order WHERE payment_id=? ORDER BY merchant_id", String.class, paymentId);
         for (String orderId : orderIds) {
             db.update("""
-                UPDATE business_order SET payment_status=?,fulfill_status='待商户接单',settlement_status='待结算',paid_at=?
-                WHERE id=? AND payment_status='未支付'
-                """, mock ? "本地模拟支付成功" : "支付成功", now, orderId);
+                UPDATE business_order SET payment_status=?,fulfill_status='AWAITING_MERCHANT',settlement_status='PENDING_SETTLEMENT',paid_at=?
+                WHERE id=? AND payment_status='UNPAID'
+                """, (mock ? Payment.MOCK_PAYMENT_SUCCEEDED : Payment.PAYMENT_SUCCEEDED).name(), now, orderId);
             for (Map<String, Object> item : db.queryForList("SELECT product_id,quantity FROM user_order_item WHERE order_id=?", orderId)) {
                 int quantity = ((Number) item.get("quantity")).intValue();
                 int inventoryChanged = db.update("UPDATE merchant_product SET stock=stock-?,reserved=reserved-?,sold_count=sold_count+? WHERE id=? AND stock>=? AND reserved>=?",
@@ -336,31 +344,30 @@ public class OrderService {
             "foodCents", foodCents, "deliveryFeeCents", deliveryFeeCents, "merchantCount", orders.size());
     }
 
-    public Map<String, Object> list(long userId, String status, int page) {
+    public Map<String, Object> list(long userId, OrderFilter filter, int page) {
         if (page < 1) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "页码必须从 1 开始");
-        String filter = status == null || status.isBlank() ? "全部" : status;
         long offset = (page - 1L) * ORDER_PAGE_SIZE;
         // 待支付按支付单分页，已支付或已关闭按商户订单分页。多取一条判断是否还有下一页。
         String condition = switch (filter) {
-            case "全部" -> "TRUE";
-            case "待支付", "未支付" -> "p.status='未支付'";
-            case "进行中" -> "p.status='支付成功' AND o.fulfill_status NOT IN ('已完成','已关闭')";
-            case "售后" -> "o.refund_status IS NOT NULL AND o.refund_status NOT IN ('','无售后')";
+            case ALL -> "TRUE";
+            case PENDING_PAYMENT, UNPAID -> "p.status='UNPAID'";
+            case IN_PROGRESS -> "p.status='PAYMENT_SUCCEEDED' AND o.fulfill_status NOT IN ('COMPLETED','CLOSED')";
+            case AFTER_SALE -> "o.refund_status<>'NO_AFTER_SALE'";
             default -> "(o.fulfill_status=? OR p.status=?)";
         };
         var args = new ArrayList<Object>();
         args.add(userId);
         if (condition.contains("?")) {
-            args.add(filter);
-            args.add(filter);
+            args.add(filter.name());
+            args.add(filter.name());
         }
         args.add(ORDER_PAGE_SIZE + 1);
         args.add(offset);
         args.add(userId);
         var rows = db.queryForList("""
             WITH page_entries AS (
-                SELECT IF(p.status='未支付',d.payment_id,d.order_id) AS entry_id,
-                       p.status='未支付' AS pending, MAX(d.created_at) AS entry_time
+                SELECT IF(p.status='UNPAID',d.payment_id,d.order_id) AS entry_id,
+                       p.status='UNPAID' AS pending, MAX(d.created_at) AS entry_time
                 FROM user_order_detail d JOIN business_order o ON o.id=d.order_id
                 JOIN payment_order p ON p.id=d.payment_id
                 WHERE d.user_id=? AND %s
@@ -373,7 +380,7 @@ public class OrderService {
                    o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,
                    o.payment_status AS paymentStatus,o.fulfill_status AS fulfillStatus,o.fulfillment_type AS fulfillmentType,
                    o.refund_status AS refundStatus,o.settlement_status AS settlementStatus,o.accepted,o.intervene,
-                   o.intervene_reason AS interveneReason,e.entry_time AS createdAt,p.status AS mergedPaymentStatus
+                   o.intervene_code AS interveneCode,o.intervene_reason AS interveneReason,e.entry_time AS createdAt,p.status AS mergedPaymentStatus
             FROM page_entries e
             JOIN user_order_detail d ON d.user_id=? AND
                 ((e.pending AND d.payment_id=e.entry_id) OR (NOT e.pending AND d.order_id=e.entry_id))
@@ -393,7 +400,7 @@ public class OrderService {
     private static Map<String, Object> listEntry(List<Map<String, Object>> orders) {
         var entry = new LinkedHashMap<>(orders.getFirst());
         entry.remove("entryId");
-        if (!"未支付".equals(entry.get("mergedPaymentStatus"))) return entry;
+        if (!Payment.UNPAID.is(entry.get("mergedPaymentStatus"))) return entry;
         entry.put("id", entry.get("paymentId"));
         entry.put("isPayment", true);
         if (orders.size() > 1) {
@@ -407,19 +414,19 @@ public class OrderService {
     }
 
     public Map<String, Object> detail(long userId, String orderId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id AS paymentId,o.merchant_id AS merchantId,o.merchant AS merchantName,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryFeeCents,o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,o.payment_status AS paymentStatus,o.fulfill_status AS fulfillStatus,o.fulfillment_type AS fulfillmentType,o.refund_status AS refundStatus,o.settlement_status AS settlementStatus,o.accepted,o.pending_refund AS pendingRefund,o.intervene,o.intervene_reason AS interveneReason,o.paid_at AS paidAt,o.completed_at AS completedAt,o.closed_at AS closedAt,d.address_id AS addressId,d.receiver_name AS receiverName,d.phone,d.building,d.room,d.first_closed_at AS firstClosedAt,d.pickup_address AS pickupAddress,CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) AS pickupCode,p.status AS mergedPaymentStatus FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE d.user_id=? AND o.id=?", userId, orderId);
+        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id AS paymentId,o.merchant_id AS merchantId,o.merchant AS merchantName,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryFeeCents,o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,o.payment_status AS paymentStatus,o.fulfill_status AS fulfillStatus,o.fulfillment_type AS fulfillmentType,o.refund_status AS refundStatus,o.settlement_status AS settlementStatus,o.accepted,o.pending_refund AS pendingRefund,o.intervene,o.intervene_code AS interveneCode,o.intervene_reason AS interveneReason,o.paid_at AS paidAt,o.completed_at AS completedAt,o.closed_at AS closedAt,d.address_id AS addressId,d.receiver_name AS receiverName,d.phone,d.building,d.room,d.first_closed_at AS firstClosedAt,d.pickup_address AS pickupAddress,CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) AS pickupCode,p.status AS mergedPaymentStatus FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE d.user_id=? AND o.id=?", userId, orderId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
         Map<String, Object> result = new LinkedHashMap<>(rows.get(0));
         result.put("items", db.queryForList("SELECT product_id AS productId,name_snapshot AS name,price_cents AS priceCents,quantity,amount_cents AS amountCents FROM user_order_item WHERE order_id=? ORDER BY id", orderId));
-        result.put("aftersales", db.queryForList("SELECT r.id,r.reason,r.type,r.amount_cents AS amountCents,r.status,r.channel_status AS channelStatus,r.channel_reason AS channelReason,r.created_at AS createdAt,COALESCE(x.description,'') AS description FROM refund_record r LEFT JOIN user_refund_detail x ON x.refund_id=r.id WHERE r.order_id=? ORDER BY r.created_at DESC", orderId));
-        result.put("locationAvailable", "配送中".equals(result.get("fulfillStatus")));
+        result.put("aftersales", db.queryForList("SELECT r.id,r.reason,r.type,r.amount_cents AS amountCents,r.status,r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,COALESCE(x.description,'') AS description FROM refund_record r LEFT JOIN user_refund_detail x ON x.refund_id=r.id WHERE r.order_id=? ORDER BY r.created_at DESC", orderId));
+        result.put("locationAvailable", Fulfillment.DELIVERING.is(result.get("fulfillStatus")));
         return result;
     }
 
     @Transactional
     public boolean expireUnpaid(String paymentId, long now) {
         List<Map<String, Object>> rows = db.queryForList("SELECT * FROM payment_order WHERE id=? FOR UPDATE", paymentId);
-        if (rows.isEmpty() || !"未支付".equals(rows.get(0).get("status")) || ((Timestamp) rows.get(0).get("expires_at")).getTime() > now) return false;
+        if (rows.isEmpty() || !Payment.UNPAID.is(rows.get(0).get("status")) || ((Timestamp) rows.get(0).get("expires_at")).getTime() > now) return false;
         Map<String, Object> row = rows.get(0);
         if (Boolean.TRUE.equals(row.get("wechat_started"))) {
             var config = paymentConfig(row);
@@ -430,18 +437,18 @@ public class OrderService {
             if ("NOTPAY".equals(state)) wechatPay.close(config, paymentId);
             else if (!"CLOSED".equals(state) && !"ORDER_NOT_EXIST".equals(remote.path("code").asText())) return false;
         }
-        db.update("UPDATE payment_order SET status='已关闭' WHERE id=? AND status='未支付'", paymentId);
+        db.update("UPDATE payment_order SET status='CLOSED' WHERE id=? AND status='UNPAID'", paymentId);
         List<String> orderIds = db.queryForList("SELECT id FROM business_order WHERE payment_id=?", String.class, paymentId);
         for (String orderId : orderIds) {
             releaseReservations(orderId);
-            db.update("UPDATE business_order SET payment_status='已关闭',fulfill_status='已关闭',settlement_status='已关闭',closed_at=? WHERE id=? AND payment_status='未支付'", now, orderId);
+            db.update("UPDATE business_order SET payment_status='CLOSED',fulfill_status='CLOSED',settlement_status='CLOSED',closed_at=? WHERE id=? AND payment_status='UNPAID'", now, orderId);
         }
         return true;
     }
 
     @Scheduled(fixedDelayString = "${app.unpaid-scan-ms:30000}", initialDelayString = "${app.unpaid-initial-delay-ms:5000}")
     public void expireUnpaidOrders() {
-        List<String> expired = db.queryForList("SELECT id FROM payment_order WHERE status='未支付' AND expires_at<=CURRENT_TIMESTAMP ORDER BY expires_at LIMIT 100", String.class);
+        List<String> expired = db.queryForList("SELECT id FROM payment_order WHERE status='UNPAID' AND expires_at<=CURRENT_TIMESTAMP ORDER BY expires_at LIMIT 100", String.class);
         long now = System.currentTimeMillis();
         var transactions = new TransactionTemplate(transactionManager);
         for (String paymentId : expired) {
@@ -461,13 +468,13 @@ public class OrderService {
                 SELECT p.id,p.merchant_id,m.name,p.name,p.description,p.price_cents,p.stock,p.reserved,
                        m.business_status,m.minimum_order_cents,m.order_code,m.address
                 FROM merchant_product p JOIN merchant m ON m.id=p.merchant_id
-                WHERE p.id=? AND p.available=TRUE AND m.audit_status='已通过' FOR UPDATE
+                WHERE p.id=? AND p.available=TRUE AND m.audit_status='APPROVED' FOR UPDATE
                 """, (rs, rowNum) -> new CatalogLine(rs.getString(1), rs.getString(2), rs.getString(3),
                     rs.getString(4), rs.getString(5), rs.getLong(6), rs.getInt(7), rs.getInt(8),
                     rs.getString(9), rs.getLong(10), rs.getLong(11), rs.getString(12)), request.productId());
             if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "商品已下架或不存在，请刷新菜单");
             CatalogLine product = found.get(0);
-            if (!"营业中".equals(product.businessStatus())) throw new ResponseStatusException(HttpStatus.CONFLICT, product.merchantName() + " 当前已打烊");
+            if (!Business.STORE_OPEN.is(product.businessStatus())) throw new ResponseStatusException(HttpStatus.CONFLICT, product.merchantName() + " 当前已打烊");
             if (product.stock() - product.reserved() < request.quantity()) throw new ResponseStatusException(HttpStatus.CONFLICT, product.productName() + " 库存不足");
             products.put(product.productId(), product);
         }

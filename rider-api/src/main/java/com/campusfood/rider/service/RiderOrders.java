@@ -1,5 +1,7 @@
 package com.campusfood.rider.service;
 
+import com.campusfood.domain.BusinessStates.Fulfillment;
+
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -10,7 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class RiderOrders {
-    private static final String WAITING = "已到暂存点 / 待领取";
+    private static final String WAITING = Fulfillment.AWAITING_RIDER.name();
     private static final String OWNED = """
         SELECT o.id,o.merchant,o.pickup_number AS pickupNumber,o.items,o.id AS code,o.fulfill_status AS status,
                d.building,d.room,o.delivery_cents AS feeCents,d.rider_commission_cents AS commissionCents,
@@ -18,9 +20,9 @@ public class RiderOrders {
                d.picked_up_at AS pickedUpAt,o.completed_at AS completedAt,o.closed_at AS closedAt,
                o.refund_status AS refundStatus,o.last_refund_at AS lastRefundAt,d.rider_settled_at AS settledAt,
                CASE
-                   WHEN d.rider_settled_at IS NOT NULL THEN '可提现'
-                   WHEN o.pending_refund OR o.locking OR o.refund_status NOT IN ('无售后','已结束','退款成功','线下已处理') THEN '售后暂缓'
-                   ELSE '待结算'
+                   WHEN d.rider_settled_at IS NOT NULL THEN 'WITHDRAWABLE'
+                   WHEN o.pending_refund OR o.locking OR o.refund_status NOT IN ('NO_AFTER_SALE','AFTER_SALE_ENDED','REFUND_SUCCEEDED','OFFLINE_RESOLVED') THEN 'SETTLEMENT_HELD'
+                   ELSE 'PENDING_SETTLEMENT'
                END AS incomeStatus,
                COALESCE(o.last_refund_at,o.completed_at)+86400000 AS eligibleAt
         FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
@@ -34,8 +36,8 @@ public class RiderOrders {
 
     public List<Map<String, Object>> list(String rider, String scope, int offset) {
         String filter = switch (scope) {
-            case "active" -> " AND o.fulfill_status='配送中'";
-            case "history" -> " AND o.fulfill_status IN ('已完成','已关闭')";
+            case "active" -> " AND o.fulfill_status='DELIVERING'";
+            case "history" -> " AND o.fulfill_status IN ('COMPLETED','CLOSED')";
             case "income" -> "";
             default -> throw Inputs.invalid("查询类型无效");
         };
@@ -52,7 +54,7 @@ public class RiderOrders {
         }
         var order = rows.getFirst();
         // 配送结束后仍可查履约与收益，收餐联系电话仅配送期间提供。
-        if ("配送中".equals(order.get("status"))) {
+        if (Fulfillment.DELIVERING.is(order.get("status"))) {
             order.putAll(db.queryForMap("""
                 SELECT d.receiver_name AS receiver,d.phone,
                        d.destination_latitude AS latitude,d.destination_longitude AS longitude
@@ -64,13 +66,13 @@ public class RiderOrders {
             SELECT name_snapshot AS name,quantity FROM user_order_item WHERE order_id=? ORDER BY id
             """, id));
         order.put("refunds", db.queryForList("""
-            SELECT status,amount_cents AS amountCents,created_at AS createdAt,channel_status AS channelStatus,
+            SELECT status,amount_cents AS amountCents,created_at AS createdAt,channel_status AS channelStatus,channel_detail AS channelDetail,
                    channel_reason AS reason,offline_actual_at AS actualAt
             FROM refund_record WHERE order_id=? ORDER BY created_at,id
             """, id));
         order.put("timeline", db.queryForList("""
-            SELECT note,UNIX_TIMESTAMP(created_at)*1000 AS createdAt
-            FROM order_note WHERE order_id=? AND actor IN ('商户','骑手扫码','骑手送达') ORDER BY id
+            SELECT note,previous_status AS previousStatus,next_status AS nextStatus,UNIX_TIMESTAMP(created_at)*1000 AS createdAt
+            FROM order_note WHERE order_id=? AND actor_code IN ('MERCHANT','RIDER_SCAN','RIDER_DELIVERY') ORDER BY id
             """, id));
         return order;
     }
@@ -91,13 +93,13 @@ public class RiderOrders {
                    d.batch_alert_at AS alertAt
             FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
             WHERE o.fulfill_status=? AND d.pickup_rider_id IS NULL AND o.pending_refund=FALSE AND o.locking=FALSE
-              AND o.refund_status NOT IN ('退款失败','平台介入')
+              AND o.refund_status NOT IN ('REFUND_FAILED','PLATFORM_REVIEW')
             ORDER BY d.arrived_at,o.id LIMIT 100
             """, WAITING);
         Long count = db.queryForObject("""
             SELECT COUNT(*) FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
             WHERE o.fulfill_status=? AND d.pickup_rider_id IS NULL AND o.pending_refund=FALSE AND o.locking=FALSE
-              AND o.refund_status NOT IN ('退款失败','平台介入')
+              AND o.refund_status NOT IN ('REFUND_FAILED','PLATFORM_REVIEW')
             """, Long.class, WAITING);
         return Map.of("waiting", waiting, "count", count, "config", config, "serverTime", System.currentTimeMillis());
     }

@@ -1,5 +1,7 @@
 package com.campusfood.admin.service;
 
+import com.campusfood.domain.BusinessStates.AdminAudit;
+
 import java.util.Map;
 
 import com.campusfood.admin.dao.AdminDao;
@@ -55,7 +57,7 @@ public class PrintingSettingsService {
         Long secretId = encryption.encrypt("printer_appsecret", secret);
         settings.save(appId, secretId);
         if (current.secretId() != null) secrets.deleteById(current.secretId());
-        audit.insertSimpleAudit(actor, "config.save-printing", "printing", "已更新");
+        audit.insertSimpleAudit(actor, "config.save-printing", "printing", AdminAudit.UPDATED.name());
         return Map.of("appId", appId, "appSecretSet", true);
     }
 }

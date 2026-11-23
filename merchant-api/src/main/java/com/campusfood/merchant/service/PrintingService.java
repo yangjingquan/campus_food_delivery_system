@@ -1,5 +1,7 @@
 package com.campusfood.merchant.service;
 
+import com.campusfood.domain.BusinessStates.Fulfillment;
+
 import java.util.Map;
 import java.util.UUID;
 
@@ -46,10 +48,10 @@ public class PrintingService {
     /** 在请求接单前提交意图，接单响应丢失时后台仍可根据已提交的订单状态执行打印。 */
     public void prepareAcceptance(String merchant, String orderId) {
         var order = orders.detail(merchant, orderId);
-        if (!java.util.List.of("待商户接单", "商户出餐中").contains(order.get("status"))) {
+        if (!Fulfillment.AWAITING_MERCHANT.is(order.get("status")) && !Fulfillment.PREPARING_FOOD.is(order.get("status"))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前订单状态不可接单");
         }
-        if ("待商户接单".equals(order.get("status"))) {
+        if (Fulfillment.AWAITING_MERCHANT.is(order.get("status"))) {
             insert(merchant, orderId, "auto:" + orderId);
         }
     }
@@ -115,12 +117,12 @@ public class PrintingService {
         db.update("""
             UPDATE merchant_print_job j JOIN business_order o ON o.id=j.order_id
             SET j.status='failed',j.message='订单未接单或已关闭，未提交打印',j.updated_at=?
-            WHERE j.status='waiting' AND (o.fulfill_status='已关闭' OR (o.accepted=FALSE AND j.created_at<?))
+            WHERE j.status='waiting' AND (o.fulfill_status='CLOSED' OR (o.accepted=FALSE AND j.created_at<?))
             """, System.currentTimeMillis(), cutoff);
         var jobs = db.queryForList("""
             SELECT j.id,j.merchant_id AS merchantId,j.order_id AS orderId
             FROM merchant_print_job j JOIN business_order o ON o.id=j.order_id
-            WHERE j.status='waiting' AND o.accepted=TRUE AND o.fulfill_status<>'已关闭'
+            WHERE j.status='waiting' AND o.accepted=TRUE AND o.fulfill_status<>'CLOSED'
             ORDER BY j.created_at LIMIT 10
             """);
         for (var job : jobs) execute(job);

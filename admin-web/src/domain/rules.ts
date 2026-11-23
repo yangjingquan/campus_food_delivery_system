@@ -24,12 +24,12 @@ export interface RefundContext {
 
 export function validateRefund(
   context: RefundContext,
-  kind: '全额' | '部分',
+  kind: 'full' | 'partial',
   amountCents: number,
 ): string {
   const { order, now } = context
   if (order.locking) return '该订单正在结算，本次退款未执行，未成功原因已记录。'
-  if (order.pendingRefund || ['退款处理中', '退款失败', '结果未知'].includes(order.refundStatus)) {
+  if (order.pendingRefund || ['REFUND_PROCESSING', 'REFUND_FAILED', 'REFUND_VERIFYING'].includes(order.refundStatus)) {
     return '现有退款仍在处理中或待核实，请先处理原退款单，不可重复发起。'
   }
   const deadline = order.completedAt ?? order.closedAt
@@ -37,24 +37,24 @@ export function validateRefund(
   if (!order.pendingRefund && !newRequestAllowed) return '已超过新售后申请时限；时限内已受理的申请仍可继续处理。'
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0) return '退款金额须大于 0，且精确到分。'
   if (amountCents > order.paidCents - order.refundedCents) return '超过该拆单剩余可退实付金额。'
-  if (kind === '部分' && amountCents > order.foodCents - order.foodRefundedCents) {
+  if (kind === 'partial' && amountCents > order.foodCents - order.foodRefundedCents) {
     return '部分退款仅退餐品金额，不能超过剩余可退餐品金额。'
   }
-  if (kind === '全额' && (order.refundedCents > 0 || amountCents !== order.paidCents)) {
+  if (kind === 'full' && (order.refundedCents > 0 || amountCents !== order.paidCents)) {
     return '全额退款仅支持首次退回本单实付；已有部分退款请继续申请部分退款。'
   }
   if (amountCents > context.paymentPaidCents - context.paymentRefundedCents) return '超过关联支付单剩余可退实付金额。'
-  if (kind === '部分' && context.paymentRefundCount >= 50) return '关联支付单已达到附件演示限制的 50 次部分退款，请协调处理。'
-  if (kind === '部分' && context.paymentLastRefundAt && now - context.paymentLastRefundAt < 60_000) {
+  if (kind === 'partial' && context.paymentRefundCount >= 50) return '关联支付单已达到附件演示限制的 50 次部分退款，请协调处理。'
+  if (kind === 'partial' && context.paymentLastRefundAt && now - context.paymentLastRefundAt < 60_000) {
     return '关联支付单退款申请须至少间隔 1 分钟（附件演示限制）。'
   }
   return ''
 }
 
 export function settlementStatus(order: Order, now: number): Order['settlementStatus'] {
-  if (order.pendingRefund || ['待商户处理', '协商中', '退款处理中', '退款失败', '结果未知'].includes(order.refundStatus)) return '售后暂缓'
+  if (order.pendingRefund || ['AWAITING_MERCHANT_DECISION', 'NEGOTIATING', 'REFUND_PROCESSING', 'REFUND_FAILED', 'REFUND_VERIFYING'].includes(order.refundStatus)) return 'SETTLEMENT_HELD'
   const readyFrom = order.lastRefundAt ?? order.completedAt
-  return readyFrom && now - readyFrom >= 24 * 60 * 60 * 1000 ? '可提现' : '待结算'
+  return readyFrom && now - readyFrom >= 24 * 60 * 60 * 1000 ? 'WITHDRAWABLE' : 'PENDING_SETTLEMENT'
 }
 
 export function validateOperationsConfig(config: {

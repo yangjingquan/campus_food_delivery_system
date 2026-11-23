@@ -3,13 +3,13 @@ const ui = require('../../utils/ui');
 
 const filters = [
   { label: '全部', status: '' },
-  { label: '待接单', status: '待商户接单' },
-  { label: '出餐中', status: '商户出餐中' },
-  { label: '待领取', status: '已到暂存点 / 待领取' },
-  { label: '待自取', status: '待自取' },
-  { label: '配送中', status: '配送中' },
-  { label: '已完成', status: '已完成' },
-  { label: '已关闭', status: '已关闭' }
+  { label: '待接单', status: 'AWAITING_MERCHANT' },
+  { label: '出餐中', status: 'PREPARING_FOOD' },
+  { label: '待领取', status: 'AWAITING_RIDER' },
+  { label: '待自取', status: 'AWAITING_PICKUP' },
+  { label: '配送中', status: 'DELIVERING' },
+  { label: '已完成', status: 'COMPLETED' },
+  { label: '已关闭', status: 'CLOSED' }
 ];
 
 Page({

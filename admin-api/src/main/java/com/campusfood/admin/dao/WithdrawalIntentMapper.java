@@ -3,7 +3,7 @@ package com.campusfood.admin.dao;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.campusfood.admin.entity.WithdrawalIntent;
-import com.campusfood.admin.entity.WithdrawalStates.Intent;
+import com.campusfood.domain.BusinessStates;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
@@ -25,13 +25,13 @@ public interface WithdrawalIntentMapper extends BaseMapper<WithdrawalIntent> {
     default int markInsufficient(long recovered, long available, String requestKey) {
         return update(null, Wrappers.<WithdrawalIntent>lambdaUpdate()
                 .set(WithdrawalIntent::getRecoveredCents, recovered).set(WithdrawalIntent::getAvailableAfter, available)
-                .set(WithdrawalIntent::getStatus, Intent.INSUFFICIENT_FUNDS).eq(WithdrawalIntent::getRequestKey, requestKey));
+                .set(WithdrawalIntent::getStatus, BusinessStates.WithdrawalIntent.INSUFFICIENT_FUNDS).eq(WithdrawalIntent::getRequestKey, requestKey));
     }
 
     default int markAccepted(long recovered, long available, String withdrawalId, String requestKey) {
         return update(null, Wrappers.<WithdrawalIntent>lambdaUpdate()
                 .set(WithdrawalIntent::getRecoveredCents, recovered).set(WithdrawalIntent::getAvailableAfter, available)
-                .set(WithdrawalIntent::getStatus, Intent.ACCEPTED).set(WithdrawalIntent::getWithdrawalId, withdrawalId)
+                .set(WithdrawalIntent::getStatus, BusinessStates.WithdrawalIntent.ACCEPTED).set(WithdrawalIntent::getWithdrawalId, withdrawalId)
                 .eq(WithdrawalIntent::getRequestKey, requestKey));
     }
 }

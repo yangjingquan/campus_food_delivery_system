@@ -1,6 +1,7 @@
+<wxs module="states" src="../../utils/states.wxs"/>
 <import src="../../fragments/states.wxml" />
 <view class="screen onboarding-screen">
-  <view class="heading">{{store && store.auditStatus === '已通过' ? '店铺资料' : '商户入驻'}}</view>
+  <view class="heading">{{store && store.auditStatus === 'APPROVED' ? '店铺资料' : '商户入驻'}}</view>
   <view class="hint">提交店铺资料，由平台管理员审核</view>
   <template is="state" data="{{error: loggedIn ? error : '', loading}}" />
   <view wx:if="{{!loggedIn && !loading}}" class="hero">
@@ -9,17 +10,17 @@
     <button class="btn wide separator" bindtap="login" loading="{{saving}}" disabled="{{saving}}" hover-class="pressed">微信登录</button>
   </view>
   <view wx:if="{{store && !loading}}" class="card store-summary">
-    <view class="row"><text class="section">{{store.name}}</text><text class="badge">{{store.auditStatus}}</text></view>
+    <view class="row"><text class="section">{{store.name}}</text><text class="badge">{{states.label(store.auditStatus)}}</text></view>
     <view wx:if="{{store.auditReason}}" class="notice">{{store.auditReason}}</view>
-    <view wx:if="{{revision}}" class="notice">资料变更：{{revision.status}} {{revision.reason}}</view>
-    <view wx:if="{{store.auditStatus === '待审核'}}" class="hint">审核通过后即可发布商品、接单和查看账户。</view>
+    <view wx:if="{{revision}}" class="notice">资料变更：{{states.label(revision.status)}} {{revision.reason}}</view>
+    <view wx:if="{{store.auditStatus === 'PENDING_REVIEW'}}" class="hint">审核通过后即可发布商品、接单和查看账户。</view>
     <block wx:if="{{!editable}}">
       <view class="kv"><text>联系人</text><text>{{store.contact}}</text></view>
       <view class="kv"><text>联系电话</text><text>{{store.phone}}</text></view>
       <view class="kv"><text>店铺地址</text><text>{{store.address}}</text></view>
       <image wx:if="{{photo}}" class="photo" src="{{photo}}" mode="aspectFill" aria-label="店铺图片" />
     </block>
-    <button wx:if="{{!editable && store.auditStatus === '已通过'}}" class="btn primary wide separator" bindtap="workbench" hover-class="pressed">进入订单工作台</button>
+    <button wx:if="{{!editable && store.auditStatus === 'APPROVED'}}" class="btn primary wide separator" bindtap="workbench" hover-class="pressed">进入订单工作台</button>
     <button wx:elif="{{!editable}}" class="btn plain centered separator" bindtap="refresh" hover-class="pressed">刷新审核状态</button>
   </view>
   <view wx:if="{{loggedIn && !store && !loading && !error}}" class="card store-summary">
@@ -27,7 +28,7 @@
     <view class="hint">填写并提交店铺资料后，可在此查看审核进度。</view>
   </view>
   <view wx:if="{{loggedIn && editable && !loading && !error}}" class="card">
-    <view class="section">{{store && store.auditStatus === '已通过' ? '提交资料变更' : '填写入驻资料'}}</view>
+    <view class="section">{{store && store.auditStatus === 'APPROVED' ? '提交资料变更' : '填写入驻资料'}}</view>
     <view class="form-section">基本信息</view>
     <text class="label">店铺名称</text><input aria-label="店铺名称" class="field" data-field="name" bindinput="input" value="{{form.name}}" maxlength="120" />
     <view class="form-section">联系方式</view>

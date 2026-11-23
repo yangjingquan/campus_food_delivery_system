@@ -1,11 +1,12 @@
+<wxs module="states" src="../../utils/states.wxs"/>
 <view class="page payment-page">
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{payment && !loading && !loadError}}">
     <view class="statusbig">
       <view class="subheading">{{orders.length > 1 ? 'COMBINED PAYMENT' : 'ORDER PAYMENT'}}</view>
-      <view class="h2">{{payment.status === '未支付' ? '等待付款' : payment.status}}</view>
+      <view class="h2">{{payment.status === 'UNPAID' ? '等待付款' : states.label(payment.status)}}</view>
       <view class="muted">
-        {{payment.status !== '未支付' ? '各商户订单可在订单页查看' : expired ? '已超过付款时间，请查询支付结果' : '剩余付款时间 ' + remaining + '，超时自动关闭'}}
+        {{payment.status !== 'UNPAID' ? '各商户订单可在订单页查看' : expired ? '已超过付款时间，请查询支付结果' : '剩余付款时间 ' + remaining + '，超时自动关闭'}}
       </view>
     </view>
     <view class="card">
@@ -19,10 +20,10 @@
         <view class="kv"><text class="label">支付记录单号</text><text>{{payment.id}}</text></view>
       </view>
     </view>
-    <view wx:if="{{orders.length > 1 && payment.status === '未支付'}}" class="hint">付款后各商户订单独立配送与售后。</view>
+    <view wx:if="{{orders.length > 1 && payment.status === 'UNPAID'}}" class="hint">付款后各商户订单独立配送与售后。</view>
     <view wx:if="{{payError}}" class="hint orange">{{payError}}</view>
     <view class="column">
-      <button wx:if="{{payment.status === '未支付' && !expired}}" class="btn wide" loading="{{paying}}" disabled="{{paying}}" bindtap="pay">
+      <button wx:if="{{payment.status === 'UNPAID' && !expired}}" class="btn wide" loading="{{paying}}" disabled="{{paying}}" bindtap="pay">
         {{payment.mode === 'mock' ? '模拟支付' : '微信支付'}} {{amountText}}
       </button>
       <button class="btn secondary wide" disabled="{{paying}}" bindtap="result">查询支付结果</button>

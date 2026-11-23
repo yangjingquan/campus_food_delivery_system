@@ -31,6 +31,11 @@ test('WXML expressions use data expressions rather than JavaScript method calls'
   for (const file of files) {
     const text = fs.readFileSync(file, 'utf8');
     const expressions = [...text.matchAll(/{{([\s\S]*?)}}/g)].map(match => match[1]);
-    for (const expression of expressions) assert.doesNotMatch(expression, /\w+\s*\(|\.(?:toFixed|reduce|map|slice)\b/, `${path.relative(root, file)}: ${expression}`);
+    const usesStates = /<wxs module="states" src="[^"]+utils\/states\.wxs"\s*\/>/.test(text);
+    for (const expression of expressions) {
+      // WXS runs in the template runtime. Ordinary JavaScript methods are still unsupported.
+      const markup = usesStates ? expression.replace(/\bstates\.(?:label|event)\s*\(/g, '(') : expression;
+      assert.doesNotMatch(markup, /\w+\s*\(|\.(?:toFixed|reduce|map|slice)\b/, `${path.relative(root, file)}: ${expression}`);
+    }
   }
 });

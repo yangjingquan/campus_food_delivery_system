@@ -24,6 +24,12 @@ Vue 管理端和用户小程序统一经 API Gateway 访问业务 API；Nacos �
 
 上述迁移仅覆盖 `admin-api`；`user-api` 仍使用 `JdbcTemplate`。
 
+## 业务状态接口
+
+订单、支付、售后、审核和提现状态使用固定英文枚举码，四端按码展示中文。订单查询示例为 `status=PENDING_PAYMENT`，骑手入驻示例为 `gender=UNDISCLOSED`、`availability=MIDDAY_AND_EVENING`。选择 `CUSTOM` 时以 `HH:mm-HH:mm` 提交 `availableTime`。
+
+升级时应将数据库迁移与四个 API、管理端及三个小程序作为同一次发布协调，先在隔离库验证现有状态值。API 按 `admin-api`、`user-api`、商户和骑手 API 的依赖顺序完成迁移。
+
 ## 启动
 
 生产环境 Docker Compose、域名反向代理、主机初始化步骤和四个独立 Jenkins 流水线位于 [`deploy/production`](deploy/production/README.md)。生产配置启用 Nacos 鉴权、隔离项目数据库和 Redis 会话键，并将小程序默认 API 地址设为 HTTPS；真实支付和退款尚未实现，生产支付保持关闭。
@@ -53,9 +59,8 @@ cd codes
 cd codes/miniprograms/user
 npm test
 npm run check:js
-cd ../../user-api
-mvn -o test
-cd ..
+cd ../..
+mvn -o -pl user-api -am test
 python3 scripts/check-user-integration.py
 ```
 

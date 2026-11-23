@@ -1,5 +1,7 @@
 package com.campusfood.admin.dao;
 
+import com.campusfood.domain.BusinessStates.Audit;
+
 import java.util.Map;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
@@ -13,10 +15,10 @@ import org.apache.ibatis.annotations.Update;
 /** 商户审核及待办统计。 */
 @Mapper
 public interface MerchantMapper extends BaseMapper<Merchant> {
-    default int updatePendingAudit(String status, String reason, String id) {
+    default int updatePendingAudit(Audit status, String reason, String id) {
         return update(null, Wrappers.<Merchant>lambdaUpdate()
                 .set(Merchant::getAuditStatus, status).set(Merchant::getAuditReason, reason)
-                .eq(Merchant::getId, id).eq(Merchant::getAuditStatus, "待审核"));
+                .eq(Merchant::getId, id).eq(Merchant::getAuditStatus, Audit.PENDING_REVIEW));
     }
 
     @Select("SELECT id FROM merchant WHERE id=#{id} FOR UPDATE")
@@ -24,13 +26,13 @@ public interface MerchantMapper extends BaseMapper<Merchant> {
 
     @Update("""
         UPDATE merchant_profile_revision SET status=#{status},reason=#{reason}
-        WHERE merchant_id=#{id} AND status='待审核'
+        WHERE merchant_id=#{id} AND status='PENDING_REVIEW'
         """)
-    int reviewRevision(@Param("id") String id, @Param("status") String status, @Param("reason") String reason);
+    int reviewRevision(@Param("id") String id, @Param("status") Audit status, @Param("reason") String reason);
 
     @Update("""
         UPDATE merchant m JOIN merchant_profile_revision r ON r.merchant_id=m.id
-        LEFT JOIN finance_account a ON a.id=m.id AND a.type='商户'
+        LEFT JOIN finance_account a ON a.id=m.id AND a.type='MERCHANT'
         SET m.name=r.name,m.contact=r.contact,m.phone=r.phone,m.address=r.address,a.name=r.name
         WHERE m.id=#{id}
         """)
@@ -51,15 +53,15 @@ public interface MerchantMapper extends BaseMapper<Merchant> {
     @Select("""
         SELECT COALESCE(r.image_data,p.image_data) AS image_data,COALESCE(r.media_type,p.media_type) AS media_type
         FROM merchant_profile_revision r LEFT JOIN merchant_store_photo p ON p.merchant_id=r.merchant_id
-        WHERE r.merchant_id=#{id} AND r.status='待审核'
+        WHERE r.merchant_id=#{id} AND r.status='PENDING_REVIEW'
         """)
     Map<String, Object> revisionPhoto(@Param("id") String id);
 
-    @Select("SELECT COUNT(*) FROM merchant_profile_revision WHERE status='待审核'")
+    @Select("SELECT COUNT(*) FROM merchant_profile_revision WHERE status='PENDING_REVIEW'")
     Integer countPendingRevisions();
 
     default Integer countPending() {
-        return Math.toIntExact(selectCount(Wrappers.<Merchant>lambdaQuery().eq(Merchant::getAuditStatus, "待审核")))
+        return Math.toIntExact(selectCount(Wrappers.<Merchant>lambdaQuery().eq(Merchant::getAuditStatus, Audit.PENDING_REVIEW)))
                 + countPendingRevisions();
     }
 }

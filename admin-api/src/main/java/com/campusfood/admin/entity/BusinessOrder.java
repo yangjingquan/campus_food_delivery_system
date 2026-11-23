@@ -1,5 +1,7 @@
 package com.campusfood.admin.entity;
 
+import com.campusfood.domain.BusinessStates.Fulfillment;
+
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -19,7 +21,7 @@ public class BusinessOrder {
     private Long refundedCents;
     private Long foodRefundedCents;
     private String paymentStatus;
-    private String fulfillStatus;
+    private Fulfillment fulfillStatus;
     private String refundStatus;
     private String settlementStatus;
     private Boolean accepted;
@@ -38,7 +40,7 @@ public class BusinessOrder {
 
     public Long getPaidAt() { return paidAt; }
 
-    public String getFulfillStatus() { return fulfillStatus; }
+    public Fulfillment getFulfillStatus() { return fulfillStatus; }
 
     public Boolean getIntervene() { return intervene; }
 }

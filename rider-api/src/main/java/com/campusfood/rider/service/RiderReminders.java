@@ -1,5 +1,8 @@
 package com.campusfood.rider.service;
 
+import com.campusfood.domain.BusinessStates.Availability;
+import com.campusfood.domain.BusinessStates.Reminder;
+
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -60,8 +63,8 @@ public class RiderReminders {
         var waiting = db.queryForMap("""
             SELECT COUNT(*) AS count,COALESCE(SUM(d.batch_alert_at<=?),0) AS overdue
             FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
-            WHERE o.fulfill_status='已到暂存点 / 待领取' AND o.pending_refund=FALSE AND o.locking=FALSE
-              AND o.refund_status NOT IN ('退款失败','平台介入') AND d.pickup_rider_id IS NULL
+            WHERE o.fulfill_status='AWAITING_RIDER' AND o.pending_refund=FALSE AND o.locking=FALSE
+              AND o.refund_status NOT IN ('REFUND_FAILED','PLATFORM_REVIEW') AND d.pickup_rider_id IS NULL
             """, now);
         long count = ((Number) waiting.get("count")).longValue();
         if (count == 0) {
@@ -72,9 +75,9 @@ public class RiderReminders {
             Integer.class);
         long cutoff = now - minutes * 60000L;
         var recipients = db.queryForList("""
-            SELECT s.rider_id,i.openid,r.available_time FROM rider_reminder_subscription s
+            SELECT s.rider_id,i.openid,r.availability,r.available_time FROM rider_reminder_subscription s
             JOIN rider_identity i ON i.id=s.rider_id AND i.app_id=?
-            JOIN rider r ON r.id=s.rider_id AND r.audit_status='已通过'
+            JOIN rider r ON r.id=s.rider_id AND r.audit_status='APPROVED'
             WHERE s.remaining=1 AND s.template_id=? AND s.last_batch_at<=?
             ORDER BY s.last_batch_at
             """, wechat.appId(), template, cutoff);
@@ -84,18 +87,19 @@ public class RiderReminders {
         fields.put(messageField, Map.of("value", summary.substring(0, Math.min(20, summary.length()))));
         LocalTime campusTime = Instant.ofEpochMilli(now).atZone(CAMPUS_ZONE).toLocalTime();
         var available = recipients.stream().filter(recipient ->
-            DeliveryAvailability.includes((String) recipient.get("available_time"), campusTime)).limit(10).toList();
+            DeliveryAvailability.includes(Availability.valueOf((String) recipient.get("availability")),
+                (String) recipient.get("available_time"), campusTime)).limit(10).toList();
         for (var recipient : available) {
             String rider = recipient.get("rider_id").toString();
             int claimed = db.update("""
-                UPDATE rider_reminder_subscription SET remaining=0,last_batch_at=?,last_status='发送中'
+                UPDATE rider_reminder_subscription SET remaining=0,last_batch_at=?,last_status='SENDING',last_error_code=NULL
                 WHERE rider_id=? AND template_id=? AND remaining=1 AND last_batch_at<=?
                 """, now, rider, template, cutoff);
             if (claimed == 1) {
                 int result = wechat.sendReminder(recipient.get("openid").toString(), template, fields);
                 db.update("""
-                    UPDATE rider_reminder_subscription SET last_status=? WHERE rider_id=? AND last_batch_at=?
-                    """, result == 0 ? "已送达微信" : "微信返回 " + result, rider, now);
+                    UPDATE rider_reminder_subscription SET last_status=?,last_error_code=? WHERE rider_id=? AND last_batch_at=?
+                    """, (result == 0 ? Reminder.SENT : Reminder.FAILED).name(), result == 0 ? null : String.valueOf(result), rider, now);
             }
         }
     }

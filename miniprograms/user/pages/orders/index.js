@@ -3,8 +3,8 @@ const { money, time } = require('../../utils/display');
 
 Page({
   data: {
-    visible: [], filter: '全部', page: 0, hasMore: false,
-    filters: ['全部', '待支付', '进行中', '已完成', '已关闭', '售后'],
+    visible: [], filter: 'ALL', page: 0, hasMore: false,
+    filters: ['ALL', 'PENDING_PAYMENT', 'IN_PROGRESS', 'COMPLETED', 'CLOSED', 'AFTER_SALE'],
     loading: true, loadError: '', loadingMore: false, loadMoreError: ''
   },
 
@@ -41,8 +41,8 @@ Page({
       if (version !== this.listVersion) return;
       const rows = (data.rows || []).map(row => ({
         ...row, amountText: money(row.paidCents), displayItems: row.items,
-        displayStatus: row.isPayment ? '待支付' : row.fulfillStatus,
-        note: row.refundStatus && row.refundStatus !== '无售后' ? '售后：' + row.refundStatus : time(row.createdAt)
+        displayStatus: row.isPayment ? 'PENDING_PAYMENT' : row.fulfillStatus,
+        note: time(row.createdAt)
       }));
       const visible = new Map((page === 1 ? [] : this.data.visible).map(row => [row.id, row]));
       for (const row of rows) visible.set(row.id, row);

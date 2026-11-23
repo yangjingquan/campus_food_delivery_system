@@ -170,8 +170,17 @@ class WechatPayClient {
     }
 
     static final class TransferResponseException extends RuntimeException {
+        private final int status;
+        private final String code;
+
         TransferResponseException(int status, String code) {
             super("HTTP " + status + (code.isEmpty() ? "" : " / " + code));
+            this.status = status;
+            this.code = code;
+        }
+
+        boolean insufficientFunds() {
+            return status == 403 && "NOT_ENOUGH".equals(code);
         }
     }
 

@@ -14,7 +14,7 @@
     </insert>
 
     <insert id="insertReviewAudit">
-        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_state,reason) VALUES (#{actor},
+        INSERT INTO admin_audit_log(actor,action_name,target_id,before_status,after_status,reason) VALUES (#{actor},
         #{action},#{targetId},#{beforeState},#{afterState},#{reason})
     </insert>
 
@@ -26,7 +26,7 @@
     <select id="hasRetryRecipient" resultType="boolean">
         SELECT EXISTS (
         <choose>
-            <when test="type == '商户'">
+            <when test="type == 'MERCHANT'">
                 SELECT 1 FROM merchant_transfer_channel c
                 JOIN merchant_identity i ON i.merchant_id=#{accountId}
                     AND i.app_id=c.app_id AND i.open_id=c.recipient_open_id
@@ -49,8 +49,8 @@
     </insert>
 
     <insert id="insertChannelAudit">
-        INSERT INTO admin_audit_log(actor,action_name,target_id,before_state,after_state,reason) VALUES('渠道服务',
-        'withdrawal.channel',#{withdrawalId},'打款中',#{afterState},#{reason})
+        INSERT INTO admin_audit_log(actor,action_name,target_id,before_status,after_status,reason) VALUES('渠道服务',
+        'withdrawal.channel',#{withdrawalId},'TRANSFERRING',#{afterState},#{reason})
     </insert>
 
     <insert id="insertJournal">

@@ -7,7 +7,7 @@
     </view>
     <view wx:elif="{{loading && !loaded}}" class="empty small muted">正在加载…</view>
     <template wx:elif="{{gate}}" is="empty"
-      data="{{title: profile.auditStatus === '待审核' ? '学生身份审核中' : '先完成入驻，再开始配送',
+      data="{{title: profile.auditStatus === 'PENDING_REVIEW' ? '学生身份审核中' : '先完成入驻，再开始配送',
         description: '通过学生身份审核后，才可在暂存点扫码领取餐品。', page: 'audit', label: '查看入驻状态'}}"/>
     <block wx:else>
       <include src="../../fragments/wallet.wxml"/>

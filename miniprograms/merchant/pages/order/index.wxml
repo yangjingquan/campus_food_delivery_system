@@ -1,3 +1,4 @@
+<wxs module="states" src="../../utils/states.wxs"/>
 <import src="../../fragments/states.wxml" />
 <view class="screen order-screen">
   <view class="heading">订单详情</view>
@@ -5,22 +6,22 @@
   <block wx:if="{{order && !error}}">
     <view class="hint">订单编号 <text class="mono" selectable>{{order.id}}</text></view>
     <view class="card">
-      <view class="row summary"><text class="section">履约进度</text><text class="badge">{{order.status}}</text></view>
+      <view class="row summary"><text class="section">履约进度</text><text class="badge">{{states.label(order.status)}}</text></view>
       <view class="kv"><text>取餐方式</text><text>{{order.fulfillmentType === 'pickup' ? '到店自取' : '外卖配送'}}</text></view>
       <view wx:if="{{order.pickupCode}}" class="kv"><text>取餐号</text><text selectable>{{order.pickupCode}}</text></view>
-      <view class="kv"><text>支付</text><text>{{order.paymentStatus}}</text></view>
-      <view class="kv"><text>售后</text><text>{{order.refundStatus}}</text></view>
-      <view class="kv"><text>结算</text><text>{{order.settlementStatus}}</text></view>
+      <view class="kv"><text>支付</text><text>{{states.label(order.paymentStatus)}}</text></view>
+      <view class="kv"><text>售后</text><text>{{states.label(order.refundStatus)}}</text></view>
+      <view class="kv"><text>结算</text><text>{{states.label(order.settlementStatus)}}</text></view>
       <view class="kv"><text>支付时间</text><text>{{paidAt}}</text></view>
-      <view wx:if="{{order.status === '待商户接单'}}" class="kv"><text>接单截止</text><text>{{deadline}}{{acceptExpired ? ' · 已超时' : ''}}</text></view>
+      <view wx:if="{{order.status === 'AWAITING_MERCHANT'}}" class="kv"><text>接单截止</text><text>{{deadline}}{{acceptExpired ? ' · 已超时' : ''}}</text></view>
       <view wx:if="{{arrivedAt}}" class="kv"><text>送达暂存点</text><text>{{arrivedAt}}</text></view>
-      <view wx:if="{{order.intervene}}" class="notice">{{order.interveneReason || '待管理员介入'}}</view>
+      <view wx:if="{{order.intervene}}" class="notice">{{(order.interveneCode ? states.intervention(order.interveneCode) : order.interveneReason) || '待管理员介入'}}</view>
       <view class="actions fulfillment-actions">
-        <button wx:if="{{!order.pendingRefund && !order.intervene && !acceptExpired && order.status === '待商户接单'}}" class="btn primary" data-action="accept" bindtap="status" disabled="{{saving}}" hover-class="pressed">确认接单</button>
-        <button wx:if="{{order.accepted && order.status !== '已关闭'}}" class="btn plain" bindtap="ticket" hover-class="pressed">小票／补打</button>
-        <button wx:if="{{!order.pendingRefund && order.status === '商户出餐中'}}" class="btn primary" data-action="{{order.fulfillmentType === 'pickup' ? 'ready' : 'arrive'}}" bindtap="status" disabled="{{saving}}" hover-class="pressed">{{order.fulfillmentType === 'pickup' ? '餐品已备好' : '确认到点'}}</button>
-        <button wx:if="{{!order.pendingRefund && order.status === '待自取'}}" class="btn primary" data-action="collect" bindtap="status" disabled="{{saving}}" hover-class="pressed">确认已取餐</button>
-        <button wx:if="{{order.status === '配送中'}}" class="btn" bindtap="map" hover-class="pressed">骑手位置</button>
+        <button wx:if="{{!order.pendingRefund && !order.intervene && !acceptExpired && order.status === 'AWAITING_MERCHANT'}}" class="btn primary" data-action="accept" bindtap="status" disabled="{{saving}}" hover-class="pressed">确认接单</button>
+        <button wx:if="{{order.accepted && order.status !== 'CLOSED'}}" class="btn plain" bindtap="ticket" hover-class="pressed">小票／补打</button>
+        <button wx:if="{{!order.pendingRefund && order.status === 'PREPARING_FOOD'}}" class="btn primary" data-action="{{order.fulfillmentType === 'pickup' ? 'ready' : 'arrive'}}" bindtap="status" disabled="{{saving}}" hover-class="pressed">{{order.fulfillmentType === 'pickup' ? '餐品已备好' : '确认到点'}}</button>
+        <button wx:if="{{!order.pendingRefund && order.status === 'AWAITING_PICKUP'}}" class="btn primary" data-action="collect" bindtap="status" disabled="{{saving}}" hover-class="pressed">确认已取餐</button>
+        <button wx:if="{{order.status === 'DELIVERING'}}" class="btn" bindtap="map" hover-class="pressed">骑手位置</button>
       </view>
     </view>
     <view class="card">
@@ -41,17 +42,17 @@
       <view class="section">售后处理</view>
       <view wx:if="{{!aftersales.length}}" class="hint">暂无售后申请</view>
       <view wx:for="{{aftersales}}" wx:key="id" class="separator">
-        <view class="row summary"><text class="price">{{item.amount}}</text><text class="badge {{item.status === '退款失败' ? 'danger' : item.status === '拒绝退款' || item.status === '渠道未知' || item.status === '处理中' ? 'warn' : ''}}">{{item.status}}</text></view>
-        <view>{{item.reason}}</view><view class="hint">{{item.time}} · {{item.channelStatus}}</view>
+        <view class="row summary"><text class="price">{{item.amount}}</text><text class="badge {{item.status === 'REFUND_FAILED' ? 'danger' : item.status === 'REFUND_REJECTED' || item.status === 'REFUND_VERIFYING' || item.status === 'REFUND_PROCESSING' ? 'warn' : ''}}">{{states.label(item.status)}}</text></view>
+        <view>{{item.reason}}</view><view class="hint">{{item.time}} · {{item.channelStatus === 'LEGACY_DETAIL' ? item.channelDetail : states.label(item.channelStatus)}}</view>
         <view wx:if="{{item.channelReason}}" class="notice">{{item.channelReason}}</view>
         <view wx:if="{{item.offlineTime}}" class="hint">线下实退 {{item.offlineTime}} · {{item.offlineChannel}}</view>
-        <view wx:if="{{item.status === '待商户处理'}}" class="actions split-actions refund-actions">
+        <view wx:if="{{item.status === 'AWAITING_MERCHANT_DECISION'}}" class="actions split-actions refund-actions">
           <button class="btn primary" data-action="approve" data-id="{{item.id}}" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">同意退款</button>
           <button class="btn plain" data-action="reject" data-id="{{item.id}}" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">拒绝退款</button>
         </view>
-        <button wx:if="{{item.status === '拒绝退款'}}" class="btn plain wide separator" data-action="end" data-id="{{item.id}}" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">协商不退款，结束售后</button>
+        <button wx:if="{{item.status === 'REFUND_REJECTED'}}" class="btn plain wide separator" data-action="end" data-id="{{item.id}}" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">协商不退款，结束售后</button>
       </view>
-      <button wx:if="{{order.accepted && !order.pendingRefund && remaining > 0 && order.refundStatus !== '退款失败'}}" class="btn wide separator" data-action="negotiate" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">发起协商退款</button>
+      <button wx:if="{{order.accepted && !order.pendingRefund && remaining > 0 && order.refundStatus !== 'REFUND_FAILED'}}" class="btn wide separator" data-action="negotiate" bindtap="startRefund" disabled="{{saving}}" hover-class="pressed">发起协商退款</button>
     </view>
     <view wx:if="{{refundForm}}" class="card" id="refund-form">
       <view class="section">{{refundForm.action === 'reject' ? '填写拒绝原因' : refundForm.action === 'end' ? '结束售后' : '确认退款金额'}}</view>

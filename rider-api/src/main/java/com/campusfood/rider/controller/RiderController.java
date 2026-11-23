@@ -1,5 +1,8 @@
 package com.campusfood.rider.controller;
 
+import com.campusfood.domain.BusinessStates.Availability;
+import com.campusfood.domain.BusinessStates.Gender;
+
 import com.campusfood.rider.service.DomainClient;
 import com.campusfood.rider.service.RiderFinance;
 import com.campusfood.rider.service.RiderIdentityService;
@@ -54,9 +57,9 @@ public class RiderController {
 
     @PostMapping("/profile/application")
     public Object apply(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String auth,
-                        @RequestParam String name, @RequestParam String phone, @RequestParam String gender,
-                        @RequestParam String availableTime, @RequestParam MultipartFile studentCard) throws IOException {
-        return identities.apply(identities.authenticate(auth), name, phone, gender, availableTime, studentCard);
+                        @RequestParam String name, @RequestParam String phone, @RequestParam Gender gender,
+                        @RequestParam Availability availability, @RequestParam(defaultValue = "") String availableTime, @RequestParam MultipartFile studentCard) throws IOException {
+        return identities.apply(identities.authenticate(auth), name, phone, gender, availability, availableTime, studentCard);
     }
 
     @GetMapping("/batches")

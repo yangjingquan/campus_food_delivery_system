@@ -1,5 +1,7 @@
 package com.campusfood.admin.service;
 
+import com.campusfood.domain.BusinessStates.AdminAudit;
+
 import java.util.Map;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -82,7 +84,7 @@ public class MerchantPrinterSettingsService {
                     .set(MerchantPrinterSettings::getPkeySecretId, secretId));
             secrets.deleteById(current.getPkeySecretId());
         }
-        audit.insertSimpleAudit(actor, "merchant.save-printer", lockedId, "已更新");
+        audit.insertSimpleAudit(actor, "merchant.save-printer", lockedId, AdminAudit.UPDATED.name());
         return configured(sn);
     }
 

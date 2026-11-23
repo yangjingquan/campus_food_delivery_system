@@ -1,8 +1,8 @@
 package com.campusfood.admin.dao;
 
-import com.campusfood.admin.entity.WithdrawalStates.Intent;
-import com.campusfood.admin.entity.WithdrawalStates.Request;
-import com.campusfood.admin.entity.WithdrawalStates.Transfer;
+import com.campusfood.domain.BusinessStates.WithdrawalIntent;
+import com.campusfood.domain.BusinessStates.Withdrawal;
+import com.campusfood.domain.BusinessStates.WithdrawalTransfer;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -10,11 +10,11 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface WithdrawalDao {
     int insertIntentIfAbsent(@Param("requestKey") String requestKey, @Param("accountId") String accountId,
-                             @Param("requestedCents") long requestedCents, @Param("status") Intent status);
+                             @Param("requestedCents") long requestedCents, @Param("status") WithdrawalIntent status);
 
     int insertWithdrawal(@Param("id") String id, @Param("applicant") Object applicant,
                          @Param("applicantType") Object applicantType, @Param("amount") long amount,
-                         @Param("status") Request status, @Param("createdAt") String createdAt,
+                         @Param("status") Withdrawal status, @Param("createdAt") String createdAt,
                          @Param("accountId") String accountId, @Param("requestKey") String requestKey);
 
     int insertReviewAudit(@Param("actor") String actor, @Param("action") String action,
@@ -26,7 +26,7 @@ public interface WithdrawalDao {
     boolean hasRetryRecipient(@Param("id") String id, @Param("accountId") String accountId, @Param("type") String type);
 
     int insertTransfer(@Param("transferId") String transferId, @Param("withdrawalId") String withdrawalId,
-                       @Param("status") Transfer status);
+                       @Param("status") WithdrawalTransfer status);
 
     int insertChannelAudit(@Param("withdrawalId") String withdrawalId, @Param("afterState") String afterState,
                            @Param("reason") String reason);

@@ -1,5 +1,9 @@
 package com.campusfood.admin.service;
 
+import com.campusfood.domain.BusinessStates.AccountStatus;
+import com.campusfood.domain.BusinessStates.AccountType;
+import com.campusfood.domain.BusinessStates.WithdrawalReason;
+
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -11,9 +15,9 @@ import com.campusfood.admin.dao.FinanceDebtMapper;
 import com.campusfood.admin.dao.WithdrawalIntentMapper;
 import com.campusfood.admin.dao.WithdrawalRequestMapper;
 import com.campusfood.admin.dao.WithdrawalTransferMapper;
-import com.campusfood.admin.entity.WithdrawalStates.Intent;
-import com.campusfood.admin.entity.WithdrawalStates.Request;
-import com.campusfood.admin.entity.WithdrawalStates.Transfer;
+import com.campusfood.domain.BusinessStates.WithdrawalIntent;
+import com.campusfood.domain.BusinessStates.Withdrawal;
+import com.campusfood.domain.BusinessStates.WithdrawalTransfer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,7 +25,6 @@ import org.springframework.web.server.ResponseStatusException;
 /** 处理提现申请、审核和可信渠道返回的转账结果。 */
 @Service
 public class WithdrawalService {
-    private static final String WECHAT_FUNDS_INSUFFICIENT = "微信转账提交异常：HTTP 403 / NOT_ENOUGH";
     private final WithdrawalDao db;
     private final FinanceAccountMapper accounts;
     private final FinanceDebtMapper debts;
@@ -61,7 +64,7 @@ public class WithdrawalService {
         if (!key.matches("[A-Za-z0-9_-]{8,100}") || account.isEmpty() || account.length() > 64)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效账户或幂等键");
         // 先占用幂等键；重复请求读取原结果，不重复变更余额。
-        int createdIntent = db.insertIntentIfAbsent(key, account, requested, Intent.PROCESSING);
+        int createdIntent = db.insertIntentIfAbsent(key, account, requested, WithdrawalIntent.PROCESSING);
         if (createdIntent == 0) {
             var old = intents.lockIntent(key);
             if (!account.equals(old.get("account_id")) ||
@@ -73,14 +76,14 @@ public class WithdrawalService {
         List<Map<String, Object>> matches = accounts.lockForWithdrawal(account);
         if (matches.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "账户不存在");
         var a = matches.get(0);
-        if (!"正常".equals(a.get("status")) || !List.of("商户", "骑手").contains(a.get("type")))
+        if (!AccountStatus.ACCOUNT_ACTIVE.is(a.get("status")) || !List.of("MERCHANT", "RIDER").contains(a.get("type")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "账户不可提现");
-        if ("商户".equals(a.get("type")) && requests.hasInFlight(account)) {
+        if (AccountType.MERCHANT.is(a.get("type")) && requests.hasInFlight(account)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已有进行中的提现申请，请先查看记录");
         }
         long available = ((Number) a.get("balance_cents")).longValue(), recovered = 0;
         // 商户申请提现时先按欠款记录顺序扣回，并分别记录双方账本。
-        if ("商户".equals(a.get("type"))) {
+        if (AccountType.MERCHANT.is(a.get("type"))) {
             var outstandingDebts = debts.lockOutstandingDebts(account);
             for (var debt : outstandingDebts) {
                 long due = ((Number) debt.get("platform_advance_cents")).longValue() -
@@ -101,7 +104,7 @@ public class WithdrawalService {
         // 抵扣后余额不足仍保留本次已扣回的结果，并返回剩余可用余额。
         if (requested > available) {
             intents.markInsufficient(recovered, available, key);
-            return Map.of("status", Intent.INSUFFICIENT_FUNDS.label(), "recoveredCents", recovered, "availableCents", available);
+            return Map.of("status", WithdrawalIntent.INSUFFICIENT_FUNDS.name(), "recoveredCents", recovered, "availableCents", available);
         }
         String id = "W" + UUID.randomUUID().toString().replace("-", "");
         // 申请受理时立即冻结提现金额，审核拒绝或明确失败时再解冻。
@@ -109,15 +112,15 @@ public class WithdrawalService {
         journal(account, "withdraw_freeze", id, -requested, requested);
         String created = LocalDateTime.now(ZoneId.of("Asia/Shanghai")).format(
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        db.insertWithdrawal(id, a.get("name"), a.get("type"), requested, Request.PENDING_REVIEW, created, account, key);
+        db.insertWithdrawal(id, a.get("name"), a.get("type"), requested, Withdrawal.PENDING_REVIEW, created, account, key);
         intents.markAccepted(recovered, available - requested, id, key);
-        return Map.of("status", Intent.ACCEPTED.label(), "withdrawalId", id, "recoveredCents", recovered, "availableCents",
+        return Map.of("status", WithdrawalIntent.ACCEPTED.name(), "withdrawalId", id, "recoveredCents", recovered, "availableCents",
                 available - requested);
     }
 
     private Map<String, Object> result(Map<String, Object> old) {
         Map<String, Object> r = new LinkedHashMap<>();
-        r.put("status", Intent.valueOf(old.get("status").toString()).label());
+        r.put("status", WithdrawalIntent.valueOf(old.get("status").toString()).name());
         r.put("withdrawalId", old.get("withdrawal_id"));
         r.put("recoveredCents", old.get("recovered_cents"));
         r.put("availableCents", old.get("available_after"));
@@ -130,7 +133,7 @@ public class WithdrawalService {
         if (!List.of("approve", "reject").contains(decision) || (decision.equals("reject") && reason.isEmpty()) ||
                 reason.length() > 500) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审核决定或原因无效");
         var rows = requests.lockWithdrawal(id);
-        if (rows.isEmpty() || !Request.PENDING_REVIEW.name().equals(rows.get(0).get("status")))
+        if (rows.isEmpty() || !Withdrawal.PENDING_REVIEW.name().equals(rows.get(0).get("status")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "申请不存在或已处理");
         // 申请行锁已持有，即使有人手工重置状态也不能再次决策或解冻。
         if (db.hasReviewHistory(id) || !transfers.findTransfer(id).isEmpty())
@@ -141,15 +144,15 @@ public class WithdrawalService {
         if (account.isEmpty())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "历史申请缺少关联账户，需人工核对");
         accounts.lockAccount(account);
-        Request next = decision.equals("reject") ? Request.REVIEW_REJECTED : Request.PENDING_PAYOUT;
+        Withdrawal next = decision.equals("reject") ? Withdrawal.REVIEW_REJECTED : Withdrawal.PENDING_PAYOUT;
         if (decision.equals("reject")) {
             int updated = accounts.unfreezeFunds(amount, amount, account, amount);
             if (updated != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "冻结余额不足，需人工核对");
             journal(account, "withdraw_unfreeze", id, amount, -amount);
         }
         requests.updateStatus(next, decision.equals("approve") ? "审核通过，等待渠道发起" : reason, id);
-        db.insertReviewAudit(actor, "withdrawal.review", id, Request.PENDING_REVIEW.label(), next.label(), reason);
-        return Map.of("ok", true, "status", next.label());
+        db.insertReviewAudit(actor, "withdrawal.review", id, Withdrawal.PENDING_REVIEW.name(), next.name(), reason);
+        return Map.of("ok", true, "status", next.name());
     }
 
     @Transactional
@@ -165,18 +168,18 @@ public class WithdrawalService {
         if (attempts.isEmpty())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "缺少原转账记录");
         var attempt = attempts.get(0);
-        var status = Request.valueOf(withdrawal.get("status").toString());
-        var transfer = Transfer.valueOf(attempt.get("status").toString());
+        var status = Withdrawal.valueOf(withdrawal.get("status").toString());
+        var transfer = WithdrawalTransfer.valueOf(attempt.get("status").toString());
         boolean hasChannelReference = !Objects.toString(attempt.get("channel_reference"), "").isBlank();
-        if ((status == Request.TRANSFERRING || status == Request.AWAITING_CONFIRMATION)
-                && (transfer == Transfer.PROCESSING || transfer == Transfer.UNKNOWN) && !hasChannelReference
-                && WECHAT_FUNDS_INSUFFICIENT.equals(withdrawal.get("reason"))) {
+        if ((status == Withdrawal.TRANSFERRING || status == Withdrawal.AWAITING_CONFIRMATION)
+                && (transfer == WithdrawalTransfer.PROCESSING || transfer == WithdrawalTransfer.UNKNOWN) && !hasChannelReference
+                && WithdrawalReason.WECHAT_FUNDS_INSUFFICIENT.is(withdrawal.get("reason_code"))) {
             if (transfers.queueRetry(id) != 1)
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "该笔提现已在重试队列中");
-            db.insertReviewAudit(actor, "withdrawal.retry", id, status.label(), status.label(), "原单重试");
+            db.insertReviewAudit(actor, "withdrawal.retry", id, status.name(), status.name(), "原单重试");
             return Map.of("ok", true, "withdrawalId", id);
         }
-        if (status != Request.PAYOUT_FAILED || transfer != Transfer.FAILED || !hasChannelReference)
+        if (status != Withdrawal.PAYOUT_FAILED || transfer != WithdrawalTransfer.FAILED || !hasChannelReference)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前渠道状态不允许重试打款");
         if (requests.hasPayoutRetry(id))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已存在关联的重试申请");
@@ -188,12 +191,12 @@ public class WithdrawalService {
         var account = accountRows.get(0);
         String type = Objects.toString(account.get("type"), "");
         long amount = ((Number) withdrawal.get("amount_cents")).longValue();
-        if (!"正常".equals(account.get("status")) || !List.of("商户", "骑手").contains(type)
+        if (!AccountStatus.ACCOUNT_ACTIVE.is(account.get("status")) || !List.of("MERCHANT", "RIDER").contains(type)
                 || ((Number) account.get("balance_cents")).longValue() < amount)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "提现账户不可用或可提现余额不足");
-        if ("商户".equals(type) && (requests.hasInFlight(accountId) || !debts.lockOutstandingDebts(accountId).isEmpty()))
+        if (AccountType.MERCHANT.is(type) && (requests.hasInFlight(accountId) || !debts.lockOutstandingDebts(accountId).isEmpty()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先处理该商户进行中的提现或欠款");
-        if ("商户".equals(type) && amount >= 200_000)
+        if (AccountType.MERCHANT.is(type) && amount >= 200_000)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该金额需先核验商户收款人实名");
         if (!db.hasRetryRecipient(id, accountId, type))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "原转账终态或收款身份需核对");
@@ -204,10 +207,10 @@ public class WithdrawalService {
         if (accounts.freezeAvailable(amount, amount, accountId) != 1)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "重新冻结申请金额失败");
         journal(accountId, "withdraw_freeze", retryId, -amount, amount);
-        db.insertWithdrawal(retryId, account.get("name"), type, amount, Request.PENDING_PAYOUT,
+        db.insertWithdrawal(retryId, account.get("name"), type, amount, Withdrawal.PENDING_PAYOUT,
                 Objects.toString(withdrawal.get("created_at")), accountId, key);
-        requests.updateStatus(Request.PENDING_PAYOUT, "原单打款失败，等待渠道重试", retryId);
-        db.insertReviewAudit(actor, "withdrawal.retry", id, status.label(), status.label(), "关联重试申请 " + retryId);
+        requests.updateStatus(Withdrawal.PENDING_PAYOUT, "原单打款失败，等待渠道重试", retryId);
+        db.insertReviewAudit(actor, "withdrawal.retry", id, status.name(), status.name(), "关联重试申请 " + retryId);
         return Map.of("ok", true, "withdrawalId", retryId);
     }
 
@@ -218,13 +221,13 @@ public class WithdrawalService {
         // 重试使用已有转账单号，避免重复创建渠道请求。
         var prior = transfers.findTransfer(id);
         if (!prior.isEmpty()) return Map.of("transferId", prior.get(0).get("id"),
-                "status", Transfer.valueOf(prior.get(0).get("status").toString()).label());
-        if (!Request.PENDING_PAYOUT.name().equals(rows.get(0).get("status")))
+                "status", WithdrawalTransfer.valueOf(prior.get(0).get("status").toString()).name());
+        if (!Withdrawal.PENDING_PAYOUT.name().equals(rows.get(0).get("status")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "提现申请不在待打款状态");
         String transferId = "T" + UUID.randomUUID().toString().replace("-", "");
-        db.insertTransfer(transferId, id, Transfer.PROCESSING);
+        db.insertTransfer(transferId, id, WithdrawalTransfer.PROCESSING);
         requests.markTransferring(id);
-        return Map.of("transferId", transferId, "status", Transfer.PROCESSING.label());
+        return Map.of("transferId", transferId, "status", WithdrawalTransfer.PROCESSING.name());
     }
 
     @Transactional
@@ -240,26 +243,26 @@ public class WithdrawalService {
         var transferRows = transfers.lockTransfer(id);
         if (transferRows.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "未找到原转账记录");
         var tr = transferRows.get(0);
-        Transfer previous = Transfer.valueOf(tr.get("status").toString());
-        Transfer expected = switch (outcome) {
-            case "success" -> Transfer.SUCCEEDED;
-            case "failure" -> Transfer.FAILED;
-            default -> Transfer.UNKNOWN;
+        WithdrawalTransfer previous = WithdrawalTransfer.valueOf(tr.get("status").toString());
+        WithdrawalTransfer expected = switch (outcome) {
+            case "success" -> WithdrawalTransfer.SUCCEEDED;
+            case "failure" -> WithdrawalTransfer.FAILED;
+            default -> WithdrawalTransfer.UNKNOWN;
         };
         // 已终结的渠道结果只允许相同凭据的幂等重放。
         if (previous.terminal()) {
             if (previous == expected && channel.equals(Objects.toString(tr.get("channel_reference"), "")))
-                return Map.of("ok", true, "status", (previous == Transfer.SUCCEEDED ? Request.PAID : Request.PAYOUT_FAILED).label());
+                return Map.of("ok", true, "status", (previous == WithdrawalTransfer.SUCCEEDED ? Withdrawal.PAID : Withdrawal.PAYOUT_FAILED).name());
             throw new ResponseStatusException(HttpStatus.CONFLICT, "渠道结果已终结，不能覆盖");
         }
-        Request requestStatus = Request.valueOf(rows.get(0).get("status").toString());
-        if (requestStatus != Request.TRANSFERRING && requestStatus != Request.AWAITING_CONFIRMATION)
+        Withdrawal requestStatus = Withdrawal.valueOf(rows.get(0).get("status").toString());
+        if (requestStatus != Withdrawal.TRANSFERRING && requestStatus != Withdrawal.AWAITING_CONFIRMATION)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "提现申请不在打款中");
         // 未知结果不代表失败：继续冻结，等待查询原转账单。
         if (outcome.equals("unknown")) {
             transfers.markUnknown(reason, id);
             requests.markUnknown(id);
-            return Map.of("ok", true, "status", Transfer.UNKNOWN.label());
+            return Map.of("ok", true, "status", WithdrawalTransfer.UNKNOWN.name());
         }
         String account = Objects.toString(rows.get(0).get("account_id"), "");
         long amount = ((Number) rows.get(0).get("amount_cents")).longValue();
@@ -270,15 +273,15 @@ public class WithdrawalService {
         if (changed != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "冻结余额不足，需人工核对");
         journal(account, outcome.equals("failure") ? "transfer_failed_unfreeze" : "transfer_success", id,
                 outcome.equals("failure") ? amount : 0, -amount);
-        Request next = outcome.equals("failure") ? Request.PAYOUT_FAILED : Request.PAID;
+        Withdrawal next = outcome.equals("failure") ? Withdrawal.PAYOUT_FAILED : Withdrawal.PAID;
         try {
             transfers.finalizeTransfer(expected, channel, reason, id);
         } catch (org.springframework.dao.DuplicateKeyException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "渠道凭据已用于其他转账");
         }
         requests.updateStatus(next, reason, id);
-        db.insertChannelAudit(id, next.label(), reason);
-        return Map.of("ok", true, "status", next.label());
+        db.insertChannelAudit(id, next.name(), reason);
+        return Map.of("ok", true, "status", next.name());
     }
 
     private void journal(String account, String type, String ref, long available, long frozen) {

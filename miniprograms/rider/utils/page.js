@@ -4,12 +4,14 @@ const location = require('./location');
 
 const roots = ['home', 'orders', 'wallet', 'mine'];
 const genderOptions = ['男', '女', '不便透露'];
+const genderCodes = ['MALE', 'FEMALE', 'UNDISCLOSED'];
 const timeOptions = ['午间 11:00–13:00', '晚间 17:00–19:00', '午间与晚间', '其他时间'];
+const availabilityCodes = ['MIDDAY', 'EVENING', 'MIDDAY_AND_EVENING', 'CUSTOM'];
 const auditLabels = {
-  已通过: ['学生身份审核通过', '可以前往暂存点，逐单扫码领取餐品。', 'shield'],
-  待审核: ['资料已提交，审核中', '审核通过后即可扫码领单。', 'clock'],
-  已驳回: ['资料审核未通过', '请核对驳回原因，补齐资料后重新提交。', 'info'],
-  未入驻: ['欢迎成为校园骑手', '完成入驻资料并通过学生身份审核后，即可开始配送。', 'user']
+  APPROVED: ['学生身份审核通过', '可以前往暂存点，逐单扫码领取餐品。', 'shield'],
+  PENDING_REVIEW: ['资料已提交，审核中', '审核通过后即可扫码领单。', 'clock'],
+  REJECTED: ['资料审核未通过', '请核对驳回原因，补齐资料后重新提交。', 'info'],
+  NOT_ENROLLED: ['欢迎成为校园骑手', '完成入驻资料并通过学生身份审核后，即可开始配送。', 'user']
 };
 const help = {
   scan: ['如何领取多笔订单？', '请在暂存点逐份扫描餐品小票。每个领取码只对应一笔订单。'],
@@ -21,9 +23,9 @@ const help = {
 const profileOnly = ['join', 'audit', 'profile', 'help', 'scan'];
 const listPaths = { records: '/orders?scope=history', income: '/orders?scope=income', withdrawals: '/withdrawals?' };
 const filters = {
-  records: [{ value: '', label: '全部' }, { value: '已完成', label: '已完成' }, { value: '已关闭', label: '已关闭' }],
-  income: [{ value: '', label: '全部' }, { value: '待结算', label: '待结算' },
-    { value: '售后暂缓', label: '售后暂缓' }, { value: '可提现', label: '已可提现' }]
+  records: [{ value: '', label: '全部' }, { value: 'COMPLETED', label: '已完成' }, { value: 'CLOSED', label: '已关闭' }],
+  income: [{ value: '', label: '全部' }, { value: 'PENDING_SETTLEMENT', label: '待结算' },
+    { value: 'SETTLEMENT_HELD', label: '售后暂缓' }, { value: 'WITHDRAWABLE', label: '已可提现' }]
 };
 
 function path(page, id) {
@@ -115,20 +117,20 @@ function register(screen) {
       this.setData({ loading: true, error: '' });
       try {
         const profile = await api.request('/profile');
-        const approved = profile.auditStatus === '已通过';
+        const approved = profile.auditStatus === 'APPROVED';
         const gate = !approved && !profileOnly.includes(screen) && !['mine', 'home'].includes(screen);
         const patch = {
           profile: { ...profile, displayPhone: display.maskPhone(profile.phone), initial: (profile.name || '骑').slice(0, 1) },
           approved,
           gate: gate || (!approved && screen === 'scan'),
-          audit: auditLabels[profile.auditStatus] || auditLabels.未入驻
+          audit: auditLabels[profile.auditStatus] || auditLabels.NOT_ENROLLED
         };
         if (approved && !profileOnly.includes(screen)) Object.assign(patch, await this.loadScreen());
         if (screen === 'join' && !this.formLoaded) {
-          const timeIndex = timeOptions.indexOf(profile.availableTime);
+          const timeIndex = availabilityCodes.indexOf(profile.availability);
           patch.form = { name: profile.name || '', phone: profile.phone || '', availableTime: profile.availableTime || '' };
-          patch.genderIndex = genderOptions.indexOf(profile.gender);
-          patch.timeIndex = timeIndex < 0 && profile.availableTime ? 3 : timeIndex;
+          patch.genderIndex = genderCodes.indexOf(profile.gender);
+          patch.timeIndex = timeIndex;
           this.formLoaded = true;
         }
         if (this.refreshSequence === sequence) {
@@ -423,7 +425,7 @@ function register(screen) {
       } else {
         const availableTime = index === 3
           ? (this.data.timeIndex === 3 ? this.data.form.availableTime : '')
-          : timeOptions[index];
+          : '';
         this.setData({ timeIndex: index, 'form.availableTime': availableTime, picker: null });
       }
     },
@@ -450,19 +452,22 @@ function register(screen) {
 
     async submitApplication() {
       if (this.data.busy) return;
-      const { form, genderIndex, consent, studentCard } = this.data;
+      const { form, genderIndex, timeIndex, consent, studentCard } = this.data;
       let fieldError = '';
       if (!form.name?.trim()) fieldError = '请输入姓名';
       else if (!/^1[3-9]\d{9}$/.test(form.phone || '')) fieldError = '请输入有效的手机号';
       else if (genderIndex < 0) fieldError = '请选择性别';
-      else if (!form.availableTime?.trim()) fieldError = '请选择或填写可送餐时间';
+      else if (timeIndex < 0 || (timeIndex === 3 && !form.availableTime?.trim())) fieldError = '请选择或填写可送餐时间';
       else if (!studentCard) fieldError = '请上传学生证照片';
       else if (!consent) fieldError = '请确认学生证及联系方式的使用说明';
       this.setData({ fieldError });
       if (fieldError) return;
       this.setData({ busy: true });
       try {
-        await api.apply({ ...form, gender: genderOptions[genderIndex] }, studentCard);
+        await api.apply({
+          ...form, gender: genderCodes[genderIndex], availability: availabilityCodes[timeIndex],
+          availableTime: timeIndex === 3 ? form.availableTime.trim() : ''
+        }, studentCard);
         navigate('audit', '', true);
       } catch (error) {
         this.setData({ fieldError: errorMessage(error) });

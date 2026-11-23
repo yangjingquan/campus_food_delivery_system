@@ -49,7 +49,7 @@ Page({
 
   async pay() {
     const { payment, paying, expired } = this.data;
-    if (!payment || payment.status !== '未支付' || paying || expired) return;
+    if (!payment || payment.status !== 'UNPAID' || paying || expired) return;
     this.setData({ paying: true, payError: '' });
     try {
       if (payment.mode === 'mock') {

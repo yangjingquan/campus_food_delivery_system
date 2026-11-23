@@ -26,7 +26,7 @@ Page({
       if (access.blocked) return;
       const rows = (await api.request('/products')).map(item => ({
         ...item, price: ui.money(item.priceCents),
-        status: !item.available ? '已下架' : item.availableStock <= 0 ? '已售罄' : '在售'
+        status: !item.available ? 'PRODUCT_UNLISTED' : item.availableStock <= 0 ? 'PRODUCT_SOLD_OUT' : 'PRODUCT_AVAILABLE'
       }));
       this.setData({ rows });
       this.applyFilter(false);
