@@ -903,6 +903,7 @@ function runRowAction(row: Row) {
 
 <style scoped>
 .order-merchant-select { width: 190px; max-width: 100%; }
+.order-merchant-select :deep(.el-select__wrapper.is-focused .el-select__input:focus-visible) { outline: none; }
 .merchant-image-field { width: 100%; }
 .merchant-image-field :deep(.el-upload-dragger) { padding: 12px; }
 .merchant-image-field :deep(.el-icon--upload) { margin: 0 0 6px; font-size: 30px; }
