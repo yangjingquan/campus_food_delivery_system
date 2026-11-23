@@ -1,11 +1,12 @@
 const api = require('../../utils/api');
+const { deliveryFee } = require('../../utils/display');
 
 const { showDialog, dialogEvents } = require('../../utils/dialog');
 
 Page({
   ...dialogEvents,
   data: {
-    user: null, config: {}, working: false, message: '',
+    user: null, working: false, message: '',
     editingNickname: false, avatarPath: '', draftName: '', profileAction: ''
   },
 
@@ -15,7 +16,6 @@ Page({
   },
 
   async refresh() {
-    getApp().getConfig().then(config => this.setData({ config })).catch(() => {});
     const token = wx.getStorageSync('userToken');
     if (!token) {
       this.setData({ user: null, avatarPath: '' });
@@ -141,19 +141,37 @@ Page({
     this.setData({ user: null, editingNickname: false, avatarPath: '', message: '' });
   },
 
+  async showDeliveryRules() {
+    const title = '配送规则与费用';
+    showDialog(this, { title, content: '正在获取配送配置…' });
+    const request = this.deliveryRulesRequest = getApp().getConfig(true);
+    let content = '暂时无法获取配送配置，请稍后重试。';
+    try {
+      const config = await request;
+      const rule = config.deliveryFeeRule;
+      if ((rule?.value ?? config.deliveryFeeCents) != null) {
+        const fee = deliveryFee(rule, config.deliveryFeeCents);
+        content = `平台默认按商户订单收取配送费，每单 ${fee}。商户单独定价以结算页为准。`;
+      } else {
+        content = '暂时无法获取配送费，请稍后重试。';
+      }
+      if (config.serviceStart && config.serviceEnd) {
+        content += `配送时段 ${config.serviceStart}–${config.serviceEnd}`;
+        content += config.peakBatchMinutes == null ? '。' : `，高峰每 ${config.peakBatchMinutes} 分钟一批。`;
+      }
+    } catch (_) {
+      // 读取失败时显示提示，用户重新打开即可重试。
+    }
+    if (this.deliveryRulesRequest === request && this.data.dialog?.title === title) {
+      this.setData({ 'dialog.content': content });
+    }
+  },
+
   open(event) {
     const action = event.currentTarget.dataset.action;
     if (action === 'orders') wx.switchTab({ url: '/pages/orders/index' });
     if (action === 'addresses') wx.navigateTo({ url: '/pages/addresses/index' });
-    if (action === 'rules') {
-      const config = this.data.config;
-      showDialog(this, {
-        title: '配送规则与费用',
-        content: config.serviceStart
-          ? `配送费按商户结算页展示的金额收取。配送时段 ${config.serviceStart}–${config.serviceEnd}，高峰每 ${config.peakBatchMinutes} 分钟一批。`
-          : '暂时无法获取配送配置，请稍后重试。'
-      });
-    }
+    if (action === 'rules') return this.showDeliveryRules();
     if (action === 'privacy') {
       wx.openPrivacyContract({
         fail: () => wx.showToast({ title: '暂时无法打开隐私保护指引', icon: 'none' })

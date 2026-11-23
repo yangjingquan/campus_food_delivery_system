@@ -1,4 +1,3 @@
-<wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="sectiontitle no-top"><text>提现记录</text><text class="small muted">已加载 {{items.length}} 笔</text></view>
 <view wx:if="{{items.length}}" class="card flush">

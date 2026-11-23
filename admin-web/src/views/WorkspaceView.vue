@@ -27,6 +27,7 @@ const rows = ref<Row[]>([])
 const relatedOrders = ref<Order[]>([])
 const keyword = ref('')
 const statusFilter = ref('')
+const orderMerchantFilter = ref('')
 const finance = ref<Record<FinanceSection, Row[]>>({ accounts: [], ledger: [], debts: [], journal: [] })
 let loadRequest = 0
 const drawer = ref(false)
@@ -174,12 +175,28 @@ function canRetryWithdrawal(row: Row) {
 const statusFields: Record<string, string> = { merchants: 'auditStatus', riders: 'auditStatus', orders: 'fulfillStatus', aftersales: 'status', withdrawals: 'status' }
 const statusKey = computed(() => statusFields[section.value] || 'status')
 const statusOptions = computed(() => [...new Set(currentRows.value.map((row) => String(row[statusKey.value] ?? '')).filter(Boolean))])
+const orderMerchantOptions = computed(() => {
+  if (section.value !== 'orders') return []
+  const merchants = new Map<string, string>()
+  for (const row of rows.value) {
+    if (row.merchantId && !merchants.has(row.merchantId)) {
+      merchants.set(row.merchantId, row.merchant || row.merchantId)
+    }
+  }
+  const nameCounts = new Map<string, number>()
+  for (const name of merchants.values()) nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1)
+  return Array.from(merchants, ([id, name]) => ({
+    id,
+    label: (nameCounts.get(name) ?? 0) > 1 ? `${name}（${id}）` : name,
+  })).sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
+})
 const filteredRows = computed(() => currentRows.value.filter((row) => {
+  if (section.value === 'orders' && orderMerchantFilter.value && row.merchantId !== orderMerchantFilter.value) return false
   const text = Object.keys(row).map((key) => displayValue(row, key)).filter((value) => typeof value === 'string' || typeof value === 'number').join(' ').toLowerCase()
   return (!keyword.value || text.includes(keyword.value.toLowerCase())) && (!statusFilter.value || row[statusKey.value] === statusFilter.value)
 }))
 const { page, pageSize, total, pageRows } = useListPagination(() => filteredRows.value)
-watch([keyword, statusFilter, section, financeSection], () => { page.value = 1 })
+watch([keyword, statusFilter, orderMerchantFilter, section, financeSection], () => { page.value = 1 })
 
 async function load() {
   const request = ++loadRequest
@@ -210,6 +227,7 @@ watch([section, financeSection], ([nextSection], [previousSection]) => {
   printerForm.pkey = ''
   keyword.value = ''
   statusFilter.value = ''
+  orderMerchantFilter.value = ''
   if (nextSection !== previousSection) {
     rows.value = []
     relatedOrders.value = []
@@ -334,6 +352,7 @@ function searchList() {
 function resetFilters() {
   keyword.value = ''
   statusFilter.value = ''
+  orderMerchantFilter.value = ''
   page.value = 1
 }
 async function audit(row: Row, subject: string, decision: 'approve' | 'reject') {
@@ -640,6 +659,10 @@ function runRowAction(row: Row) {
     <div class="panel-toolbar">
       <div class="filter-set">
         <el-input v-model="keyword" clearable placeholder="搜索编号、名称或说明" aria-label="搜索编号、名称或说明" class="toolbar-search" :prefix-icon="Search" @keyup.enter="searchList" />
+        <el-select v-if="section === 'orders'" v-model="orderMerchantFilter" clearable filterable
+          placeholder="全部商户" aria-label="按商户筛选订单" class="order-merchant-select">
+          <el-option v-for="merchant in orderMerchantOptions" :key="merchant.id" :label="merchant.label" :value="merchant.id" />
+        </el-select>
         <el-select v-model="statusFilter" clearable placeholder="全部状态" aria-label="筛选状态" class="status-select"><el-option v-for="status in statusOptions" :key="status" :label="stateLabel(status)" :value="status" /></el-select>
         <el-button @click="searchList"><el-icon><Search /></el-icon>查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
@@ -879,6 +902,7 @@ function runRowAction(row: Row) {
 
 
 <style scoped>
+.order-merchant-select { width: 190px; max-width: 100%; }
 .merchant-image-field { width: 100%; }
 .merchant-image-field :deep(.el-upload-dragger) { padding: 12px; }
 .merchant-image-field :deep(.el-icon--upload) { margin: 0 0 6px; font-size: 30px; }
