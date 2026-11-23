@@ -12,6 +12,7 @@ public class WithdrawalTransfer {
     private WithdrawalStates.Transfer status;
     private String channelReference;
     private String reason;
+    private Boolean retryRequested;
 
     public String getId() {
         return id;
@@ -31,5 +32,9 @@ public class WithdrawalTransfer {
 
     public String getReason() {
         return reason;
+    }
+
+    public Boolean getRetryRequested() {
+        return retryRequested;
     }
 }

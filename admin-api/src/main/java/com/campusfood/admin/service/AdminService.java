@@ -278,7 +278,7 @@ public class AdminService {
             case "rider.audit" -> "rider.audit";
             case "order.coordinate" -> "order.coordinate";
             case "refund.apply", "refund.offline", "refund.query" -> "refund.manage";
-            case "withdrawal.review" -> "withdrawal.review";
+            case "withdrawal.review", "withdrawal.retry" -> "withdrawal.review";
             case "config.save", "config.save-printing" -> "config.edit";
             case "wechat.save-app", "wechat.save-payment", "wechat.rollback" -> "wechat.edit";
             default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "操作不存在");
@@ -292,6 +292,7 @@ public class AdminService {
         if (type.equals("config.save-printing")) return printing.save(payload, username);
         if (type.equals("merchant.save-printer")) return merchantPrinters.save(payload, username);
         if (type.equals("withdrawal.review")) return withdrawals.review(payload, username);
+        if (type.equals("withdrawal.retry")) return withdrawals.retry(payload, username);
         if (!type.equals("merchant.audit") && !type.equals("rider.audit"))
             return business.action(type, payload, username);
         String id = String.valueOf(payload.get("id"));

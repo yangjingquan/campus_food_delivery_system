@@ -28,6 +28,7 @@ const drawer = ref(false)
 const printerDialog = ref(false)
 const printerLoadingId = ref('')
 const printerSaving = ref(false)
+const retryingWithdrawalId = ref('')
 const printerTarget = ref<{ id: string; name: string; saved: MerchantPrinter }>()
 const printerForm = reactive({ sn: '', pkey: '' })
 const printerNeedsPkey = computed(() => !printerTarget.value?.saved.pkeySet || printerForm.sn.trim() !== printerTarget.value.saved.sn)
@@ -37,6 +38,7 @@ const merchantPhoto = ref('')
 const photoError = ref('')
 let photoRequest = 0
 const keyNames: Record<string, string> = {
+  originalWithdrawalId: '原提现编号',
   id: '编号', name: '名称', contact: '联系人', phone: '联系方式', address: '地址', auditStatus: '审核状态', auditReason: '审核说明', businessStatus: '营业状态', orderCount: '订单数', joinedAt: '登记时间',
   gender: '性别', availableTime: '可送餐时间', deliveries: '配送单数', balanceCents: '可提现余额', paymentId: '合并支付单号', merchantId: '商户编号', merchant: '商户', rider: '骑手', items: '商品摘要', foodCents: '餐品金额', deliveryCents: '配送费', paidCents: '用户实付', refundedCents: '累计退款', foodRefundedCents: '累计退餐品', paymentStatus: '支付状态', fulfillStatus: '履约状态', refundStatus: '售后状态', settlementStatus: '结算状态', accepted: '商户已接单', pendingRefund: '存在处理中退款', locking: '结算锁定', paymentCount: '支付单退款次数', paidAt: '支付时间', completedAt: '完成时间', closedAt: '关闭时间', intervene: '待管理员介入', interveneReason: '介入原因', coordinationNotes: '协调记录',
   reason: '说明', type: '类型', amountCents: '金额', status: '处理状态', channelStatus: '渠道状态', createdAt: '创建时间', operator: '操作人', applicant: '申请主体', applicantType: '主体类型', time: '时间', subject: '账务主体', foodAmount: '餐品金额', deliveryAmount: '配送费', paidAmount: '实付金额', refundAmount: '退款金额', settlement: '结算状态', riderDue: '骑手应得', merchantBalance: '商户可扣余额', platformAdvance: '平台垫付', recovered: '已扣回', note: '说明',
@@ -112,6 +114,12 @@ const withdrawalStatusLabels: Record<string, string> = {
 function withdrawalDisplayRow(row: Row): Row {
   const status = withdrawalStatusLabels[row.status] ?? row.status
   const reviewable = Number(row.reviewable) === 1
+  if (row.retryRequested === true || Number(row.retryRequested) === 1) {
+    return { ...row, status, reviewable, reason: '重试已提交，等待微信查单' }
+  }
+  if (row.retryMode === 'original') {
+    return { ...row, status, reviewable, reason: '微信运营账户余额不足，充值到账后可重试' }
+  }
   if (status === '待审核' && row.reviewable != null && Number(row.reviewable) === 0) {
     return { ...row, status, reviewable, reason: '已有审核或转账记录，请核对原记录' }
   }
@@ -120,6 +128,10 @@ function withdrawalDisplayRow(row: Row): Row {
 
 function canReviewWithdrawal(row: Row) {
   return auth.can('withdrawal.review') && row.status === '待审核' && row.reviewable === true
+}
+
+function canRetryWithdrawal(row: Row) {
+  return auth.can('withdrawal.review') && ['original', 'new'].includes(row.retryMode)
 }
 
 const statusFields: Record<string, string> = { merchants: 'auditStatus', riders: 'auditStatus', orders: 'fulfillStatus', aftersales: 'status', withdrawals: 'status' }
@@ -296,6 +308,28 @@ async function reviewWithdrawal(row: Row, decision: 'approve' | 'reject') {
     await load()
   } catch(error) { if(error instanceof Error && !['cancel', 'close'].includes(error.message)) ElMessage.error(error.message) }
 }
+async function retryWithdrawal(row: Row) {
+  if (!canRetryWithdrawal(row) || retryingWithdrawalId.value) return
+  retryingWithdrawalId.value = row.id
+  try {
+    const message = row.retryMode === 'original'
+      ? '请确认微信运营账户已充值到账。提交后将先查询微信原单，再决定是否按原单重试。'
+      : '微信原单已结束。提交后将重新冻结申请金额，并建立关联的重试申请。'
+    await ElMessageBox.confirm(message, '重试打款 ' + money(row.amountCents), {
+      confirmButtonText: '确认重试', cancelButtonText: '取消',
+    })
+    await adminApi.action('withdrawal.retry', { id: row.id })
+    ElMessage.success('已提交打款重试')
+    await load()
+    if (activeRow.value?.id === row.id) {
+      activeRow.value = rows.value.find(item => item.id === row.id) ?? null
+    }
+  } catch (error) {
+    if (error instanceof Error && !['cancel', 'close'].includes(error.message)) ElMessage.error(error.message)
+  } finally {
+    retryingWithdrawalId.value = ''
+  }
+}
 function handlePrimary(row: Row) {
   if (section.value === 'merchants' || section.value === 'riders') openDetails(row)
   else if (section.value === 'orders') openDetails(row)
@@ -371,6 +405,8 @@ function runRowAction(row: Row) {
               <el-button link type="success" @click="reviewWithdrawal(scope.row, 'approve')">通过</el-button>
               <el-button link type="danger" @click="reviewWithdrawal(scope.row, 'reject')">拒绝</el-button>
             </template>
+            <el-button v-if="canRetryWithdrawal(scope.row)" link type="primary"
+              :loading="retryingWithdrawalId === scope.row.id" @click="retryWithdrawal(scope.row)">重试打款</el-button>
           </template>
         </template>
       </el-table-column>
@@ -412,7 +448,11 @@ function runRowAction(row: Row) {
         <p v-else class="muted">{{ photoError || (activeRow.hasPhoto ? '正在加载照片…' : '暂无学生证照片') }}</p>
       </div>
       <div class="detail-grid">
-        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot','hasPhoto','reviewable'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow[key], key) }}</strong></div></template>
+        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!['coordinationNotes','snapshot','hasPhoto','reviewable','retryMode','retryRequested'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow[key], key) }}</strong></div></template>
+      </div>
+      <div v-if="section === 'withdrawals' && canRetryWithdrawal(activeRow)" class="detail-section">
+        <el-button type="primary" :loading="retryingWithdrawalId === activeRow.id"
+          @click="retryWithdrawal(activeRow)">重试打款</el-button>
       </div>
       <template v-if="section === 'orders'">
         <div class="detail-section"><h3>合并支付单关联</h3><div v-for="linked in relatedOrders.filter((order) => order.paymentId === activeRow?.paymentId)" :key="linked.id" class="linked-order"><strong>{{ linked.id }} · {{ linked.merchant }}</strong><span>{{ linked.fulfillStatus }} · {{ money(linked.paidCents) }}</span></div></div>

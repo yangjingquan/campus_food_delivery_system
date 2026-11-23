@@ -23,6 +23,8 @@ public interface WithdrawalDao {
 
     boolean hasReviewHistory(@Param("id") String id);
 
+    boolean hasRetryRecipient(@Param("id") String id, @Param("accountId") String accountId, @Param("type") String type);
+
     int insertTransfer(@Param("transferId") String transferId, @Param("withdrawalId") String withdrawalId,
                        @Param("status") Transfer status);
 

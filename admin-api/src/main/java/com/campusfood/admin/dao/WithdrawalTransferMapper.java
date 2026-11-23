@@ -30,9 +30,17 @@ public interface WithdrawalTransferMapper extends BaseMapper<WithdrawalTransfer>
                 .eq(WithdrawalTransfer::getWithdrawalId, id));
     }
 
+    default int queueRetry(String id) {
+        return update(null, Wrappers.<WithdrawalTransfer>lambdaUpdate()
+                .set(WithdrawalTransfer::getRetryRequested, true)
+                .eq(WithdrawalTransfer::getWithdrawalId, id)
+                .eq(WithdrawalTransfer::getRetryRequested, false));
+    }
+
     default int finalizeTransfer(Transfer status, String channelReference, String reason, String id) {
         return update(null, Wrappers.<WithdrawalTransfer>lambdaUpdate()
                 .set(WithdrawalTransfer::getStatus, status).set(WithdrawalTransfer::getChannelReference, channelReference)
+                .set(WithdrawalTransfer::getRetryRequested, false)
                 .set(WithdrawalTransfer::getReason, reason).eq(WithdrawalTransfer::getWithdrawalId, id));
     }
 }

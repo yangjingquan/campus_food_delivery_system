@@ -12,6 +12,8 @@ public class WithdrawalRequest {
     private Long amountCents;
     private WithdrawalStates.Request status;
     private String reason;
+    private String createdAt;
+    private String requestKey;
 
     public String getId() {
         return id;
@@ -31,5 +33,13 @@ public class WithdrawalRequest {
 
     public String getReason() {
         return reason;
+    }
+
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    public String getRequestKey() {
+        return requestKey;
     }
 }

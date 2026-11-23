@@ -25,8 +25,14 @@ public interface WithdrawalRequestMapper extends BaseMapper<WithdrawalRequest> {
     default List<Map<String, Object>> lockWithdrawal(String id) {
         return selectMaps(Wrappers.<WithdrawalRequest>lambdaQuery()
                 .select(WithdrawalRequest::getId, WithdrawalRequest::getAccountId,
-                        WithdrawalRequest::getAmountCents, WithdrawalRequest::getStatus)
+                        WithdrawalRequest::getAmountCents, WithdrawalRequest::getStatus,
+                        WithdrawalRequest::getReason, WithdrawalRequest::getCreatedAt)
                 .eq(WithdrawalRequest::getId, id).last("FOR UPDATE"));
+    }
+
+    default boolean hasPayoutRetry(String id) {
+        return exists(Wrappers.<WithdrawalRequest>lambdaQuery()
+                .eq(WithdrawalRequest::getRequestKey, "payout-retry-" + id));
     }
 
     default List<Map<String, Object>> lockStatus(String id) {

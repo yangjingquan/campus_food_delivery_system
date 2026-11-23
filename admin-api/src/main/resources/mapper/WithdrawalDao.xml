@@ -23,6 +23,27 @@
         WHERE action_name='withdrawal.review' AND target_id=#{id})
     </select>
 
+    <select id="hasRetryRecipient" resultType="boolean">
+        SELECT EXISTS (
+        <choose>
+            <when test="type == '商户'">
+                SELECT 1 FROM merchant_transfer_channel c
+                JOIN merchant_identity i ON i.merchant_id=#{accountId}
+                    AND i.app_id=c.app_id AND i.open_id=c.recipient_open_id
+                JOIN wechat_config cfg ON cfg.id=(SELECT MAX(id) FROM wechat_config)
+                    AND cfg.merchant_app_id=c.app_id AND cfg.merchant_no=c.merchant_no
+            </when>
+            <otherwise>
+                SELECT 1 FROM rider_transfer_channel c
+                JOIN rider_identity i ON i.id=#{accountId} AND i.app_id=c.app_id
+                    AND i.openid=COALESCE(c.recipient_open_id,i.openid) AND i.openid&lt;&gt;''
+                JOIN wechat_config cfg ON cfg.id=(SELECT MAX(id) FROM wechat_config)
+                    AND cfg.rider_app_id=c.app_id AND cfg.merchant_no=c.merchant_no
+            </otherwise>
+        </choose>
+        WHERE c.withdrawal_id=#{id} AND c.channel_state IN ('FAIL','CANCELLED'))
+    </select>
+
     <insert id="insertTransfer">
         INSERT INTO withdrawal_transfer(id,withdrawal_id,status) VALUES(#{transferId},#{withdrawalId},#{status})
     </insert>

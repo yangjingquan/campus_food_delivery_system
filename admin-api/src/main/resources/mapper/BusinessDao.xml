@@ -34,8 +34,21 @@
             AND NOT EXISTS (SELECT 1 FROM admin_audit_log a
               WHERE a.action_name='withdrawal.review' AND a.target_id=w.id)
             AND NOT EXISTS (SELECT 1 FROM withdrawal_transfer t WHERE t.withdrawal_id=w.id)
-            THEN 1 ELSE 0 END AS reviewable
-        FROM withdrawal_request_display w ORDER BY w.created_at DESC
+            THEN 1 ELSE 0 END AS reviewable,
+        CASE WHEN w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION')
+              AND w.reason='微信转账提交异常：HTTP 403 / NOT_ENOUGH'
+              AND t.status IN ('PROCESSING','UNKNOWN') AND t.channel_reference IS NULL AND NOT t.retry_requested
+            THEN 'original'
+            WHEN w.status='PAYOUT_FAILED' AND t.status='FAILED' AND t.channel_reference IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM withdrawal_request r WHERE r.request_key=CONCAT('payout-retry-',w.id))
+            THEN 'new' END AS retryMode,
+        COALESCE(t.retry_requested,0) AS retryRequested,
+        original.id AS originalWithdrawalId
+        FROM withdrawal_request_display w LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
+        JOIN withdrawal_request current_request ON current_request.id=w.id
+        LEFT JOIN withdrawal_request original ON current_request.request_key LIKE 'payout-retry-%'
+            AND original.id=SUBSTRING(current_request.request_key,LENGTH('payout-retry-')+1)
+        ORDER BY w.created_at DESC,w.id
     </select>
 
     <select id="listAccounts" resultType="map">

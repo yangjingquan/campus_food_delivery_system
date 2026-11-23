@@ -9,6 +9,7 @@ import java.time.format.ResolverStyle;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +39,7 @@ class RiderTransferService {
     private static final String OUTCOME_UNKNOWN = "渠道结果待核实，继续查询原转账单";
     private static final String BILL_NOT_FOUND = "微信查无原转账单，资金仍冻结，需核对首次提交结果";
     private static final String SUBMIT_ERROR_PREFIX = "微信转账提交异常：";
+    private static final String FUNDS_INSUFFICIENT = SUBMIT_ERROR_PREFIX + "HTTP 403 / NOT_ENOUGH";
     private static final long REAL_NAME_THRESHOLD = 200_000;
     private enum Party {
         RIDER("骑手", "rider_transfer_channel", "rider_identity i ON i.id=w.account_id",
@@ -70,6 +72,7 @@ class RiderTransferService {
     private final WechatConfigurationService config;
     private final WechatPayClient wechat;
     private final RestClient admin;
+    private final ObjectMapper json;
     private final Settings rider;
     private final Settings merchant;
 
@@ -83,6 +86,7 @@ class RiderTransferService {
         this.db = db;
         this.config = config;
         this.wechat = wechat;
+        this.json = json;
         this.rider = new Settings(scene.trim(), readReports(json, reports));
         this.merchant = new Settings(merchantScene.trim(), readReports(json, merchantReports));
         var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
@@ -138,8 +142,10 @@ class RiderTransferService {
         String trackedScope = forMerchant ? "AND c.channel_state<>'PREPARING'" : "";
         // SQL 标识符及连接条件全部来自固定枚举，业务值通过参数绑定。
         var orders = db.queryForList("""
-            SELECT w.id,w.amount_cents,w.created_at,%s AS name,COALESCE(c.app_id,i.app_id) AS app_id,
-                   %s AS openid,c.config_version,c.channel_state
+            SELECT w.id,w.amount_cents,w.created_at,w.request_key,%s AS name,COALESCE(c.app_id,i.app_id) AS app_id,
+                   COALESCE(c.recipient_open_id,%s) AS openid,%s AS current_openid,c.config_version,
+                   c.channel_state,c.merchant_no,c.request_payload,COALESCE(t.retry_requested,0) AS retry_requested,
+                   t.created_at>CURRENT_TIMESTAMP-INTERVAL 30 DAY AS retry_recent
             FROM withdrawal_request w
             LEFT JOIN %s
             %s
@@ -149,9 +155,10 @@ class RiderTransferService {
                 (w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.withdrawal_id IS NOT NULL %s)
                 OR ((%s) AND i.app_id=? AND %s<>'' %s))
             AND (c.checked_at IS NULL OR c.checked_at<=?)
-            ORDER BY CASE WHEN w.reason IN (?,?) AND c.checked_at IS NULL THEN 1 ELSE 0 END,
+            ORDER BY CASE WHEN t.retry_requested THEN 0 ELSE 1 END,
+                CASE WHEN w.reason IN (?,?) AND c.checked_at IS NULL THEN 1 ELSE 0 END,
                 COALESCE(c.checked_at,0),w.created_at,w.id LIMIT 20
-            """.formatted(party.name, forMerchant ? "COALESCE(c.recipient_open_id,i.open_id)" : party.openId,
+            """.formatted(party.name, party.openId, party.openId,
                 party.identity, forMerchant ? "" : "LEFT JOIN rider r ON r.id=i.id", party.channel, trackedScope,
                 newOrderScope, party.openId, forMerchant ? "AND w.amount_cents<" + REAL_NAME_THRESHOLD
                     + " AND (c.withdrawal_id IS NULL OR (c.app_id=i.app_id AND c.recipient_open_id=i.open_id))"
@@ -160,14 +167,18 @@ class RiderTransferService {
             SUBMIT_BLOCKED, APPLICATION_TIME_INVALID);
         for (var order : orders) {
             String id = order.get("id").toString();
+            boolean retry = truthy(order.get("retry_requested"));
             try {
-                if (order.get("config_version") == null || "PREPARING".equals(order.get("channel_state"))) {
+                if (retry) {
+                    retryOriginal(party, settings, order, id);
+                } else if (order.get("config_version") == null || "PREPARING".equals(order.get("channel_state"))) {
                     long version = order.get("config_version") instanceof Number stored ? stored.longValue() : current.version();
                     initiate(party, settings, order, id, version);
                 } else {
                     query(party, order, id);
                 }
             } catch (DateTimeParseException exception) {
+                if (retry) clearRetry(id);
                 pendingReason(id, APPLICATION_TIME_INVALID);
             } catch (RuntimeException exception) {
                 // 超时或签名未通过时只查询原单。继续冻结，避免二次付款或误解冻。
@@ -178,7 +189,7 @@ class RiderTransferService {
                     """.formatted(party.channel),
                     System.currentTimeMillis(), id);
                 if (exception instanceof WechatPayClient.TransferResponseException response
-                        && (order.get("config_version") == null || "PREPARING".equals(order.get("channel_state")))) {
+                        && !retry && (order.get("config_version") == null || "PREPARING".equals(order.get("channel_state")))) {
                     processingReason(id, SUBMIT_ERROR_PREFIX + response.getMessage(), false);
                     log.warn("WeChat transfer submission for {} returned {}", id, response.getMessage());
                 } else if ("PREPARING".equals(order.get("channel_state"))) {
@@ -198,18 +209,19 @@ class RiderTransferService {
         boolean forMerchant = party == Party.MERCHANT;
         String appId = order.get("app_id").toString();
         String openId = order.get("openid").toString();
-        var payoutReports = forMerchant ? settings.reports() : reportsFor((String) order.get("created_at"));
         var credentials = config.transferPayment(version, forMerchant);
-        String bill = billNumber(id);
-        long amount = ((Number) order.get("amount_cents")).longValue();
-        var payload = new LinkedHashMap<String, Object>(Map.of(
-            "appid", appId, "out_bill_no", bill, "transfer_scene_id", settings.scene(), "openid", openId,
-            "transfer_amount", amount, "transfer_remark", forMerchant ? "校园订单结算提现" : "校园配送收益",
-            "transfer_scene_report_infos", payoutReports
-        ));
-        if (amount >= REAL_NAME_THRESHOLD) {
-            payload.put("user_name", wechat.encryptRecipient(credentials, order.get("name").toString()));
+        String requestKey = Objects.toString(order.get("request_key"), "");
+        if (requestKey.startsWith("payout-retry-") && !Boolean.TRUE.equals(db.queryForObject("""
+            SELECT EXISTS(SELECT 1 FROM %s WHERE withdrawal_id=? AND channel_state IN ('FAIL','CANCELLED')
+                AND app_id=? AND merchant_no=? AND COALESCE(recipient_open_id,?)=?)
+            """.formatted(party.channel), Boolean.class, requestKey.substring("payout-retry-".length()),
+                appId, credentials.merchant(), openId, openId))) {
+            pendingReason(id, "原转账的终态或收款身份需核对");
+            return;
         }
+        String bill = billNumber(id);
+        var payload = payload(party, settings, order, bill, credentials);
+        String snapshot = json.writeValueAsString(payload);
         if (forMerchant && order.get("config_version") == null && db.update("""
             INSERT IGNORE INTO merchant_transfer_channel(withdrawal_id,config_version,app_id,merchant_no,
                 recipient_open_id,channel_state,checked_at)
@@ -221,16 +233,101 @@ class RiderTransferService {
         // 持久化唯一渠道记录后提交一次。进入 SUBMITTING 后只查原单。
         int claimed = forMerchant
             ? db.update("""
-                UPDATE merchant_transfer_channel SET channel_state='SUBMITTING',checked_at=?
+                UPDATE merchant_transfer_channel SET channel_state='SUBMITTING',checked_at=?,request_payload=?
                 WHERE withdrawal_id=? AND channel_state='PREPARING'
-                """, System.currentTimeMillis(), id)
+                """, System.currentTimeMillis(), snapshot, id)
             : db.update("""
-                INSERT IGNORE INTO rider_transfer_channel(withdrawal_id,config_version,app_id,merchant_no,checked_at)
-                VALUES(?,?,?,?,?)
-                """, id, version, appId, credentials.merchant(), System.currentTimeMillis());
+                INSERT IGNORE INTO rider_transfer_channel(withdrawal_id,config_version,app_id,merchant_no,checked_at,
+                    recipient_open_id,request_payload)
+                VALUES(?,?,?,?,?,?,?)
+                """, id, version, appId, credentials.merchant(), System.currentTimeMillis(), openId, snapshot);
         if (claimed == 1) {
             apply(party, id, bill, wechat.transfer(credentials, payload));
         }
+    }
+
+    private Map<String, Object> payload(Party party, Settings settings, Map<String, Object> order, String bill,
+            WechatConfigurationService.PaymentCredentials credentials) {
+        boolean forMerchant = party == Party.MERCHANT;
+        long amount = ((Number) order.get("amount_cents")).longValue();
+        var payload = new LinkedHashMap<String, Object>(Map.of(
+            "appid", order.get("app_id"), "out_bill_no", bill, "transfer_scene_id", settings.scene(),
+            "openid", order.get("openid"), "transfer_amount", amount,
+            "transfer_remark", forMerchant ? "校园订单结算提现" : "校园配送收益",
+            "transfer_scene_report_infos", forMerchant ? settings.reports() : reportsFor((String) order.get("created_at"))));
+        if (amount >= REAL_NAME_THRESHOLD) {
+            payload.put("user_name", wechat.encryptRecipient(credentials, order.get("name").toString()));
+        }
+        return payload;
+    }
+
+    private void retryOriginal(Party party, Settings settings, Map<String, Object> order, String id) {
+        var credentials = config.transferPayment(((Number) order.get("config_version")).longValue(), party == Party.MERCHANT);
+        String bill = billNumber(id);
+        var result = wechat.queryTransfer(credentials, bill);
+        if (!"NOT_FOUND".equals(result.path("code").asText())) {
+            validateTransfer(order, credentials, bill, result);
+            clearRetry(id);
+            apply(party, id, bill, result);
+            return;
+        }
+
+        Object saved = order.get("request_payload");
+        boolean legacy = saved == null;
+        if (!credentials.merchant().equals(order.get("merchant_no")) || !credentials.appId().equals(order.get("app_id"))
+                || order.get("openid") == null || !order.get("openid").equals(order.get("current_openid"))
+                || (legacy && !settings.ready()) || !truthy(order.get("retry_recent"))) {
+            clearRetry(id);
+            processingReason(id, "原单身份、场景配置或查单时效需核对", false);
+            return;
+        }
+        // 新单复用持久化请求，历史余额不足单在微信查无原单时用原申请参数补齐快照。
+        Map<String, Object> payload = legacy ? payload(party, settings, order, bill, credentials)
+                : json.readValue(saved.toString(), new TypeReference<Map<String, Object>>() {});
+        if (!bill.equals(payload.get("out_bill_no")) || !order.get("app_id").equals(payload.get("appid"))
+                || !order.get("openid").equals(payload.get("openid"))
+                || !(payload.get("transfer_amount") instanceof Number amount)
+                || amount.longValue() != ((Number) order.get("amount_cents")).longValue()) {
+            clearRetry(id);
+            processingReason(id, "原转账请求快照与提现申请不匹配", false);
+            return;
+        }
+        int claimed = db.update("""
+            UPDATE %s c JOIN withdrawal_transfer t ON t.withdrawal_id=c.withdrawal_id
+            JOIN withdrawal_request w ON w.id=c.withdrawal_id JOIN finance_account a ON a.id=w.account_id
+            SET t.retry_requested=FALSE,c.channel_state='SUBMITTING',c.checked_at=?,c.request_payload=?,
+                c.recipient_open_id=?,w.reason='已发起原单重试，等待微信结果'
+            WHERE w.id=? AND w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND w.reason=?
+                AND c.channel_state='UNKNOWN' AND c.package_info IS NULL AND t.retry_requested
+                AND t.status IN ('PROCESSING','UNKNOWN') AND t.channel_reference IS NULL
+                AND a.frozen_cents>=w.amount_cents
+                AND (SELECT SUM(j.frozen_delta) FROM account_journal j
+                     WHERE j.reference_id=w.id AND j.account_id=w.account_id)=w.amount_cents
+            """.formatted(party.channel), System.currentTimeMillis(), json.writeValueAsString(payload),
+            order.get("openid"), id, FUNDS_INSUFFICIENT);
+        if (claimed == 0) {
+            db.update("""
+                UPDATE withdrawal_transfer t JOIN withdrawal_request w ON w.id=t.withdrawal_id
+                SET t.retry_requested=FALSE,w.reason='重试条件已变化，请核对原单及冻结流水'
+                WHERE w.id=? AND w.reason=? AND t.retry_requested
+                """, id, FUNDS_INSUFFICIENT);
+            return;
+        }
+        try {
+            apply(party, id, bill, wechat.transfer(credentials, payload));
+        } catch (WechatPayClient.TransferResponseException response) {
+            db.update("UPDATE " + party.channel + " SET channel_state='UNKNOWN' WHERE withdrawal_id=? AND channel_state='SUBMITTING'", id);
+            processingReason(id, SUBMIT_ERROR_PREFIX + response.getMessage(), false);
+            log.warn("WeChat original transfer retry for {} returned {}", id, response.getMessage());
+        }
+    }
+
+    private void clearRetry(String id) {
+        db.update("UPDATE withdrawal_transfer SET retry_requested=FALSE WHERE withdrawal_id=? AND retry_requested", id);
+    }
+
+    private static boolean truthy(Object value) {
+        return Boolean.TRUE.equals(value) || value instanceof Number number && number.intValue() != 0;
     }
 
     /** 申请时间在管理员端已按北京时间入库，生成报备时只去掉秒。 */
@@ -262,15 +359,20 @@ class RiderTransferService {
             processingReason(id, BILL_NOT_FOUND, true);
             return;
         }
+        validateTransfer(order, credentials, bill, result);
+        apply(party, id, bill, result);
+    }
+
+    private void validateTransfer(Map<String, Object> order,
+            WechatConfigurationService.PaymentCredentials credentials, String bill, JsonNode result) {
         // 查单的签名、商户、AppID、收款人及金额均须匹配原提现申请。
-        if (bill.equals(result.path("out_bill_no").asText())
-                && (!credentials.merchant().equals(result.path("mch_id").asText())
+        if (!bill.equals(result.path("out_bill_no").asText())
+                || !credentials.merchant().equals(result.path("mch_id").asText())
                     || !order.get("app_id").equals(result.path("appid").asText())
                     || !order.get("openid").equals(result.path("openid").asText())
-                    || ((Number) order.get("amount_cents")).longValue() != result.path("transfer_amount").asLong(-1))) {
+                    || ((Number) order.get("amount_cents")).longValue() != result.path("transfer_amount").asLong(-1)) {
             throw WechatConfigurationService.paymentUnavailable();
         }
-        apply(party, id, bill, result);
     }
 
     private void apply(Party party, String id, String bill, JsonNode result) {

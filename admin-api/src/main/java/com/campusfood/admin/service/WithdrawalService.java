@@ -21,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 /** 处理提现申请、审核和可信渠道返回的转账结果。 */
 @Service
 public class WithdrawalService {
+    private static final String WECHAT_FUNDS_INSUFFICIENT = "微信转账提交异常：HTTP 403 / NOT_ENOUGH";
     private final WithdrawalDao db;
     private final FinanceAccountMapper accounts;
     private final FinanceDebtMapper debts;
@@ -149,6 +150,65 @@ public class WithdrawalService {
         requests.updateStatus(next, decision.equals("approve") ? "审核通过，等待渠道发起" : reason, id);
         db.insertReviewAudit(actor, "withdrawal.review", id, Request.PENDING_REVIEW.label(), next.label(), reason);
         return Map.of("ok", true, "status", next.label());
+    }
+
+    @Transactional
+    public Map<String, Object> retry(Map<?, ?> payload, String actor) {
+        String id = val(payload, "id");
+        if (!id.matches("W[0-9a-f]{32}"))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "提现编号无效");
+        var rows = requests.lockWithdrawal(id);
+        if (rows.isEmpty())
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "提现申请不存在");
+        var withdrawal = rows.get(0);
+        var attempts = transfers.lockTransfer(id);
+        if (attempts.isEmpty())
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "缺少原转账记录");
+        var attempt = attempts.get(0);
+        var status = Request.valueOf(withdrawal.get("status").toString());
+        var transfer = Transfer.valueOf(attempt.get("status").toString());
+        boolean hasChannelReference = !Objects.toString(attempt.get("channel_reference"), "").isBlank();
+        if ((status == Request.TRANSFERRING || status == Request.AWAITING_CONFIRMATION)
+                && (transfer == Transfer.PROCESSING || transfer == Transfer.UNKNOWN) && !hasChannelReference
+                && WECHAT_FUNDS_INSUFFICIENT.equals(withdrawal.get("reason"))) {
+            if (transfers.queueRetry(id) != 1)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "该笔提现已在重试队列中");
+            db.insertReviewAudit(actor, "withdrawal.retry", id, status.label(), status.label(), "原单重试");
+            return Map.of("ok", true, "withdrawalId", id);
+        }
+        if (status != Request.PAYOUT_FAILED || transfer != Transfer.FAILED || !hasChannelReference)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前渠道状态不允许重试打款");
+        if (requests.hasPayoutRetry(id))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "已存在关联的重试申请");
+
+        String accountId = Objects.toString(withdrawal.get("account_id"), "");
+        var accountRows = accounts.lockForWithdrawal(accountId);
+        if (accountRows.isEmpty())
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "提现资金账户不存在");
+        var account = accountRows.get(0);
+        String type = Objects.toString(account.get("type"), "");
+        long amount = ((Number) withdrawal.get("amount_cents")).longValue();
+        if (!"正常".equals(account.get("status")) || !List.of("商户", "骑手").contains(type)
+                || ((Number) account.get("balance_cents")).longValue() < amount)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "提现账户不可用或可提现余额不足");
+        if ("商户".equals(type) && (requests.hasInFlight(accountId) || !debts.lockOutstandingDebts(accountId).isEmpty()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先处理该商户进行中的提现或欠款");
+        if ("商户".equals(type) && amount >= 200_000)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该金额需先核验商户收款人实名");
+        if (!db.hasRetryRecipient(id, accountId, type))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "原转账终态或收款身份需核对");
+
+        // 微信已终结的单据保留原流水，使用关联申请和新的渠道单号。
+        String retryId = "W" + UUID.randomUUID().toString().replace("-", "");
+        String key = "payout-retry-" + id;
+        if (accounts.freezeAvailable(amount, amount, accountId) != 1)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "重新冻结申请金额失败");
+        journal(accountId, "withdraw_freeze", retryId, -amount, amount);
+        db.insertWithdrawal(retryId, account.get("name"), type, amount, Request.PENDING_PAYOUT,
+                Objects.toString(withdrawal.get("created_at")), accountId, key);
+        requests.updateStatus(Request.PENDING_PAYOUT, "原单打款失败，等待渠道重试", retryId);
+        db.insertReviewAudit(actor, "withdrawal.retry", id, status.label(), status.label(), "关联重试申请 " + retryId);
+        return Map.of("ok", true, "withdrawalId", retryId);
     }
 
     @Transactional
