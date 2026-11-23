@@ -72,7 +72,9 @@ public class StoreService {
             return;
         }
 
-        String status = db.queryForObject("SELECT audit_status FROM merchant WHERE id=? FOR UPDATE", String.class, id);
+        String status = db.query("SELECT audit_status FROM merchant WHERE id=? AND deleted_at IS NULL FOR UPDATE",
+            (row, n) -> row.getString(1), id).stream().findFirst()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "商户档案已删除"));
         if (Audit.REJECTED.is(status)) {
             db.update("""
                 UPDATE merchant SET name=?,contact=?,phone=?,address=?,audit_status='PENDING_REVIEW',audit_reason=NULL
@@ -107,13 +109,13 @@ public class StoreService {
     }
 
     public void businessStatus(String id, Map<String, Object> body) {
-        db.update("UPDATE merchant SET business_status=? WHERE id=? AND audit_status='APPROVED'",
+        db.update("UPDATE merchant SET business_status=? WHERE id=? AND audit_status='APPROVED' AND deleted_at IS NULL",
             Inputs.flag(body, "open", "营业状态") ? Business.STORE_OPEN.name() : Business.STORE_CLOSED.name(), id);
     }
 
     public void minimumOrder(String id, Map<String, Object> body) {
         long cents = Inputs.integer(body, "minimumOrderCents", "起送价（分）", 0, 99_999_999_999L);
-        db.update("UPDATE merchant SET minimum_order_cents=? WHERE id=? AND audit_status='APPROVED'", cents, id);
+        db.update("UPDATE merchant SET minimum_order_cents=? WHERE id=? AND audit_status='APPROVED' AND deleted_at IS NULL", cents, id);
     }
 
     private void savePhoto(String id, UploadedPhoto photo) {

@@ -468,7 +468,8 @@ public class OrderService {
                 SELECT p.id,p.merchant_id,m.name,p.name,p.description,p.price_cents,p.stock,p.reserved,
                        m.business_status,m.minimum_order_cents,m.order_code,m.address
                 FROM merchant_product p JOIN merchant m ON m.id=p.merchant_id
-                WHERE p.id=? AND p.available=TRUE AND m.audit_status='APPROVED' FOR UPDATE
+                WHERE p.id=? AND p.available=TRUE AND p.deleted_at IS NULL AND m.audit_status='APPROVED'
+                    AND m.listed AND m.deleted_at IS NULL FOR UPDATE
                 """, (rs, rowNum) -> new CatalogLine(rs.getString(1), rs.getString(2), rs.getString(3),
                     rs.getString(4), rs.getString(5), rs.getLong(6), rs.getInt(7), rs.getInt(8),
                     rs.getString(9), rs.getLong(10), rs.getLong(11), rs.getString(12)), request.productId());

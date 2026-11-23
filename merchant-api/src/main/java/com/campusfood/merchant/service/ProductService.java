@@ -25,11 +25,12 @@ public class ProductService {
             SELECT p.id,p.name,p.category,p.description,p.price_cents AS priceCents,p.stock,p.reserved,p.available,
                    GREATEST(0,p.stock-p.reserved) AS availableStock,
                    EXISTS(SELECT 1 FROM merchant_product_photo photo WHERE photo.product_id=p.id) AS hasPhoto
-            FROM merchant_product p WHERE p.merchant_id=? ORDER BY p.display_order,p.updated_at DESC,p.id
+            FROM merchant_product p WHERE p.merchant_id=? AND p.deleted_at IS NULL
+            ORDER BY p.display_order,p.updated_at DESC,p.id
             """, merchant);
     }
 
-    /** 为管理员提供只读商品目录，包含已下架商品与商户信息。 */
+    /** 管理商品目录包含已下架的商品。 */
     public Map<String, Object> adminCatalog(String keyword, String merchantId, String availability,
                                             int requestedPage, int requestedPageSize) {
         int page = Math.max(1, requestedPage);
@@ -39,7 +40,7 @@ public class ProductService {
         String storeId = merchantId == null ? "" : merchantId.trim();
         String status = availability == null ? "" : availability.trim();
 
-        StringBuilder conditions = new StringBuilder(" WHERE 1=1");
+        StringBuilder conditions = new StringBuilder(" WHERE p.deleted_at IS NULL AND m.deleted_at IS NULL");
         java.util.List<Object> parameters = new java.util.ArrayList<>();
         if (!search.isEmpty()) {
             conditions.append(" AND (p.id LIKE ? OR p.name LIKE ? OR p.category LIKE ? OR m.name LIKE ?)");
@@ -74,7 +75,11 @@ public class ProductService {
 
     /** 管理员查看商品原图，只读取商户服务保存的商品图片。 */
     public UploadedPhoto adminPhoto(String id) {
-        return db.query("SELECT image_data,media_type FROM merchant_product_photo WHERE product_id=?",
+        return db.query("""
+            SELECT x.image_data,x.media_type FROM merchant_product_photo x
+            JOIN merchant_product p ON p.id=x.product_id JOIN merchant m ON m.id=p.merchant_id
+            WHERE x.product_id=? AND p.deleted_at IS NULL AND m.deleted_at IS NULL
+            """,
             (row, n) -> new UploadedPhoto(row.getBytes(1), row.getString(2)), id)
             .stream().findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商品图片不存在"));
     }
@@ -82,7 +87,7 @@ public class ProductService {
     public UploadedPhoto photo(String merchant, String id) {
         return db.query("""
             SELECT photo.image_data,photo.media_type FROM merchant_product_photo photo
-            JOIN merchant_product p ON p.id=photo.product_id WHERE p.merchant_id=? AND p.id=?
+            JOIN merchant_product p ON p.id=photo.product_id WHERE p.merchant_id=? AND p.id=? AND p.deleted_at IS NULL
             """, (row, n) -> new UploadedPhoto(row.getBytes(1), row.getString(2)), merchant, id)
             .stream().findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商品图片不存在"));
     }
@@ -97,6 +102,21 @@ public class ProductService {
 
     @Transactional
     public Map<String, String> save(String merchant, String id, Map<String, Object> body) {
+        requireStore(merchant);
+        return saveProduct(merchant, id, body);
+    }
+
+    @Transactional
+    public Map<String, String> adminSave(String id, Map<String, Object> body) {
+        String merchant = id == null ? Inputs.text(body, "merchantId", "所属商户", 32, true) : owner(id);
+        requireStore(merchant);
+        var fields = new java.util.LinkedHashMap<>(body);
+        Object availability = id == null ? null : requireProduct(merchant, id, true).get("available");
+        fields.put("available", Boolean.TRUE.equals(availability) || availability instanceof Number flag && flag.intValue() != 0);
+        return saveProduct(merchant, id, fields);
+    }
+
+    private Map<String, String> saveProduct(String merchant, String id, Map<String, Object> body) {
         String name = Inputs.text(body, "name", "商品名称", 120, true);
         String category = Inputs.text(body, "category", "分类", 40, true);
         String description = Inputs.text(body, "description", "商品描述", 500, false);
@@ -143,14 +163,50 @@ public class ProductService {
         return Map.of("id", id);
     }
 
+    @Transactional
     public void availability(String merchant, String id, Map<String, Object> body) {
-        requireProduct(merchant, id, false);
+        requireStore(merchant);
+        updateAvailability(merchant, id, body);
+    }
+
+    @Transactional
+    public void adminAvailability(String id, Map<String, Object> body) {
+        String merchant = owner(id);
+        requireStore(merchant);
+        updateAvailability(merchant, id, body);
+    }
+
+    private void updateAvailability(String merchant, String id, Map<String, Object> body) {
+        requireProduct(merchant, id, true);
         db.update("UPDATE merchant_product SET available=? WHERE merchant_id=? AND id=?",
             Inputs.flag(body, "available", "上下架状态"), merchant, id);
     }
 
+    @Transactional
+    public void adminDelete(String id) {
+        String merchant = owner(id);
+        requireStore(merchant);
+        requireProduct(merchant, id, true);
+        // 保留商品编号、预占库存与历史记录，供已创建的订单和退款继续处理。
+        db.update("UPDATE merchant_product SET available=FALSE,deleted_at=CURRENT_TIMESTAMP WHERE id=?", id);
+    }
+
+    private String owner(String id) {
+        return db.query("SELECT merchant_id FROM merchant_product WHERE id=? AND deleted_at IS NULL",
+            (row, n) -> row.getString(1), id).stream().findFirst()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商品不存在"));
+    }
+
+    private void requireStore(String id) {
+        if (db.queryForList("""
+            SELECT id FROM merchant WHERE id=? AND audit_status='APPROVED' AND deleted_at IS NULL FOR SHARE
+            """, String.class, id).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商户已删除或尚未通过审核");
+        }
+    }
+
     private Map<String, Object> requireProduct(String merchant, String id, boolean lock) {
-        String sql = "SELECT stock,reserved FROM merchant_product WHERE merchant_id=? AND id=?";
+        String sql = "SELECT stock,reserved,available FROM merchant_product WHERE merchant_id=? AND id=? AND deleted_at IS NULL";
         return db.queryForList(lock ? sql + " FOR UPDATE" : sql, merchant, id).stream().findFirst()
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商品不存在"));
     }

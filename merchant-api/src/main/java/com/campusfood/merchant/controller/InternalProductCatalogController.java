@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-/** 管理服务专用的商品查询与分类维护接口。 */
+/** 管理服务专用的商品和分类接口。 */
 @RestController
 @RequestMapping("/internal/v1/admin/products")
 public class InternalProductCatalogController {
@@ -102,5 +102,35 @@ public class InternalProductCatalogController {
         UploadedPhoto photo = products.adminPhoto(id);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .contentType(MediaType.parseMediaType(photo.mediaType())).body(photo.data());
+    }
+
+    @PostMapping
+    public Map<String, String> create(@RequestHeader(value = "X-Internal-Key", required = false) String key,
+            @RequestBody Map<String, Object> body) {
+        authorize(key);
+        return products.adminSave(null, body);
+    }
+
+    @PutMapping("/{id}")
+    public Map<String, String> edit(@RequestHeader(value = "X-Internal-Key", required = false) String key,
+            @PathVariable String id, @RequestBody Map<String, Object> body) {
+        authorize(key);
+        return products.adminSave(id, body);
+    }
+
+    @PutMapping("/{id}/availability")
+    public ResponseEntity<Void> availability(@RequestHeader(value = "X-Internal-Key", required = false) String key,
+            @PathVariable String id, @RequestBody Map<String, Object> body) {
+        authorize(key);
+        products.adminAvailability(id, body);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@RequestHeader(value = "X-Internal-Key", required = false) String key,
+            @PathVariable String id) {
+        authorize(key);
+        products.adminDelete(id);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -56,10 +56,11 @@ public class CatalogService {
         String sql = product ? """
             SELECT x.image_data,x.media_type FROM merchant_product_photo x
             JOIN merchant_product p ON p.id=x.product_id JOIN merchant m ON m.id=p.merchant_id
-            WHERE p.id=? AND p.available=TRUE AND m.audit_status='APPROVED'
+            WHERE p.id=? AND p.available=TRUE AND p.deleted_at IS NULL
+                AND m.audit_status='APPROVED' AND m.listed AND m.deleted_at IS NULL
             """ : """
             SELECT x.image_data,x.media_type FROM merchant_store_photo x JOIN merchant m ON m.id=x.merchant_id
-            WHERE m.id=? AND m.audit_status='APPROVED'
+            WHERE m.id=? AND m.audit_status='APPROVED' AND m.listed AND m.deleted_at IS NULL
             """;
         Photo photo = db.query(sql, rs -> rs.next() ? new Photo(rs.getBytes(1), rs.getString(2)) : null, id);
         if (photo == null || !List.of("image/png", "image/jpeg").contains(photo.mediaType())) throw photoMissing();
@@ -79,7 +80,8 @@ public class CatalogService {
     public List<String> categories() {
         return db.queryForList("""
             SELECT DISTINCT p.category FROM merchant_product p JOIN merchant m ON m.id=p.merchant_id
-            WHERE m.audit_status='APPROVED' AND p.available=TRUE AND TRIM(p.category) NOT IN ('','全部')
+            WHERE m.audit_status='APPROVED' AND m.listed AND m.deleted_at IS NULL
+                AND p.available=TRUE AND p.deleted_at IS NULL AND TRIM(p.category) NOT IN ('','全部')
             ORDER BY p.category
             """, String.class);
     }
@@ -93,8 +95,9 @@ public class CatalogService {
             ? "EXISTS(SELECT 1 FROM merchant_product_photo x WHERE x.product_id=p.id)" : "FALSE";
         String sql = "SELECT " + storePhoto + " AS store_photo," + productPhoto + " AS product_photo,m.id AS merchant_id,m.name AS merchant_name,m.address AS merchant_address,m.business_status," +
             "m.minimum_order_cents,p.id AS product_id,p.name AS product_name,p.description,p.category,p.price_cents,p.stock,p.reserved,p.artwork,p.color,p.available " +
-            "FROM merchant m LEFT JOIN merchant_product p ON p.merchant_id=m.id AND p.available=TRUE " +
-            "WHERE m.audit_status='APPROVED' AND (?='' OR m.id=?) AND (?='' OR m.name LIKE ? OR p.name LIKE ?) AND (?='' OR p.category=?) " +
+            "FROM merchant m LEFT JOIN merchant_product p ON p.merchant_id=m.id AND p.available=TRUE AND p.deleted_at IS NULL " +
+            "WHERE m.audit_status='APPROVED' AND m.listed AND m.deleted_at IS NULL " +
+            "AND (?='' OR m.id=?) AND (?='' OR m.name LIKE ? OR p.name LIKE ?) AND (?='' OR p.category=?) " +
             "ORDER BY m.id,p.display_order,p.name";
         String like = "%" + term + "%";
         List<Map<String, Object>> rows = db.queryForList(sql, merchantId, merchantId, term, like, like, categoryFilter, categoryFilter);

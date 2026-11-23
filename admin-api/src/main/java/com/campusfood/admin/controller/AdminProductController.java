@@ -8,13 +8,17 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 管理员端商户商品只读接口。 */
+/** 管理员端商户商品接口。 */
 @RestController
 @RequestMapping("/api/admin/v1/products")
 public class AdminProductController {
@@ -41,5 +45,33 @@ public class AdminProductController {
         ProductPhoto photo = products.photo(authorization, id);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .contentType(MediaType.parseMediaType(photo.mediaType())).body(photo.data());
+    }
+
+    @PostMapping
+    public ResponseEntity<Void> create(@RequestHeader(value = "Authorization", required = false) String auth,
+            @RequestBody Map<String, Object> body) {
+        products.saveProduct(auth, null, body);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Void> edit(@RequestHeader(value = "Authorization", required = false) String auth,
+            @PathVariable String id, @RequestBody Map<String, Object> body) {
+        products.saveProduct(auth, id, body);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/availability")
+    public ResponseEntity<Void> availability(@RequestHeader(value = "Authorization", required = false) String auth,
+            @PathVariable String id, @RequestBody Map<String, Object> body) {
+        products.changeAvailability(auth, id, body);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@RequestHeader(value = "Authorization", required = false) String auth,
+            @PathVariable String id) {
+        products.deleteProduct(auth, id);
+        return ResponseEntity.noContent().build();
     }
 }

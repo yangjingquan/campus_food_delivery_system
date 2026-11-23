@@ -42,6 +42,7 @@ public class AdminService {
     private final WechatService wechat;
     private final PrintingSettingsService printing;
     private final MerchantPrinterSettingsService merchantPrinters;
+    private final MerchantManagementService merchantManagement;
     private final BCryptPasswordEncoder passwords = new BCryptPasswordEncoder();
     private final SecureRandom random = new SecureRandom();
     @Value("${app.bootstrap-user}")
@@ -55,7 +56,7 @@ public class AdminService {
                         AuthorizationService authorization, WithdrawalService withdrawals, WechatService wechat,
                         AdminUserRoleMapper roles, MerchantMapper merchants, RiderMapper riders,
                         ConfigurationLockMapper configurationLocks, PrintingSettingsService printing,
-                        MerchantPrinterSettingsService merchantPrinters) {
+                        MerchantPrinterSettingsService merchantPrinters, MerchantManagementService merchantManagement) {
         this.db = db;
         this.configurationLocks = configurationLocks;
         this.roles = roles;
@@ -68,6 +69,7 @@ public class AdminService {
         this.wechat = wechat;
         this.printing = printing;
         this.merchantPrinters = merchantPrinters;
+        this.merchantManagement = merchantManagement;
     }
 
     // 仅在账户或角色尚未初始化时创建本地引导管理员及超级管理员角色。
@@ -277,6 +279,7 @@ public class AdminService {
         String type = String.valueOf(body.type());
         String permission = switch (type) {
             case "merchant.audit" -> "merchant.audit";
+            case "merchant.create", "merchant.update", "merchant.availability", "merchant.delete" -> "merchant.manage";
             case "merchant.save-printer" -> "merchant.printer.edit";
             case "rider.audit" -> "rider.audit";
             case "order.coordinate" -> "order.coordinate";
@@ -294,6 +297,7 @@ public class AdminService {
         if (type.startsWith("wechat.")) return wechat.action(type, payload, username);
         if (type.equals("config.save-printing")) return printing.save(payload, username);
         if (type.equals("merchant.save-printer")) return merchantPrinters.save(payload, username);
+        if (permission.equals("merchant.manage")) return merchantManagement.action(type, payload, username);
         if (type.equals("withdrawal.review")) return withdrawals.review(payload, username);
         if (type.equals("withdrawal.retry")) return withdrawals.retry(payload, username);
         if (!type.equals("merchant.audit") && !type.equals("rider.audit"))
@@ -309,7 +313,8 @@ public class AdminService {
         int changed;
         if (type.equals("merchant.audit") && id.startsWith("revision:")) {
             String storeId = id.substring("revision:".length());
-            merchants.lockStore(storeId);
+            if (merchants.lockStore(storeId) == null)
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存在");
             changed = merchants.reviewRevision(storeId, result, reason);
             if (changed == 1 && decision.equals("approve")) {
                 merchants.applyRevision(storeId);

@@ -27,6 +27,12 @@ const finance = ref<Record<FinanceSection, Row[]>>({ accounts: [], ledger: [], d
 let loadRequest = 0
 const drawer = ref(false)
 const printerDialog = ref(false)
+const merchantDialog = ref(false)
+const merchantSaving = ref(false)
+const merchantChangingId = ref('')
+const merchantEditingId = ref('')
+const merchantCanOpen = ref(true)
+const merchantForm = reactive({ name: '', contact: '', phone: '', address: '', open: false })
 const printerLoadingId = ref('')
 const printerSaving = ref(false)
 const retryingWithdrawalId = ref('')
@@ -39,7 +45,7 @@ const merchantPhoto = ref('')
 const photoError = ref('')
 let photoRequest = 0
 const keyNames: Record<string, string> = {
-  originalWithdrawalId: '原提现编号',
+  originalWithdrawalId: '原提现编号', listed: '上架状态',
   id: '编号', name: '名称', contact: '联系人', phone: '联系方式', address: '地址', auditStatus: '审核状态', auditReason: '审核说明', businessStatus: '营业状态', orderCount: '订单数', joinedAt: '登记时间',
   gender: '性别', availableTime: '可送餐时间', deliveries: '配送单数', balanceCents: '可提现余额', paymentId: '合并支付单号', merchantId: '商户编号', merchant: '商户', rider: '骑手', items: '商品摘要', foodCents: '餐品金额', deliveryCents: '配送费', paidCents: '用户实付', refundedCents: '累计退款', foodRefundedCents: '累计退餐品', paymentStatus: '支付状态', fulfillStatus: '履约状态', refundStatus: '售后状态', settlementStatus: '结算状态', accepted: '商户已接单', pendingRefund: '存在处理中退款', locking: '结算锁定', paymentCount: '支付单退款次数', paidAt: '支付时间', completedAt: '完成时间', closedAt: '关闭时间', intervene: '待管理员介入', interveneReason: '介入原因', coordinationNotes: '协调记录',
   reason: '说明', type: '类型', amountCents: '金额', status: '处理状态', channelStatus: '渠道状态', createdAt: '创建时间', operator: '操作人', applicant: '申请主体', applicantType: '主体类型', time: '时间', subject: '账务主体', foodAmount: '餐品金额', deliveryAmount: '配送费', paidAmount: '实付金额', refundAmount: '退款金额', settlement: '结算状态', riderDue: '骑手应得', merchantBalance: '商户可扣余额', platformAdvance: '平台垫付', recovered: '已扣回', note: '说明',
@@ -51,6 +57,7 @@ const columnSets: Record<string, Array<{ key: string; label: string; minWidth?: 
     { key: 'id', label: '商户编号', minWidth: 100 }, { key: 'name', label: '商户名称', minWidth: 140 },
     { key: 'contact', label: '联系人', minWidth: 100 }, { key: 'phone', label: '联系方式', minWidth: 130 },
     { key: 'auditStatus', label: '审核状态', minWidth: 105 }, { key: 'businessStatus', label: '营业状态', minWidth: 100 },
+    { key: 'listed', label: '上架状态', minWidth: 95 },
     { key: 'orderCount', label: '订单数', minWidth: 85 }, { key: 'joinedAt', label: '入驻时间', minWidth: 150 },
   ],
   riders: [
@@ -160,6 +167,7 @@ onMounted(() => { void load() })
 watch([section, financeSection], ([nextSection], [previousSection]) => {
   drawer.value = false
   printerDialog.value = false
+  merchantDialog.value = false
   printerForm.pkey = ''
   keyword.value = ''
   statusFilter.value = ''
@@ -252,6 +260,7 @@ async function openDetails(row: Row) {
 function keyLabel(key: string) { return keyNames[key] || key }
 function detailValue(row: Row, key: string) {
   const value = row[key]
+  if (key === 'listed') return merchantListingLabel(row)
   if (stateFields.has(key) || ['availableTime', 'channelStatus', 'interveneReason', 'operator'].includes(key)) {
     return displayValue(row, key) || '—'
   }
@@ -335,6 +344,68 @@ async function retryWithdrawal(row: Row) {
     retryingWithdrawalId.value = ''
   }
 }
+function merchantListed(row: Row) {
+  return row.listed === true || Number(row.listed) === 1
+}
+
+function merchantListingLabel(row: Row) {
+  if (row.businessStatus === 'PROFILE_REVISION') return '—'
+  return merchantListed(row) && row.auditStatus === 'APPROVED' ? '已上架' : '已下架'
+}
+
+function openMerchantForm(row?: Row) {
+  merchantEditingId.value = row?.id || ''
+  merchantCanOpen.value = !row || row.auditStatus === 'APPROVED'
+  Object.assign(merchantForm, {
+    name: row?.name || '', contact: row?.contact || '', phone: row?.phone || '',
+    address: row?.address || '', open: row?.businessStatus === 'STORE_OPEN',
+  })
+  merchantDialog.value = true
+}
+
+async function saveMerchant() {
+  if (merchantSaving.value) return
+  if ([merchantForm.name, merchantForm.contact, merchantForm.phone, merchantForm.address].some(value => !value.trim())) {
+    ElMessage.warning('请填写商户名称、联系人、联系电话和店铺地址')
+    return
+  }
+  merchantSaving.value = true
+  try {
+    await adminApi.action(merchantEditingId.value ? 'merchant.update' : 'merchant.create', {
+      ...merchantForm, id: merchantEditingId.value,
+    })
+    merchantDialog.value = false
+    ElMessage.success('商户已保存')
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '商户保存失败')
+  } finally {
+    merchantSaving.value = false
+  }
+}
+
+async function changeMerchant(row: Row, remove = false) {
+  if (merchantChangingId.value) return
+  const listed = !merchantListed(row)
+  const label = remove ? '删除' : listed ? '上架' : '下架'
+  merchantChangingId.value = row.id
+  try {
+    if (remove || !listed) {
+      await ElMessageBox.confirm(remove ? '商户将从列表和用户端移除，历史订单和账务记录仍可查询。'
+        : '下架后，用户端将隐藏该商户及其商品。', label + '商户 ' + row.name, {
+        confirmButtonText: label, cancelButtonText: '取消', type: 'warning',
+      })
+    }
+    await adminApi.action(remove ? 'merchant.delete' : 'merchant.availability', { id: row.id, listed })
+    ElMessage.success('商户已' + label)
+    await load()
+  } catch (error) {
+    if (error instanceof Error) ElMessage.error(error.message)
+  } finally {
+    merchantChangingId.value = ''
+  }
+}
+
 function handlePrimary(row: Row) {
   if (section.value === 'merchants' || section.value === 'riders') openDetails(row)
   else if (section.value === 'orders') openDetails(row)
@@ -356,6 +427,7 @@ function runRowAction(row: Row) {
 <template>
   <div class="page-heading">
     <h1>{{ title }}</h1>
+    <el-button v-if="section === 'merchants' && auth.can('merchant.manage')" type="primary" @click="openMerchantForm()">新增商户</el-button>
     <el-tag v-if="section === 'orders'" type="warning" effect="light" round>待管理员介入 {{ rows.filter((row) => row.intervene).length }} 项</el-tag>
 
   </div>
@@ -389,17 +461,31 @@ function runRowAction(row: Row) {
       <el-table-column v-if="section === 'orders'" label="介入提醒" width="125" fixed="left"><template #default="scope"><el-tag v-if="scope.row.intervene" type="warning" effect="light" round>待管理员介入</el-tag><span v-else class="muted">—</span></template></el-table-column>
       <el-table-column v-for="column in columns" :key="column.key" :prop="column.key" :label="column.label" :min-width="column.minWidth || 110" show-overflow-tooltip>
         <template #default="scope">
-          <el-tag v-if="['auditStatus','businessStatus','fulfillStatus','refundStatus','settlementStatus','status'].includes(column.key)" :type="statusType(String(scope.row[column.key]))" effect="light" round>{{ displayValue(scope.row, column.key) }}</el-tag>
+          <el-tag v-if="column.key === 'listed' && scope.row.businessStatus !== 'PROFILE_REVISION'"
+            :type="merchantListed(scope.row) && scope.row.auditStatus === 'APPROVED' ? 'success' : 'info'" effect="light" round>
+            {{ merchantListingLabel(scope.row) }}
+          </el-tag>
+          <span v-else-if="column.key === 'listed'">—</span>
+          <el-tag v-else-if="['auditStatus','businessStatus','fulfillStatus','refundStatus','settlementStatus','status'].includes(column.key)" :type="statusType(String(scope.row[column.key]))" effect="light" round>{{ displayValue(scope.row, column.key) }}</el-tag>
           <span v-else-if="column.key === 'amountCents' || column.key === 'paidCents' || column.key === 'balanceCents'">{{ money(Number(scope.row[column.key] || 0)) }}</span>
           <span v-else>{{ displayValue(scope.row, column.key) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" :width="section === 'merchants' && auth.can('merchant.printer.edit') ? 275 : section === 'merchants' || section === 'riders' ? 220 : section === 'aftersales' ? 190 : section === 'withdrawals' ? 250 : 170" fixed="right">
+      <el-table-column label="操作" :width="section === 'merchants' && auth.can('merchant.manage') ? 325 : section === 'merchants' && auth.can('merchant.printer.edit') ? 275 : section === 'merchants' || section === 'riders' ? 220 : section === 'aftersales' ? 190 : section === 'withdrawals' ? 250 : 170" fixed="right">
         <template #default="scope">
           <template v-if="section === 'merchants' || section === 'riders'">
             <el-button link type="primary" @click="runRowAction(scope.row)">{{ rowActionText(scope.row) }}</el-button>
             <el-button v-if="section === 'merchants' && auth.can('merchant.printer.edit') && !String(scope.row.id).startsWith('revision:')"
               link type="primary" :loading="printerLoadingId === scope.row.id" @click="openPrinter(scope.row)">打印机设置</el-button>
+            <template v-if="section === 'merchants' && auth.can('merchant.manage') && !String(scope.row.id).startsWith('revision:')">
+              <el-button link type="primary" @click="openMerchantForm(scope.row)">编辑</el-button>
+              <el-button v-if="scope.row.auditStatus === 'APPROVED'" link :type="merchantListed(scope.row) ? 'warning' : 'success'"
+                :disabled="merchantChangingId === scope.row.id" @click="changeMerchant(scope.row)">
+                {{ merchantListed(scope.row) ? '下架' : '上架' }}
+              </el-button>
+              <el-button link type="danger" :disabled="merchantChangingId === scope.row.id"
+                @click="changeMerchant(scope.row, true)">删除</el-button>
+            </template>
             <template v-if="scope.row.auditStatus === 'PENDING_REVIEW' && auth.can(section === 'merchants' ? 'merchant.audit' : 'rider.audit')"><el-button link type="success" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === 'PROFILE_REVISION' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'approve')">通过</el-button><el-button link type="danger" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === 'PROFILE_REVISION' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'reject')">驳回</el-button></template>
           </template>
           <template v-else-if="section === 'orders'"><el-button link type="primary" @click="handlePrimary(scope.row)">订单详情</el-button><el-button v-if="scope.row.intervene && auth.can('order.coordinate')" link type="warning" @click="coordinate(scope.row as unknown as Order)">记录协调</el-button></template>
@@ -419,6 +505,23 @@ function runRowAction(row: Row) {
     </el-table>
     <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading" />
   </div>
+
+  <el-dialog v-model="merchantDialog" :title="merchantEditingId ? '编辑商户' : '新增商户'" width="min(540px, 94vw)"
+    :close-on-click-modal="!merchantSaving" :show-close="!merchantSaving">
+    <el-form label-position="top" :disabled="merchantSaving" @submit.prevent="saveMerchant">
+      <el-form-item label="商户名称" required><el-input v-model.trim="merchantForm.name" maxlength="120" /></el-form-item>
+      <el-form-item label="联系人" required><el-input v-model.trim="merchantForm.contact" maxlength="80" /></el-form-item>
+      <el-form-item label="联系电话" required><el-input v-model.trim="merchantForm.phone" type="tel" maxlength="32" /></el-form-item>
+      <el-form-item label="店铺地址" required><el-input v-model.trim="merchantForm.address" maxlength="255" /></el-form-item>
+      <el-form-item v-if="merchantCanOpen" label="营业状态">
+        <el-switch v-model="merchantForm.open" active-text="营业中" inactive-text="休息中" />
+      </el-form-item>
+      <div class="form-actions">
+        <el-button @click="merchantDialog = false">取消</el-button>
+        <el-button native-type="submit" type="primary" :loading="merchantSaving">保存</el-button>
+      </div>
+    </el-form>
+  </el-dialog>
 
   <el-dialog v-model="printerDialog" title="打印机设置" width="min(480px, 94vw)" destroy-on-close
     :close-on-click-modal="false" :close-on-press-escape="!printerSaving" :show-close="!printerSaving"

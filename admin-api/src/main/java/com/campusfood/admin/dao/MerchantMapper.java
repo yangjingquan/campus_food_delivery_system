@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.campusfood.admin.entity.Merchant;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -18,11 +19,21 @@ public interface MerchantMapper extends BaseMapper<Merchant> {
     default int updatePendingAudit(Audit status, String reason, String id) {
         return update(null, Wrappers.<Merchant>lambdaUpdate()
                 .set(Merchant::getAuditStatus, status).set(Merchant::getAuditReason, reason)
+                .isNull(Merchant::getDeletedAt)
                 .eq(Merchant::getId, id).eq(Merchant::getAuditStatus, Audit.PENDING_REVIEW));
     }
 
-    @Select("SELECT id FROM merchant WHERE id=#{id} FOR UPDATE")
+    @Select("SELECT id FROM merchant WHERE id=#{id} AND deleted_at IS NULL FOR UPDATE")
     String lockStore(@Param("id") String id);
+
+    @Select("SELECT merchant_id FROM merchant_profile_revision WHERE merchant_id=#{id} AND status='PENDING_REVIEW' FOR UPDATE")
+    String lockPendingRevision(@Param("id") String id);
+
+    @Insert("""
+        INSERT INTO finance_account(id,name,type,balance_cents,status)
+        VALUES(#{id},#{name},'MERCHANT',0,'ACCOUNT_ACTIVE')
+        """)
+    void createFinanceAccount(@Param("id") String id, @Param("name") String name);
 
     @Update("""
         UPDATE merchant_profile_revision SET status=#{status},reason=#{reason}
@@ -57,11 +68,15 @@ public interface MerchantMapper extends BaseMapper<Merchant> {
         """)
     Map<String, Object> revisionPhoto(@Param("id") String id);
 
-    @Select("SELECT COUNT(*) FROM merchant_profile_revision WHERE status='PENDING_REVIEW'")
+    @Select("""
+        SELECT COUNT(*) FROM merchant_profile_revision r JOIN merchant m ON m.id=r.merchant_id
+        WHERE r.status='PENDING_REVIEW' AND m.deleted_at IS NULL
+        """)
     Integer countPendingRevisions();
 
     default Integer countPending() {
-        return Math.toIntExact(selectCount(Wrappers.<Merchant>lambdaQuery().eq(Merchant::getAuditStatus, Audit.PENDING_REVIEW)))
+        return Math.toIntExact(selectCount(Wrappers.<Merchant>lambdaQuery().eq(Merchant::getAuditStatus, Audit.PENDING_REVIEW)
+                .isNull(Merchant::getDeletedAt)))
                 + countPendingRevisions();
     }
 }

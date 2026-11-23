@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Picture } from '@element-plus/icons-vue'
-import { adminApi } from '../api/admin'
+import { adminApi, type FoodCategory } from '../api/admin'
 import ListPagination from '../components/ListPagination.vue'
 import { money } from '../domain/rules'
+import { useAuthStore } from '../stores/auth'
 
 interface ProductRow {
   id: string
@@ -23,8 +24,10 @@ interface ProductRow {
   updatedAt: string | number | Date
 }
 
-interface MerchantOption { id: string; name: string }
+interface MerchantOption { id: string; name: string; auditStatus: string }
 
+const auth = useAuthStore()
+const editable = computed(() => auth.can('product.manage'))
 const loading = ref(false)
 const rows = ref<ProductRow[]>([])
 const merchants = ref<MerchantOption[]>([])
@@ -40,6 +43,18 @@ const photoOpen = ref(false)
 const photoLoading = ref(false)
 const photoUrl = ref('')
 const photoTitle = ref('')
+const editorOpen = ref(false)
+const editing = ref<ProductRow | null>(null)
+const saving = ref(false)
+const busyId = ref('')
+const categories = ref<FoodCategory[]>([])
+const approvedMerchants = computed(() => merchants.value.filter(store => store.auditStatus === 'APPROVED'))
+const form = reactive({
+  merchantId: '', name: '', category: '', description: '',
+  price: undefined as number | undefined, stock: 0 as number | undefined, image: '', imageName: '',
+})
+const readingImage = ref(false)
+let imageRequest = 0
 
 function isAvailable(value: ProductRow['available']) {
   return value === true || value === 1 || value === '1'
@@ -76,9 +91,96 @@ async function loadProducts() {
 async function loadMerchants() {
   try {
     const result = await adminApi.workspace<{ rows: MerchantOption[] }>('merchants')
-    merchants.value = result.rows || []
+    merchants.value = (result.rows || []).filter(store => !store.id.startsWith('revision:'))
   } catch {
     // 商户筛选不可用时仍允许管理员查看完整商品列表。
+  }
+}
+
+async function openEditor(product?: ProductRow) {
+  editing.value = product ?? null
+  ++imageRequest
+  readingImage.value = false
+  Object.assign(form, {
+    merchantId: product?.merchantId || approvedMerchants.value.find(store => store.id === merchantId.value)?.id || '',
+    name: product?.name || '', category: product?.category || '', description: product?.description || '',
+    price: product ? product.priceCents / 100 : undefined, stock: product?.stock ?? 0, image: '', imageName: '',
+  })
+  editorOpen.value = true
+  try {
+    categories.value = await adminApi.foodCategories()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '食品分类加载失败')
+  }
+}
+
+function selectImage(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!['image/jpeg', 'image/png'].includes(file.type) || file.size > 1024 * 1024) {
+    ElMessage.warning('请选择不超过 1 MB 的 JPEG 或 PNG 图片')
+    return
+  }
+  const request = ++imageRequest
+  readingImage.value = true
+  const reader = new FileReader()
+  reader.onload = () => {
+    if (request !== imageRequest) return
+    form.image = String(reader.result)
+    form.imageName = file.name
+  }
+  reader.onerror = () => { if (request === imageRequest) ElMessage.error('商品图片读取失败') }
+  reader.onloadend = () => { if (request === imageRequest) readingImage.value = false }
+  reader.readAsDataURL(file)
+}
+
+async function saveProduct() {
+  if (saving.value || readingImage.value) return
+  const priceCents = Math.round(Number(form.price) * 100)
+  const stock = form.stock
+  if (!form.merchantId || !form.name.trim() || !form.category || !Number.isInteger(priceCents) || priceCents < 1
+      || stock === undefined || !Number.isInteger(stock) || stock < 0 || (!editing.value && !form.image)) {
+    ElMessage.warning('请填写商品资料、有效价格和库存，并为新增商品选择图片')
+    return
+  }
+  saving.value = true
+  try {
+    await adminApi.saveProduct({
+      merchantId: form.merchantId, name: form.name.trim(), category: form.category, description: form.description.trim(),
+      priceCents, stock, previousStock: editing.value?.stock ?? 0, image: form.image,
+    }, editing.value?.id)
+    editorOpen.value = false
+    ElMessage.success('商品已保存')
+    await loadProducts()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '商品保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function changeProduct(product: ProductRow, remove = false) {
+  if (busyId.value) return
+  const available = !isAvailable(product.available)
+  const label = remove ? '删除' : available ? '上架' : '下架'
+  busyId.value = product.id
+  try {
+    if (remove || !available) {
+      await ElMessageBox.confirm(remove ? '商品将从列表和用户端移除，已有订单仍可处理。'
+        : '下架后，用户无法新购该商品。', label + '商品 ' + product.name, {
+        confirmButtonText: label, cancelButtonText: '取消', type: 'warning',
+      })
+    }
+    if (remove) await adminApi.deleteProduct(product.id)
+    else await adminApi.setProductAvailability(product.id, available)
+    ElMessage.success('商品已' + label)
+    await loadProducts()
+  } catch (error) {
+    if (error instanceof Error) ElMessage.error(error.message)
+  } finally {
+    busyId.value = ''
   }
 }
 
@@ -135,7 +237,8 @@ onUnmounted(() => {
 <template>
   <div class="page-heading product-heading">
     <h1>商户商品</h1>
-    <el-tag effect="plain" round>共 {{ total }} 件</el-tag>
+    <el-button v-if="editable" type="primary" @click="openEditor()">新增商品</el-button>
+    <el-tag v-else effect="plain" round>共 {{ total }} 件</el-tag>
   </div>
 
   <section class="panel-card product-catalog-panel">
@@ -205,11 +308,54 @@ onUnmounted(() => {
       <el-table-column label="更新时间" min-width="165">
         <template #default="scope">{{ displayTime(scope.row.updatedAt) }}</template>
       </el-table-column>
+      <el-table-column v-if="editable" label="操作" width="175" fixed="right">
+        <template #default="scope">
+          <el-button link type="primary" @click="openEditor(scope.row as ProductRow)">编辑</el-button>
+          <el-button link :type="isAvailable(scope.row.available) ? 'warning' : 'success'"
+            :disabled="busyId === scope.row.id" @click="changeProduct(scope.row as ProductRow)">
+            {{ isAvailable(scope.row.available) ? '下架' : '上架' }}
+          </el-button>
+          <el-button link type="danger" :disabled="busyId === scope.row.id" @click="changeProduct(scope.row as ProductRow, true)">删除</el-button>
+        </template>
+      </el-table-column>
       <template #empty><el-empty description="没有符合条件的商品" /></template>
     </el-table>
 
     <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading" jumper />
   </section>
+
+  <el-dialog v-model="editorOpen" :title="editing ? '编辑商品' : '新增商品'" width="min(540px, 94vw)"
+    :close-on-click-modal="!saving" :show-close="!saving">
+    <el-form label-position="top" :disabled="saving" @submit.prevent="saveProduct">
+      <el-form-item label="所属商户" required>
+        <el-input v-if="editing" :model-value="editing.merchantName" readonly />
+        <el-select v-else v-model="form.merchantId" filterable placeholder="请选择已通过审核的商户">
+          <el-option v-for="merchant in approvedMerchants" :key="merchant.id" :label="merchant.name" :value="merchant.id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="商品名称" required><el-input v-model.trim="form.name" maxlength="120" /></el-form-item>
+      <el-form-item label="食品分类" required>
+        <el-select v-model="form.category" filterable placeholder="请选择食品分类">
+          <el-option v-for="category in categories" :key="category.id" :label="category.name" :value="category.name" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="商品价格（元）" required>
+        <el-input-number v-model="form.price" :min="0.01" :max="100000" :precision="2" :step="0.01" />
+      </el-form-item>
+      <el-form-item label="库存" required>
+        <el-input-number v-model="form.stock" :min="editing?.reserved ?? 0" :max="1000000" :precision="0" />
+      </el-form-item>
+      <el-form-item label="商品描述"><el-input v-model="form.description" type="textarea" maxlength="500" /></el-form-item>
+      <el-form-item label="商品图片" :required="!editing">
+        <input type="file" accept="image/jpeg,image/png" aria-label="选择商品图片" :disabled="saving" @change="selectImage" />
+        <span v-if="form.imageName">{{ form.imageName }}</span>
+      </el-form-item>
+      <div class="form-actions">
+        <el-button @click="editorOpen = false">取消</el-button>
+        <el-button native-type="submit" type="primary" :loading="saving || readingImage">保存</el-button>
+      </div>
+    </el-form>
+  </el-dialog>
 
   <el-dialog v-model="photoOpen" :title="photoTitle" width="min(680px, 92vw)" @closed="clearPhoto">
     <div v-loading="photoLoading" class="product-photo-viewer">

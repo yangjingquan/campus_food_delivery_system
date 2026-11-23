@@ -20,6 +20,17 @@ export interface MerchantPrinter {
   pkeySet: boolean
 }
 
+export interface ProductWrite {
+  merchantId: string
+  name: string
+  category: string
+  description: string
+  priceCents: number
+  stock: number
+  previousStock: number
+  image: string
+}
+
 export interface AdminSessionUser {
   name: string
   role: string
@@ -84,6 +95,17 @@ export const adminApi = {
   },
   productPhoto(id: string) {
     return unwrap<Blob>(http.get(`/products/${encodeURIComponent(id)}/photo`, { responseType: 'blob' }))
+  },
+  saveProduct(data: ProductWrite, id?: string) {
+    return unwrap<void>(id
+      ? http.put(`/products/${encodeURIComponent(id)}`, data)
+      : http.post('/products', data))
+  },
+  setProductAvailability(id: string, available: boolean) {
+    return unwrap<void>(http.put(`/products/${encodeURIComponent(id)}/availability`, { available }))
+  },
+  deleteProduct(id: string) {
+    return unwrap<void>(http.delete(`/products/${encodeURIComponent(id)}`))
   },
   foodCategories() {
     return unwrap<FoodCategory[]>(http.get('/food-categories'))
