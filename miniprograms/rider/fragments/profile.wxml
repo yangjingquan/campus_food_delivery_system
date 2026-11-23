@@ -5,8 +5,9 @@
     <view class="avatar">{{profile.initial}}</view>
     <view><view class="strong">{{profile.name || '校园骑手'}}</view><view class="small muted">学生骑手</view></view>
   </view>
-  <template is="pairs" data="{{rows: [{label:'姓名',value:profile.name},{label:'联系方式',value:profile.displayPhone},
-    {label:'性别',value:states.label(profile.gender)},{label:'可送餐时间',value:states.availability(profile)},{label:'审核状态',value:states.label(profile.auditStatus)}]}}"/>
+  <template is="pairs" data="{{rows: [{label:'小程序身份编号',value:profile.id},{label:'姓名',value:profile.name},{label:'联系方式',value:profile.displayPhone},
+    {label:'性别',value:states.label(profile.gender)},{label:'可送餐时间',value:states.availability(profile)},{label:'审核状态',value:states.label(profile.auditStatus)},
+    {label:'接单状态',value:profile.enabled === false || profile.enabled === 0 ? '已停用' : '—'}]}}"/>
 </view>
 <template is="note" data="{{label: '如需修改已审核资料，请联系暂存点运营人员。'}}"/>
 <template is="action" data="{{page: 'audit', label: '查看身份审核'}}"/>

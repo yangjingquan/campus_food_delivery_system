@@ -116,7 +116,7 @@ public class RiderIdentityService {
                 """, id, name, phone, gender.name(), availability.name(), availableTime, now);
             db.update("INSERT INTO finance_account(id,name,type,status) VALUES(?,?,'RIDER','ACCOUNT_ACTIVE')", id, name);
         } else {
-            if (!Audit.REJECTED.is(statuses.getFirst())) {
+            if (!Audit.REJECTED.is(statuses.getFirst()) && !Audit.NOT_ENROLLED.is(statuses.getFirst())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "当前审核状态不可重复提交");
             }
             db.update("""

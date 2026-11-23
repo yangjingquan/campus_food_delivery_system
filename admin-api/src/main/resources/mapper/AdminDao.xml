@@ -31,7 +31,7 @@
     <select id="listRiders" resultType="map">
         SELECT id,name,phone,gender,availability,available_time AS availableTime,audit_status AS auditStatus,
         deliveries,COALESCE((SELECT a.balance_cents FROM finance_account a WHERE a.id=r.id AND a.type='RIDER'),r.balance_cents) AS balanceCents,
-        joined_at AS joinedAt,audit_reason AS auditReason,
+        joined_at AS joinedAt,audit_reason AS auditReason,enabled,
         EXISTS(SELECT 1 FROM rider_student_card c WHERE c.rider_id=r.id) AS hasPhoto FROM rider r ORDER BY id
     </select>
 

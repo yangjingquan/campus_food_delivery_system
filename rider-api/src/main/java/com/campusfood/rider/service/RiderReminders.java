@@ -77,7 +77,7 @@ public class RiderReminders {
         var recipients = db.queryForList("""
             SELECT s.rider_id,i.openid,r.availability,r.available_time FROM rider_reminder_subscription s
             JOIN rider_identity i ON i.id=s.rider_id AND i.app_id=?
-            JOIN rider r ON r.id=s.rider_id AND r.audit_status='APPROVED'
+            JOIN rider r ON r.id=s.rider_id AND r.audit_status='APPROVED' AND r.enabled=TRUE
             WHERE s.remaining=1 AND s.template_id=? AND s.last_batch_at<=?
             ORDER BY s.last_batch_at
             """, wechat.appId(), template, cutoff);

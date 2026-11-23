@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Picture } from '@element-plus/icons-vue'
+import { ElImage, ElMessage, ElMessageBox, ElUpload, type UploadInstance, type UploadProps } from 'element-plus'
+import { Search, Picture, Upload } from '@element-plus/icons-vue'
 import { adminApi, type FoodCategory } from '../api/admin'
 import ListPagination from '../components/ListPagination.vue'
 import { money } from '../domain/rules'
@@ -43,6 +43,7 @@ const photoOpen = ref(false)
 const photoLoading = ref(false)
 const photoUrl = ref('')
 const photoTitle = ref('')
+let photoRequest = 0
 const editorOpen = ref(false)
 const editing = ref<ProductRow | null>(null)
 const saving = ref(false)
@@ -51,10 +52,11 @@ const categories = ref<FoodCategory[]>([])
 const approvedMerchants = computed(() => merchants.value.filter(store => store.auditStatus === 'APPROVED'))
 const form = reactive({
   merchantId: '', name: '', category: '', description: '',
-  price: undefined as number | undefined, stock: 0 as number | undefined, image: '', imageName: '',
+  price: undefined as number | undefined, stock: 0 as number | undefined,
 })
-const readingImage = ref(false)
-let imageRequest = 0
+const imageUpload = ref<UploadInstance>()
+const selectedImage = ref<File>()
+const imagePreview = ref('')
 
 function isAvailable(value: ProductRow['available']) {
   return value === true || value === 1 || value === '1'
@@ -99,12 +101,11 @@ async function loadMerchants() {
 
 async function openEditor(product?: ProductRow) {
   editing.value = product ?? null
-  ++imageRequest
-  readingImage.value = false
+  clearSelectedImage()
   Object.assign(form, {
     merchantId: product?.merchantId || approvedMerchants.value.find(store => store.id === merchantId.value)?.id || '',
     name: product?.name || '', category: product?.category || '', description: product?.description || '',
-    price: product ? product.priceCents / 100 : undefined, stock: product?.stock ?? 0, image: '', imageName: '',
+    price: product ? product.priceCents / 100 : undefined, stock: product?.stock ?? 0,
   })
   editorOpen.value = true
   try {
@@ -114,42 +115,48 @@ async function openEditor(product?: ProductRow) {
   }
 }
 
-function selectImage(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-  if (!['image/jpeg', 'image/png'].includes(file.type) || file.size > 1024 * 1024) {
+function clearSelectedImage() {
+  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
+  imagePreview.value = ''
+  selectedImage.value = undefined
+}
+
+const selectImage: UploadProps['onChange'] = ({ raw: file }) => {
+  imageUpload.value?.clearFiles()
+  if (!file || saving.value || !editorOpen.value) return
+  if (!['image/jpeg', 'image/png'].includes(file.type) || !file.size || file.size > 1024 * 1024) {
     ElMessage.warning('请选择不超过 1 MB 的 JPEG 或 PNG 图片')
     return
   }
-  const request = ++imageRequest
-  readingImage.value = true
-  const reader = new FileReader()
-  reader.onload = () => {
-    if (request !== imageRequest) return
-    form.image = String(reader.result)
-    form.imageName = file.name
-  }
-  reader.onerror = () => { if (request === imageRequest) ElMessage.error('商品图片读取失败') }
-  reader.onloadend = () => { if (request === imageRequest) readingImage.value = false }
-  reader.readAsDataURL(file)
+  clearSelectedImage()
+  selectedImage.value = file
+  imagePreview.value = URL.createObjectURL(file)
+}
+
+function encodeImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error('商品图片读取失败'))
+    reader.readAsDataURL(file)
+  })
 }
 
 async function saveProduct() {
-  if (saving.value || readingImage.value) return
+  if (saving.value) return
   const priceCents = Math.round(Number(form.price) * 100)
   const stock = form.stock
   if (!form.merchantId || !form.name.trim() || !form.category || !Number.isInteger(priceCents) || priceCents < 1
-      || stock === undefined || !Number.isInteger(stock) || stock < 0 || (!editing.value && !form.image)) {
+      || stock === undefined || !Number.isInteger(stock) || stock < 0 || (!editing.value && !selectedImage.value)) {
     ElMessage.warning('请填写商品资料、有效价格和库存，并为新增商品选择图片')
     return
   }
   saving.value = true
   try {
+    const image = selectedImage.value ? await encodeImage(selectedImage.value) : ''
     await adminApi.saveProduct({
       merchantId: form.merchantId, name: form.name.trim(), category: form.category, description: form.description.trim(),
-      priceCents, stock, previousStock: editing.value?.stock ?? 0, image: form.image,
+      priceCents, stock, previousStock: editing.value?.stock ?? 0, image,
     }, editing.value?.id)
     editorOpen.value = false
     ElMessage.success('商品已保存')
@@ -205,23 +212,26 @@ function displayTime(value: ProductRow['updatedAt']) {
 
 async function viewPhoto(product: ProductRow) {
   if (!hasPhoto(product.hasPhoto)) return
+  clearPhoto()
+  const request = photoRequest
   photoTitle.value = product.name
   photoOpen.value = true
   photoLoading.value = true
-  if (photoUrl.value) URL.revokeObjectURL(photoUrl.value)
-  photoUrl.value = ''
   try {
     const blob = await adminApi.productPhoto(product.id)
-    photoUrl.value = URL.createObjectURL(blob)
+    if (request === photoRequest) photoUrl.value = URL.createObjectURL(blob)
   } catch (error) {
-    photoOpen.value = false
-    ElMessage.error(error instanceof Error ? error.message : '商品图片加载失败')
+    if (request === photoRequest) {
+      photoOpen.value = false
+      ElMessage.error(error instanceof Error ? error.message : '商品图片加载失败')
+    }
   } finally {
-    photoLoading.value = false
+    if (request === photoRequest) photoLoading.value = false
   }
 }
 
 function clearPhoto() {
+  photoRequest++
   if (photoUrl.value) URL.revokeObjectURL(photoUrl.value)
   photoUrl.value = ''
 }
@@ -231,6 +241,7 @@ onMounted(loadMerchants)
 onUnmounted(() => {
   productRequest++
   clearPhoto()
+  clearSelectedImage()
 })
 </script>
 
@@ -325,7 +336,8 @@ onUnmounted(() => {
   </section>
 
   <el-dialog v-model="editorOpen" :title="editing ? '编辑商品' : '新增商品'" width="min(540px, 94vw)"
-    :close-on-click-modal="!saving" :show-close="!saving">
+    :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving"
+    @closed="clearSelectedImage">
     <el-form label-position="top" :disabled="saving" @submit.prevent="saveProduct">
       <el-form-item label="所属商户" required>
         <el-input v-if="editing" :model-value="editing.merchantName" readonly />
@@ -347,19 +359,45 @@ onUnmounted(() => {
       </el-form-item>
       <el-form-item label="商品描述"><el-input v-model="form.description" type="textarea" maxlength="500" /></el-form-item>
       <el-form-item label="商品图片" :required="!editing">
-        <input type="file" accept="image/jpeg,image/png" aria-label="选择商品图片" :disabled="saving" @change="selectImage" />
-        <span v-if="form.imageName">{{ form.imageName }}</span>
+        <div class="product-image-field">
+          <el-upload ref="imageUpload" drag accept="image/jpeg,image/png" :auto-upload="false"
+            :show-file-list="false" :disabled="saving" :on-change="selectImage">
+            <el-icon class="el-icon--upload"><Upload /></el-icon>
+            <div class="el-upload__text">拖拽图片到此处，或<em>{{ selectedImage || (editing && hasPhoto(editing.hasPhoto)) ? '点击更换' : '点击选择' }}</em></div>
+            <template #tip><p class="el-upload__tip">JPG 或 PNG，最大 1 MB</p></template>
+          </el-upload>
+          <div v-if="selectedImage" class="product-image-selection">
+            <el-image class="product-image-preview" :src="imagePreview" :alt="selectedImage.name" fit="cover"
+              :preview-src-list="[imagePreview]" preview-teleported />
+            <div>
+              <div class="product-image-name" :title="selectedImage.name">{{ selectedImage.name }}</div>
+              <el-button link type="danger" :disabled="saving" @click="clearSelectedImage">移除选中的图片</el-button>
+            </div>
+          </div>
+          <el-button v-else-if="editing && hasPhoto(editing.hasPhoto)" link type="primary" @click="viewPhoto(editing)">查看原图</el-button>
+        </div>
       </el-form-item>
       <div class="form-actions">
         <el-button @click="editorOpen = false">取消</el-button>
-        <el-button native-type="submit" type="primary" :loading="saving || readingImage">保存</el-button>
+        <el-button native-type="submit" type="primary" :loading="saving">保存</el-button>
       </div>
     </el-form>
   </el-dialog>
 
-  <el-dialog v-model="photoOpen" :title="photoTitle" width="min(680px, 92vw)" @closed="clearPhoto">
+  <el-dialog v-model="photoOpen" :title="photoTitle" width="min(680px, 92vw)" append-to-body @close="clearPhoto">
     <div v-loading="photoLoading" class="product-photo-viewer">
-      <img v-if="photoUrl" :src="photoUrl" :alt="`${photoTitle}商品图片`" />
+      <el-image v-if="photoUrl" :src="photoUrl" :alt="`${photoTitle}商品图片`" fit="contain" class="product-photo-full" />
     </div>
   </el-dialog>
 </template>
+
+<style scoped>
+.product-image-field { width: 100%; }
+.product-image-field :deep(.el-upload-dragger) { padding: 12px; }
+.product-image-field :deep(.el-icon--upload) { margin: 0 0 6px; font-size: 30px; }
+.product-image-selection { display: flex; align-items: center; gap: 12px; min-width: 0; margin-top: 12px; }
+.product-image-selection > div:last-child { min-width: 0; }
+.product-image-preview { flex: 0 0 72px; width: 72px; height: 72px; border-radius: 8px; }
+.product-image-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-photo-full { width: 100%; height: min(64vh, 560px); }
+</style>

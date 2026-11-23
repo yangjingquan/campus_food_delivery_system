@@ -43,6 +43,7 @@ public class AdminService {
     private final PrintingSettingsService printing;
     private final MerchantPrinterSettingsService merchantPrinters;
     private final MerchantManagementService merchantManagement;
+    private final RiderManagementService riderManagement;
     private final BCryptPasswordEncoder passwords = new BCryptPasswordEncoder();
     private final SecureRandom random = new SecureRandom();
     @Value("${app.bootstrap-user}")
@@ -56,7 +57,8 @@ public class AdminService {
                         AuthorizationService authorization, WithdrawalService withdrawals, WechatService wechat,
                         AdminUserRoleMapper roles, MerchantMapper merchants, RiderMapper riders,
                         ConfigurationLockMapper configurationLocks, PrintingSettingsService printing,
-                        MerchantPrinterSettingsService merchantPrinters, MerchantManagementService merchantManagement) {
+                        MerchantPrinterSettingsService merchantPrinters, MerchantManagementService merchantManagement,
+                        RiderManagementService riderManagement) {
         this.db = db;
         this.configurationLocks = configurationLocks;
         this.roles = roles;
@@ -70,6 +72,7 @@ public class AdminService {
         this.printing = printing;
         this.merchantPrinters = merchantPrinters;
         this.merchantManagement = merchantManagement;
+        this.riderManagement = riderManagement;
     }
 
     // 仅在账户或角色尚未初始化时创建本地引导管理员及超级管理员角色。
@@ -281,6 +284,7 @@ public class AdminService {
             case "merchant.audit" -> "merchant.audit";
             case "merchant.create", "merchant.update", "merchant.availability", "merchant.delete" -> "merchant.manage";
             case "merchant.save-printer" -> "merchant.printer.edit";
+            case "rider.create", "rider.update", "rider.enable", "rider.disable" -> "rider.manage";
             case "rider.audit" -> "rider.audit";
             case "order.coordinate" -> "order.coordinate";
             case "refund.apply", "refund.offline", "refund.query" -> "refund.manage";
@@ -297,6 +301,7 @@ public class AdminService {
         if (type.startsWith("wechat.")) return wechat.action(type, payload, username);
         if (type.equals("config.save-printing")) return printing.save(payload, username);
         if (type.equals("merchant.save-printer")) return merchantPrinters.save(payload, username);
+        if (permission.equals("rider.manage")) return riderManagement.action(type, payload, username);
         if (permission.equals("merchant.manage")) return merchantManagement.action(type, payload, username);
         if (type.equals("withdrawal.review")) return withdrawals.review(payload, username);
         if (type.equals("withdrawal.retry")) return withdrawals.retry(payload, username);

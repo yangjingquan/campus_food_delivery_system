@@ -33,6 +33,13 @@ const merchantChangingId = ref('')
 const merchantEditingId = ref('')
 const merchantCanOpen = ref(true)
 const merchantForm = reactive({ name: '', contact: '', phone: '', address: '', open: false })
+const riderDialog = ref(false)
+const riderSaving = ref(false)
+const riderChangingId = ref('')
+const riderEditingId = ref('')
+const riderForm = reactive({ name: '', phone: '', gender: 'UNDISCLOSED', availability: 'MIDDAY_AND_EVENING', availableTime: '', identityId: '' })
+const riderGenders = ['MALE', 'FEMALE', 'UNDISCLOSED']
+const riderAvailability = ['MIDDAY', 'EVENING', 'MIDDAY_AND_EVENING', 'CUSTOM']
 const printerLoadingId = ref('')
 const printerSaving = ref(false)
 const retryingWithdrawalId = ref('')
@@ -45,7 +52,7 @@ const merchantPhoto = ref('')
 const photoError = ref('')
 let photoRequest = 0
 const keyNames: Record<string, string> = {
-  originalWithdrawalId: '原提现编号', listed: '上架状态',
+  originalWithdrawalId: '原提现编号', listed: '上架状态', enabled: '接单状态',
   id: '编号', name: '名称', contact: '联系人', phone: '联系方式', address: '地址', auditStatus: '审核状态', auditReason: '审核说明', businessStatus: '营业状态', orderCount: '订单数', joinedAt: '登记时间',
   gender: '性别', availableTime: '可送餐时间', deliveries: '配送单数', balanceCents: '可提现余额', paymentId: '合并支付单号', merchantId: '商户编号', merchant: '商户', rider: '骑手', items: '商品摘要', foodCents: '餐品金额', deliveryCents: '配送费', paidCents: '用户实付', refundedCents: '累计退款', foodRefundedCents: '累计退餐品', paymentStatus: '支付状态', fulfillStatus: '履约状态', refundStatus: '售后状态', settlementStatus: '结算状态', accepted: '商户已接单', pendingRefund: '存在处理中退款', locking: '结算锁定', paymentCount: '支付单退款次数', paidAt: '支付时间', completedAt: '完成时间', closedAt: '关闭时间', intervene: '待管理员介入', interveneReason: '介入原因', coordinationNotes: '协调记录',
   reason: '说明', type: '类型', amountCents: '金额', status: '处理状态', channelStatus: '渠道状态', createdAt: '创建时间', operator: '操作人', applicant: '申请主体', applicantType: '主体类型', time: '时间', subject: '账务主体', foodAmount: '餐品金额', deliveryAmount: '配送费', paidAmount: '实付金额', refundAmount: '退款金额', settlement: '结算状态', riderDue: '骑手应得', merchantBalance: '商户可扣余额', platformAdvance: '平台垫付', recovered: '已扣回', note: '说明',
@@ -64,6 +71,7 @@ const columnSets: Record<string, Array<{ key: string; label: string; minWidth?: 
     { key: 'id', label: '骑手编号', minWidth: 100 }, { key: 'name', label: '姓名', minWidth: 110 },
     { key: 'phone', label: '联系方式', minWidth: 130 }, { key: 'gender', label: '性别', minWidth: 70 },
     { key: 'availableTime', label: '可送餐时间', minWidth: 220 }, { key: 'auditStatus', label: '审核状态', minWidth: 105 },
+    { key: 'enabled', label: '接单状态', minWidth: 100 },
     { key: 'deliveries', label: '配送单数', minWidth: 90 }, { key: 'balanceCents', label: '可提现余额', minWidth: 115 },
   ],
   orders: [
@@ -168,6 +176,7 @@ watch([section, financeSection], ([nextSection], [previousSection]) => {
   drawer.value = false
   printerDialog.value = false
   merchantDialog.value = false
+  riderDialog.value = false
   printerForm.pkey = ''
   keyword.value = ''
   statusFilter.value = ''
@@ -219,6 +228,7 @@ function displayValue(row: Row, key: string) {
   const value = row[key]
   if (key === 'settlement' && value === 'LEGACY_DETAIL') return row.settlementDetail || '—'
   if (stateFields.has(key)) return stateLabel(value)
+  if (key === 'enabled') return riderEnabled(row) ? '启用中' : '已停用'
   if (key === 'availableTime') return row.availability === 'CUSTOM' ? value : stateLabel(row.availability)
   if (key === 'channelStatus') return value === 'LEGACY_DETAIL' ? row.channelDetail : stateLabel(value)
   if (key === 'interveneReason') return row.interveneCode ? interventionLabel(row.interveneCode) : value
@@ -353,6 +363,58 @@ function merchantListingLabel(row: Row) {
   return merchantListed(row) && row.auditStatus === 'APPROVED' ? '已上架' : '已下架'
 }
 
+function riderEnabled(row: Row) {
+  return row.enabled === true || Number(row.enabled) === 1
+}
+
+function openRiderForm(row?: Row) {
+  riderEditingId.value = row?.id || ''
+  Object.assign(riderForm, {
+    name: row?.name || '', phone: row?.phone || '', gender: row?.gender || 'UNDISCLOSED',
+    availability: row?.availability || 'MIDDAY_AND_EVENING', availableTime: row?.availableTime || '', identityId: '',
+  })
+  riderDialog.value = true
+}
+
+async function saveRider() {
+  if (riderSaving.value) return
+  if (!riderForm.name || !riderForm.phone || (riderForm.availability === 'CUSTOM' && !riderForm.availableTime)) {
+    ElMessage.warning('请填写姓名、手机号和可送餐时间')
+    return
+  }
+  riderSaving.value = true
+  try {
+    await adminApi.action(riderEditingId.value ? 'rider.update' : 'rider.create', { ...riderForm, id: riderEditingId.value })
+    riderDialog.value = false
+    ElMessage.success('骑手已保存')
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '骑手保存失败')
+  } finally {
+    riderSaving.value = false
+  }
+}
+
+async function changeRiderStatus(row: Row) {
+  if (riderChangingId.value) return
+  const enabled = riderEnabled(row)
+  riderChangingId.value = row.id
+  try {
+    if (enabled) {
+      await ElMessageBox.confirm('停用后骑手不能领取新订单，已领取的订单仍可完成。', '停用骑手 ' + row.name, {
+        confirmButtonText: '停用', cancelButtonText: '取消', type: 'warning',
+      })
+    }
+    await adminApi.action(enabled ? 'rider.disable' : 'rider.enable', { id: row.id })
+    ElMessage.success(enabled ? '骑手已停用' : '骑手已启用')
+    await load()
+  } catch (error) {
+    if (error instanceof Error) ElMessage.error(error.message)
+  } finally {
+    riderChangingId.value = ''
+  }
+}
+
 function openMerchantForm(row?: Row) {
   merchantEditingId.value = row?.id || ''
   merchantCanOpen.value = !row || row.auditStatus === 'APPROVED'
@@ -428,6 +490,7 @@ function runRowAction(row: Row) {
   <div class="page-heading">
     <h1>{{ title }}</h1>
     <el-button v-if="section === 'merchants' && auth.can('merchant.manage')" type="primary" @click="openMerchantForm()">新增商户</el-button>
+    <el-button v-if="section === 'riders' && auth.can('rider.manage')" type="primary" @click="openRiderForm()">新增骑手</el-button>
     <el-tag v-if="section === 'orders'" type="warning" effect="light" round>待管理员介入 {{ rows.filter((row) => row.intervene).length }} 项</el-tag>
 
   </div>
@@ -466,12 +529,15 @@ function runRowAction(row: Row) {
             {{ merchantListingLabel(scope.row) }}
           </el-tag>
           <span v-else-if="column.key === 'listed'">—</span>
+          <el-tag v-else-if="column.key === 'enabled'" :type="riderEnabled(scope.row) ? 'success' : 'info'" effect="light" round>
+            {{ displayValue(scope.row, column.key) }}
+          </el-tag>
           <el-tag v-else-if="['auditStatus','businessStatus','fulfillStatus','refundStatus','settlementStatus','status'].includes(column.key)" :type="statusType(String(scope.row[column.key]))" effect="light" round>{{ displayValue(scope.row, column.key) }}</el-tag>
           <span v-else-if="column.key === 'amountCents' || column.key === 'paidCents' || column.key === 'balanceCents'">{{ money(Number(scope.row[column.key] || 0)) }}</span>
           <span v-else>{{ displayValue(scope.row, column.key) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" :width="section === 'merchants' && auth.can('merchant.manage') ? 325 : section === 'merchants' && auth.can('merchant.printer.edit') ? 275 : section === 'merchants' || section === 'riders' ? 220 : section === 'aftersales' ? 190 : section === 'withdrawals' ? 250 : 170" fixed="right">
+      <el-table-column label="操作" :width="section === 'riders' && auth.can('rider.manage') ? 310 : section === 'merchants' && auth.can('merchant.manage') ? 325 : section === 'merchants' && auth.can('merchant.printer.edit') ? 275 : section === 'merchants' || section === 'riders' ? 220 : section === 'aftersales' ? 190 : section === 'withdrawals' ? 250 : 170" fixed="right">
         <template #default="scope">
           <template v-if="section === 'merchants' || section === 'riders'">
             <el-button link type="primary" @click="runRowAction(scope.row)">{{ rowActionText(scope.row) }}</el-button>
@@ -485,6 +551,11 @@ function runRowAction(row: Row) {
               </el-button>
               <el-button link type="danger" :disabled="merchantChangingId === scope.row.id"
                 @click="changeMerchant(scope.row, true)">删除</el-button>
+            </template>
+            <template v-if="section === 'riders' && auth.can('rider.manage')">
+              <el-button link type="primary" @click="openRiderForm(scope.row)">编辑</el-button>
+              <el-button link :type="riderEnabled(scope.row) ? 'danger' : 'success'" :loading="riderChangingId === scope.row.id"
+                @click="changeRiderStatus(scope.row)">{{ riderEnabled(scope.row) ? '停用' : '启用' }}</el-button>
             </template>
             <template v-if="scope.row.auditStatus === 'PENDING_REVIEW' && auth.can(section === 'merchants' ? 'merchant.audit' : 'rider.audit')"><el-button link type="success" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === 'PROFILE_REVISION' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'approve')">通过</el-button><el-button link type="danger" @click="audit(scope.row, section === 'merchants' ? (scope.row.businessStatus === 'PROFILE_REVISION' ? '商户资料变更' : '商户入驻') : '骑手入驻', 'reject')">驳回</el-button></template>
           </template>
@@ -505,6 +576,35 @@ function runRowAction(row: Row) {
     </el-table>
     <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading" />
   </div>
+
+  <el-dialog v-model="riderDialog" :title="riderEditingId ? '编辑骑手' : '新增骑手'" width="min(500px, 94vw)"
+    :close-on-click-modal="!riderSaving" :close-on-press-escape="!riderSaving" :show-close="!riderSaving">
+    <el-form label-position="top" :disabled="riderSaving" @submit.prevent="saveRider">
+      <el-form-item label="姓名" required><el-input v-model.trim="riderForm.name" maxlength="120" /></el-form-item>
+      <el-form-item label="手机号" required><el-input v-model.trim="riderForm.phone" type="tel" maxlength="32" /></el-form-item>
+      <el-form-item label="性别">
+        <el-select v-model="riderForm.gender">
+          <el-option v-for="value in riderGenders" :key="value" :label="stateLabel(value)" :value="value" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="可送餐时间" required>
+        <el-select v-model="riderForm.availability">
+          <el-option v-for="value in riderAvailability" :key="value" :label="stateLabel(value)" :value="value" />
+        </el-select>
+      </el-form-item>
+      <el-form-item v-if="riderForm.availability === 'CUSTOM'" label="自定义时段" required>
+        <el-input v-model.trim="riderForm.availableTime" placeholder="例如 11:00-13:30" maxlength="160" />
+      </el-form-item>
+      <el-form-item v-if="!riderEditingId" label="小程序身份编号">
+        <el-input v-model.trim="riderForm.identityId" maxlength="32" placeholder="可选，填写骑手登录小程序后的身份编号" />
+        <div class="muted">留空仅建立后台档案。关联小程序后，骑手仍需提交入驻资料。</div>
+      </el-form-item>
+      <div class="form-actions">
+        <el-button @click="riderDialog = false">取消</el-button>
+        <el-button native-type="submit" type="primary" :loading="riderSaving">保存</el-button>
+      </div>
+    </el-form>
+  </el-dialog>
 
   <el-dialog v-model="merchantDialog" :title="merchantEditingId ? '编辑商户' : '新增商户'" width="min(540px, 94vw)"
     :close-on-click-modal="!merchantSaving" :show-close="!merchantSaving">

@@ -107,9 +107,9 @@ public class DeliveryService {
         if (!code.matches("[A-Za-z0-9_-]{1,64}") || riderId == null || riderId.isBlank() || riderId.length() > 32) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "领取码或骑手编号无效");
         }
-        var riders = db.queryForList("SELECT name FROM rider WHERE id=? AND audit_status='APPROVED'",
+        var riders = db.queryForList("SELECT name FROM rider WHERE id=? AND audit_status='APPROVED' AND enabled=TRUE FOR UPDATE",
             String.class, riderId);
-        if (riders.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "骑手未通过审核");
+        if (riders.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "骑手未通过审核或已停用");
 
         // 小票支持订单号二维码，也兼容历史随机领取码；两种入口统一锁定同一笔订单。
         var matches = db.queryForList("""

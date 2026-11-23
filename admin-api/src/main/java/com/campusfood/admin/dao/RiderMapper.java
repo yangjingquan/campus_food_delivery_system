@@ -3,6 +3,7 @@ package com.campusfood.admin.dao;
 import com.campusfood.domain.BusinessStates.Audit;
 
 import java.util.Map;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
@@ -22,6 +23,12 @@ public interface RiderMapper extends BaseMapper<Rider> {
     default Integer countPending() {
         return Math.toIntExact(selectCount(Wrappers.<Rider>lambdaQuery().eq(Rider::getAuditStatus, Audit.PENDING_REVIEW)));
     }
+    @Select("SELECT id FROM rider_identity WHERE id=#{id} FOR UPDATE")
+    String lockIdentity(@Param("id") String id);
+
+    @Insert("INSERT INTO finance_account(id,name,type,status) VALUES(#{id},#{name},'RIDER','ACCOUNT_ACTIVE')")
+    int createFinanceAccount(@Param("id") String id, @Param("name") String name);
+
     @Select("""
         SELECT media_type,image_data FROM rider_student_card WHERE rider_id=#{id}
         """)
