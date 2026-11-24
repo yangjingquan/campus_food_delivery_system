@@ -39,6 +39,13 @@ public class AdminProductController {
         return products.catalog(authorization, keyword, merchantId, availability, page, pageSize);
     }
 
+    @PutMapping("/merchants/{merchantId}/order")
+    public ResponseEntity<Void> reorder(@RequestHeader(value = "Authorization", required = false) String auth,
+            @PathVariable String merchantId, @RequestBody Map<String, Object> body) {
+        products.reorder(auth, merchantId, body);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}/photo")
     public ResponseEntity<byte[]> photo(@PathVariable String id,
             @RequestHeader(value = "Authorization", required = false) String authorization) {

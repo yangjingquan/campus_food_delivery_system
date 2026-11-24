@@ -8,6 +8,8 @@ import { ElImage, ElMessage, ElMessageBox, ElUpload, type UploadInstance, type U
 import { Search, Upload } from '@element-plus/icons-vue'
 import { adminApi, AdminApiError, type MerchantPrinter } from '../api/admin'
 import ListPagination from '../components/ListPagination.vue'
+import RowDragHandle from '../components/RowDragHandle.vue'
+import { useRowReorder } from '../domain/useRowReorder'
 import { useListPagination } from '../domain/useListPagination'
 import { useAuthStore } from '../stores/auth'
 import { money } from '../domain/rules'
@@ -224,6 +226,16 @@ const filteredRows = computed(() => currentRows.value.filter((row) => {
 }))
 const { page, pageSize, total, pageRows } = useListPagination(() => filteredRows.value)
 watch([keyword, statusFilter, orderMerchantFilter, section, financeSection], () => { page.value = 1 })
+
+const canSortMerchants = computed(() => section.value === 'merchants' && auth.can('merchant.manage')
+  && !keyword.value.trim() && !statusFilter.value)
+const merchantPageIds = computed(() => pageRows.value.filter(row => !String(row.id).startsWith('revision:')).map(row => String(row.id)))
+const merchantReorder = useRowReorder(
+  () => canSortMerchants.value && !loading.value ? merchantPageIds.value : [],
+  order => adminApi.action('merchant.reorder', { ...order }),
+  load,
+)
+const { saving: merchantOrderSaving, targetId: merchantDropTarget } = merchantReorder
 
 async function load() {
   const request = ++loadRequest
@@ -695,7 +707,16 @@ function runRowAction(row: Row) {
         <el-button @click="resetFilters">重置</el-button>
       </div>
     </div>
-    <el-table :data="pageRows" row-key="id" v-loading="loading" stripe class="data-table">
+    <el-table :data="pageRows" row-key="id" v-loading="loading || merchantOrderSaving" stripe class="data-table"
+      @dragover="merchantReorder.over" @drop="merchantReorder.drop">
+      <el-table-column v-if="canSortMerchants" label="排序" width="64" align="center">
+        <template #default="{ row }">
+          <RowDragHandle v-if="!String(row.id).startsWith('revision:')" :id="row.id" :label="row.name"
+            :disabled="loading || merchantOrderSaving || merchantPageIds.length < 2" :target="merchantDropTarget === row.id"
+            @start="merchantReorder.start($event, row.id)" @end="merchantReorder.end"
+            @move="merchantReorder.keydown($event, row.id)" />
+        </template>
+      </el-table-column>
       <el-table-column v-if="section === 'orders'" label="介入提醒" width="125" fixed="left"><template #default="scope"><el-tag v-if="scope.row.intervene" type="warning" effect="light" round>待管理员介入</el-tag><span v-else class="muted">—</span></template></el-table-column>
       <el-table-column v-for="column in columns" :key="column.key" :prop="column.key" :label="column.label" :min-width="column.minWidth || 110" show-overflow-tooltip>
         <template #default="scope">
@@ -750,7 +771,7 @@ function runRowAction(row: Row) {
       </el-table-column>
       <template #empty><el-empty description="没有符合条件的记录" /></template>
     </el-table>
-    <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading" />
+    <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading || merchantOrderSaving" />
   </div>
 
   <el-dialog v-model="riderDialog" :title="riderEditingId ? '编辑骑手' : '新增骑手'" width="min(500px, 94vw)"

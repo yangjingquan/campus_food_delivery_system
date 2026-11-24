@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+
+import com.campusfood.domain.DisplayOrder;
 import java.util.UUID;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -39,6 +41,10 @@ public class MerchantManagementService {
     public Map<String, Object> action(String action, Map<?, ?> payload, String actor) {
         if ("merchant.create".equals(action)) {
             return create(payload, actor);
+        }
+        if ("merchant.reorder".equals(action)) {
+            reorder(payload, actor);
+            return Map.of("ok", true);
         }
         String id = text(payload, "id", "商户编号", 32);
         Merchant current = merchants.selectOne(Wrappers.<Merchant>lambdaQuery()
@@ -78,6 +84,34 @@ public class MerchantManagementService {
         merchants.update(null, update);
         audit.insertAudit(actor, action, id, before, after, "");
         return Map.of("ok", true, "id", id);
+    }
+
+    private void reorder(Map<?, ?> payload, String actor) {
+        DisplayOrder order;
+        try {
+            order = DisplayOrder.from(payload.get("previousIds"), payload.get("ids"), 32);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage());
+        }
+        var stores = merchants.selectList(Wrappers.<Merchant>lambdaQuery()
+                .select(Merchant::getId, Merchant::getDisplayOrder).isNull(Merchant::getDeletedAt)
+                .orderByAsc(Merchant::getDisplayOrder, Merchant::getId).last("FOR UPDATE"));
+        var current = stores.stream().map(Merchant::getId).toList();
+        var requested = order.applyTo(current);
+        if (requested == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商户列表或顺序已变化，请刷新后再调整");
+        }
+        if (current.equals(requested)) return;
+
+        var ranks = new java.util.HashMap<String, Integer>();
+        for (int i = 0; i < requested.size(); i++) ranks.put(requested.get(i), i);
+        for (Merchant store : stores) {
+            int rank = ranks.get(store.getId());
+            if (store.getDisplayOrder() == rank) continue;
+            merchants.update(null, Wrappers.<Merchant>lambdaUpdate().eq(Merchant::getId, store.getId())
+                    .set(Merchant::getDisplayOrder, rank));
+        }
+        audit.insertAudit(actor, "merchant.reorder", "merchants", "", "UPDATED", "");
     }
 
     private Map<String, Object> create(Map<?, ?> payload, String actor) {

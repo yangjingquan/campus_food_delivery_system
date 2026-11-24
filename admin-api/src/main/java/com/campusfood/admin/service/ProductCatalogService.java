@@ -104,6 +104,11 @@ public class ProductCatalogService {
         change(request.body(body), "商品");
     }
 
+    public void reorder(String auth, String merchantId, Map<String, Object> body) {
+        admins.requirePermission(auth, "product.manage");
+        change(merchantApi.put().uri(PRODUCTS_PATH + "/merchants/{merchantId}/order", merchantId).body(body), "商品排序");
+    }
+
     public void changeAvailability(String auth, String id, Map<String, Object> body) {
         admins.requirePermission(auth, "product.manage");
         change(merchantApi.put().uri(PRODUCTS_PATH + "/{id}/availability", id).body(body), "商品");

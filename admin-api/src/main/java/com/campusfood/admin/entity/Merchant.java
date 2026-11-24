@@ -22,6 +22,7 @@ public class Merchant {
     private Business businessStatus;
     private String joinedAt;
     private Boolean listed;
+    private Integer displayOrder;
     private LocalDateTime deletedAt;
 
     public static Merchant create(String id, String name, String contact, String phone, String address,
@@ -56,6 +57,7 @@ public class Merchant {
     public String getPhone() { return phone; }
     public String getAddress() { return address; }
     public Business getBusinessStatus() { return businessStatus; }
+    public Integer getDisplayOrder() { return displayOrder; }
     public Boolean getListed() { return listed; }
     public LocalDateTime getDeletedAt() { return deletedAt; }
 }

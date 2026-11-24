@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.campusfood.domain.DisplayOrder;
+import org.springframework.dao.PessimisticLockingFailureException;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -49,6 +52,28 @@ public class ProductService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "商品列表或顺序已变化，请重新加载后再调整");
         }
         writeDisplayOrder(merchant, requested);
+    }
+
+    @Transactional
+    public void adminReorder(String merchant, Map<String, Object> body) {
+        DisplayOrder order;
+        try {
+            order = DisplayOrder.from(body.get("previousIds"), body.get("ids"), 36);
+        } catch (IllegalArgumentException exception) {
+            throw Inputs.invalid(exception.getMessage());
+        }
+        requireStore(merchant, true);
+        List<String> current;
+        try {
+            current = lockProductOrder(merchant);
+        } catch (PessimisticLockingFailureException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商品正在更新，请刷新后再调整");
+        }
+        List<String> requested = order.applyTo(current);
+        if (requested == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商品列表或顺序已变化，请刷新后再调整");
+        }
+        if (!current.equals(requested)) writeDisplayOrder(merchant, requested);
     }
 
     private List<String> productIds(Object value) {
@@ -133,7 +158,8 @@ public class ProductService {
                    EXISTS(SELECT 1 FROM merchant_product_photo photo WHERE photo.product_id=p.id) AS hasPhoto,
                    p.updated_at AS updatedAt
             FROM merchant_product p JOIN merchant m ON m.id=p.merchant_id
-            """ + conditions + " ORDER BY p.updated_at DESC,p.display_order ASC,p.id ASC LIMIT ? OFFSET ?";
+            """ + conditions + (storeId.isEmpty() ? " ORDER BY p.updated_at DESC,p.display_order,p.id"
+                : " ORDER BY p.display_order,p.name,p.id") + " LIMIT ? OFFSET ?";
         parameters.add(pageSize);
         parameters.add((long) (page - 1) * pageSize);
         List<Map<String, Object>> rows = db.queryForList(query, parameters.toArray());

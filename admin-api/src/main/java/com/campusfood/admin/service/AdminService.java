@@ -299,7 +299,7 @@ public class AdminService {
         String type = String.valueOf(body.type());
         String permission = switch (type) {
             case "merchant.audit" -> "merchant.audit";
-            case "merchant.create", "merchant.update", "merchant.availability", "merchant.delete", "merchant.save-pricing" -> "merchant.manage";
+            case "merchant.create", "merchant.reorder", "merchant.update", "merchant.availability", "merchant.delete", "merchant.save-pricing" -> "merchant.manage";
             case "merchant.save-printer" -> "merchant.printer.edit";
             case "rider.create", "rider.update", "rider.enable", "rider.disable" -> "rider.manage";
             case "rider.audit" -> "rider.audit";

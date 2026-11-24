@@ -95,6 +95,14 @@ public class InternalProductCatalogController {
         return products.adminCatalog(keyword, merchantId, availability, page, pageSize);
     }
 
+    @PutMapping("/merchants/{merchantId}/order")
+    public ResponseEntity<Void> reorder(@RequestHeader(value = "X-Internal-Key", required = false) String key,
+            @PathVariable String merchantId, @RequestBody Map<String, Object> body) {
+        authorize(key);
+        products.adminReorder(merchantId, body);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}/photo")
     public ResponseEntity<byte[]> photo(@RequestHeader(value = "X-Internal-Key", required = false) String key,
             @PathVariable String id) {

@@ -4,6 +4,8 @@ import { ElImage, ElMessage, ElMessageBox, ElUpload, type UploadInstance, type U
 import { Search, Picture, Upload } from '@element-plus/icons-vue'
 import { adminApi, type FoodCategory } from '../api/admin'
 import ListPagination from '../components/ListPagination.vue'
+import RowDragHandle from '../components/RowDragHandle.vue'
+import { useRowReorder } from '../domain/useRowReorder'
 import ProductThumbnail from '../components/ProductThumbnail.vue'
 import { encodePhoto, isPhotoFile } from '../domain/photo'
 import { money } from '../domain/rules'
@@ -68,6 +70,15 @@ function isAvailable(value: ProductRow['available']) {
 function hasPhoto(value: ProductRow['hasPhoto']) {
   return value === true || value === 1 || value === '1'
 }
+
+const canSortProducts = computed(() => editable.value && !!appliedFilters.value.merchantId
+  && !appliedFilters.value.keyword && !appliedFilters.value.availability)
+const productReorder = useRowReorder(
+  () => canSortProducts.value && !loading.value ? rows.value.map(row => row.id) : [],
+  order => adminApi.reorderProducts(appliedFilters.value.merchantId, order),
+  loadProducts,
+)
+const { saving: productOrderSaving, targetId: productDropTarget } = productReorder
 
 async function loadProducts() {
   const request = ++productRequest
@@ -269,10 +280,20 @@ onUnmounted(() => {
         </el-select>
         <el-button type="primary" @click="search"><el-icon><Search /></el-icon>查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
+        <span v-if="editable && !canSortProducts" class="muted">仅按单个商户查询时可拖拽排序</span>
       </div>
     </div>
 
-    <el-table :data="rows" row-key="id" v-loading="loading" stripe class="data-table product-table">
+    <el-table :data="rows" row-key="id" v-loading="loading || productOrderSaving" stripe class="data-table product-table"
+      @dragover="productReorder.over" @drop="productReorder.drop">
+      <el-table-column v-if="canSortProducts" label="排序" width="64" align="center">
+        <template #default="{ row }">
+          <RowDragHandle :id="row.id" :label="row.name"
+            :disabled="loading || productOrderSaving || rows.length < 2" :target="productDropTarget === row.id"
+            @start="productReorder.start($event, row.id)" @end="productReorder.end"
+            @move="productReorder.keydown($event, row.id)" />
+        </template>
+      </el-table-column>
       <el-table-column label="商品" min-width="270">
         <template #default="scope">
           <div class="product-cell">
@@ -331,7 +352,7 @@ onUnmounted(() => {
       <template #empty><el-empty description="没有符合条件的商品" /></template>
     </el-table>
 
-    <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading" jumper />
+    <ListPagination v-model:page="page" v-model:page-size="pageSize" :total="total" :disabled="loading || productOrderSaving" jumper />
   </section>
 
   <el-dialog v-model="editorOpen" :title="editing ? '编辑商品' : '新增商品'" width="min(540px, 94vw)"

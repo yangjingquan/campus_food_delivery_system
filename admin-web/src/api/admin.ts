@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { RowOrder } from '../domain/useRowReorder'
 import type { SectionKey } from '../domain/types'
 import type { Pricing, SettlementSnapshot } from '../domain/pricing'
 
@@ -105,6 +106,9 @@ export const adminApi = {
   },
   products(params: { keyword?: string; merchantId?: string; availability?: string; page?: number; pageSize?: number }) {
     return unwrap<{ rows: Array<Record<string, unknown>>; total: number; page: number; pageSize: number }>(http.get('/products', { params }))
+  },
+  reorderProducts(merchantId: string, order: RowOrder) {
+    return unwrap<void>(http.put(`/products/merchants/${encodeURIComponent(merchantId)}/order`, order))
   },
   productPhoto(id: string, signal?: AbortSignal) {
     return unwrap<Blob>(http.get(`/products/${encodeURIComponent(id)}/photo`, { responseType: 'blob', signal }))

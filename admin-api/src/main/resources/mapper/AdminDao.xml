@@ -15,17 +15,19 @@
     </insert>
 
     <select id="listMerchants" resultType="map">
+        SELECT id,name,contact,phone,address,auditStatus,businessStatus,orderCount,joinedAt,auditReason,hasPhoto,listed FROM (
         SELECT id,name,contact,phone,address,audit_status AS auditStatus,business_status AS businessStatus,
         order_count AS orderCount,joined_at AS joinedAt,audit_reason AS auditReason,
-        EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=merchant.id) AS hasPhoto,listed FROM merchant
+        EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=merchant.id) AS hasPhoto,listed,display_order AS sortOrder,0 AS revisionRow FROM merchant
         WHERE deleted_at IS NULL
         UNION ALL
         SELECT CONCAT('revision:',m.id),r.name,r.contact,r.phone,r.address,r.status,'PROFILE_REVISION',
                m.order_count,m.joined_at,r.reason,r.image_data IS NOT NULL
-                   OR EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=m.id),m.listed
+                   OR EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=m.id),m.listed,m.display_order,1
         FROM merchant_profile_revision r JOIN merchant m ON m.id=r.merchant_id
         WHERE r.status='PENDING_REVIEW' AND m.deleted_at IS NULL
-        ORDER BY id
+        ) records
+        ORDER BY revisionRow,sortOrder,id
     </select>
 
     <select id="listRiders" resultType="map">

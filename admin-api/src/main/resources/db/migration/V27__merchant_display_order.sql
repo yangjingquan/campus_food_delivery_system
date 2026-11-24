@@ -1,0 +1,2 @@
+ALTER TABLE merchant
+    ADD COLUMN display_order INT NOT NULL DEFAULT 2147483647;
