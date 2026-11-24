@@ -1,0 +1,18 @@
+.products-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.products-toolbar .filters {
+  flex: 1 0 216px;
+  margin-top: 0;
+}
+
+.products-toolbar .products-reorder {
+  flex: none;
+  min-height: 48px;
+}

@@ -12,9 +12,6 @@
         <view class="field row"><text>{{form.category || (categories.length ? '请选择食品分类' : '暂无可选食品分类')}}</text><text aria-hidden="true">⌄</text></view>
       </picker>
       <text class="label">商品描述</text><textarea aria-label="商品描述" class="field" data-field="description" bindinput="input" value="{{form.description}}" placeholder="选填，最多 500 字" maxlength="500" />
-      <text class="label">排序值</text>
-      <input aria-label="排序值" class="field" data-field="displayOrder" bindinput="input" value="{{form.displayOrder}}" maxlength="11" disabled="{{saving}}" />
-      <view class="hint">数值越小，点餐页越靠前。默认为 0，可填负数。</view>
     </view>
     <view class="card">
       <view class="section">商品图片</view>

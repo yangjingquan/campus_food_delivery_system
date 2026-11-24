@@ -2,7 +2,8 @@
   "pages": [
     "pages/orders/index", "pages/products/index", "pages/finance/index", "pages/mine/index",
     "pages/onboarding/index", "pages/order/index", "pages/aftersales/index", "pages/product/index",
-    "pages/ticket/index", "pages/map/index", "pages/records/index", "pages/withdraw/index", "pages/devices/index"
+    "pages/ticket/index", "pages/map/index", "pages/records/index", "pages/withdraw/index", "pages/devices/index",
+    "pages/product-order/index"
   ],
   "window": {
     "navigationBarTitleText": "校园外卖商家",

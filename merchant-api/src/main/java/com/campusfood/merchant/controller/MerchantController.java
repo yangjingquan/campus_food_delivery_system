@@ -109,6 +109,13 @@ public class MerchantController {
         return products.save(store(auth), null, body);
     }
 
+    @PutMapping("/products/display-order")
+    public ResponseEntity<Void> reorderProducts(@RequestHeader(value = AUTH, required = false) String auth,
+                                                @RequestBody Map<String, Object> body) {
+        products.reorder(store(auth), body);
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/products/{id}")
     public Map<String, String> editProduct(@RequestHeader(value = AUTH, required = false) String auth, @PathVariable String id,
                                           @RequestBody Map<String, Object> body) {

@@ -5,7 +5,7 @@ const { choosePhoto } = require('../../utils/photo');
 Page({
   data: {
     loading: true, categories: [], categoryIndex: 0,
-    form: { name: '', category: '', description: '', stock: '', price: '', available: true, displayOrder: '0' }
+    form: { name: '', category: '', description: '', stock: '', price: '', available: true }
   },
   onLoad(options) {
     this.id = options.id || '';
@@ -33,8 +33,7 @@ Page({
         categories,
         categoryIndex: Math.max(0, categories.indexOf(item.category)),
         form: {
-          ...item, price: (item.priceCents / 100).toFixed(2), stock: String(item.stock),
-          displayOrder: String(item.displayOrder ?? 0)
+          ...item, price: (item.priceCents / 100).toFixed(2), stock: String(item.stock)
         },
         history: history.map(row => ({ ...row, time: ui.date(row.createdAt) }))
       });
@@ -75,15 +74,12 @@ Page({
   save() {
     if (this.data.choosingPhoto) return;
     ui.action(this, async () => {
-      const { name, category, description, stock, price, available, displayOrder } = this.data.form;
+      const { name, category, description, stock, price, available } = this.data.form;
       if (!name.trim() || !category.trim()) throw new Error('请填写商品名称并选择分类');
       if (!/^\d{1,7}$/.test(stock)) throw new Error('库存须为非负整数');
-      const order = displayOrder.trim();
-      if (!/^-?\d{1,10}$/.test(order)) throw new Error('排序值须为整数');
       if (!this.id && !this.image) throw new Error('请上传一张商品图片');
       const body = {
-        name, category, description, stock: Number(stock), priceCents: ui.cents(price), available,
-        displayOrder: Number(order)
+        name, category, description, stock: Number(stock), priceCents: ui.cents(price), available
       };
       if (this.image) body.image = this.image;
       if (this.id) body.previousStock = this.previousStock;

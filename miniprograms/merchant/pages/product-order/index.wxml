@@ -1,0 +1,40 @@
+<import src="../../fragments/states.wxml" />
+<view class="screen sort-screen">
+  <template is="state" data="{{error, loading}}" />
+  <block wx:if="{{!error && !loading}}">
+    <view class="sort-header">
+      <view class="heading">点餐菜单顺序</view>
+      <view class="hint">按住右侧手柄上下拖动，或轻点手柄选择移动。</view>
+    </view>
+    <scroll-view class="sort-scroll" scroll-y scroll-top="{{scrollTop}}" bindscroll="onScroll">
+      <view wx:if="{{!rows.length}}" class="card empty muted">暂无商品</view>
+      <view wx:for="{{rows}}" wx:key="id"
+        class="sort-row {{index === dragFrom ? 'is-dragging' : ''}} {{index > dragFrom && index <= dragTo ? 'shift-up' : ''}} {{index >= dragTo && index < dragFrom ? 'shift-down' : ''}}"
+        style="{{index === dragFrom ? 'transform: translateY(' + dragOffset + 'px);' : ''}}">
+        <view class="sort-item">
+          <view class="flex">
+            <view class="sort-name">{{item.name}}</view>
+            <view class="hint sort-category">{{item.category}}</view>
+          </view>
+          <text wx:if="{{!item.available}}" class="badge neutral">已下架</text>
+          <text wx:elif="{{item.availableStock <= 0}}" class="badge warn">已售罄</text>
+          <button class="sort-handle" aria-label="{{'移动' + item.name}}" data-index="{{index}}"
+            disabled="{{rows.length < 2 || saving || conflict}}" bindtap="moveOptions"
+            catchtouchstart="startDrag" catchtouchmove="moveDrag" catchtouchend="endDrag" catchtouchcancel="cancelDrag"
+            hover-class="pressed">
+            <view class="sort-grip" aria-hidden="true"><view /><view /><view /></view>
+          </button>
+        </view>
+      </view>
+    </scroll-view>
+    <view class="sort-footer">
+      <view wx:if="{{saveError}}" class="notice error sort-error" aria-live="polite">{{saveError}}</view>
+      <view class="sort-actions">
+        <button class="btn plain" bindtap="cancel" disabled="{{saving}}" hover-class="pressed">取消</button>
+        <button wx:if="{{conflict}}" class="btn primary" bindtap="refresh" hover-class="pressed">重新加载</button>
+        <button wx:else class="btn primary" bindtap="save" loading="{{saving}}"
+          disabled="{{!changed || saving || dragFrom >= 0}}" hover-class="pressed">保存顺序</button>
+      </view>
+    </view>
+  </block>
+</view>

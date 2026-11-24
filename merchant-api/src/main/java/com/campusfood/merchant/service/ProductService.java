@@ -1,5 +1,7 @@
 package com.campusfood.merchant.service;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,6 +31,70 @@ public class ProductService {
             FROM merchant_product p WHERE p.merchant_id=? AND p.deleted_at IS NULL
             ORDER BY p.display_order,p.name,p.id
             """, merchant);
+    }
+
+    @Transactional
+    public void reorder(String merchant, Map<String, Object> body) {
+        List<String> previous = productIds(body.get("previousProductIds"));
+        List<String> requested = productIds(body.get("productIds"));
+        if (!new HashSet<>(previous).equals(new HashSet<>(requested))) {
+            throw Inputs.invalid("调整前后的商品必须一致");
+        }
+
+        // 独占商户行，使同店的排序、新增和删除按事务串行提交。
+        requireStore(merchant, true);
+        List<String> current = lockProductOrder(merchant);
+        if (current.equals(requested)) return;
+        if (!current.equals(previous)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商品列表或顺序已变化，请重新加载后再调整");
+        }
+        writeDisplayOrder(merchant, requested);
+    }
+
+    private List<String> productIds(Object value) {
+        if (!(value instanceof List<?> ids) || ids.isEmpty()) {
+            throw Inputs.invalid("请提交完整的商品顺序");
+        }
+        var unique = new HashSet<String>();
+        var result = new ArrayList<String>(ids.size());
+        for (Object valueId : ids) {
+            if (!(valueId instanceof String id) || id.isBlank() || id.length() > 36 || !unique.add(id)) {
+                throw Inputs.invalid("排序列表包含无效或重复的商品编号");
+            }
+            result.add(id);
+        }
+        return result;
+    }
+
+    private List<String> lockProductOrder(String merchant) {
+        // 下单事务可能先锁商品再锁商户，此处立即退出以释放商户锁，避免互相等待。
+        return db.queryForList("""
+            SELECT id FROM merchant_product WHERE merchant_id=? AND deleted_at IS NULL
+            ORDER BY display_order,name,id FOR UPDATE NOWAIT
+            """, String.class, merchant);
+    }
+
+    private void writeDisplayOrder(String merchant, List<String> ids) {
+        var updates = new ArrayList<Object[]>(ids.size());
+        for (int index = 0; index < ids.size(); index++) {
+            updates.add(new Object[] {index, merchant, ids.get(index), index});
+        }
+        db.batchUpdate("""
+            UPDATE merchant_product SET display_order=?,updated_at=updated_at
+            WHERE merchant_id=? AND id=? AND deleted_at IS NULL AND display_order<>?
+            """, updates);
+    }
+
+    private int nextDisplayOrder(String merchant) {
+        Integer last = db.queryForObject("""
+            SELECT MAX(display_order) FROM merchant_product WHERE merchant_id=? AND deleted_at IS NULL
+            """, Integer.class, merchant);
+        if (last == null) return 0;
+        if (last < Integer.MAX_VALUE) return last + 1;
+        // 兼容曾手动设置过最大整数排序值的店铺，保留原有相对顺序。
+        List<String> ids = lockProductOrder(merchant);
+        writeDisplayOrder(merchant, ids);
+        return ids.size();
     }
 
     /** 管理商品目录包含已下架的商品。 */
@@ -103,14 +169,14 @@ public class ProductService {
 
     @Transactional
     public Map<String, String> save(String merchant, String id, Map<String, Object> body) {
-        requireStore(merchant);
+        requireStore(merchant, id == null && !body.containsKey("displayOrder"));
         return saveProduct(merchant, id, body);
     }
 
     @Transactional
     public Map<String, String> adminSave(String id, Map<String, Object> body) {
         String merchant = id == null ? Inputs.text(body, "merchantId", "所属商户", 32, true) : owner(id);
-        requireStore(merchant);
+        requireStore(merchant, id == null && !body.containsKey("displayOrder"));
         var fields = new java.util.LinkedHashMap<>(body);
         Object availability = id == null ? null : requireProduct(merchant, id, true).get("available");
         fields.put("available", Boolean.TRUE.equals(availability) || availability instanceof Number flag && flag.intValue() != 0);
@@ -132,10 +198,11 @@ public class ProductService {
         if (id == null) {
             if (photo == null) throw Inputs.invalid("请上传一张商品图片");
             id = UUID.randomUUID().toString();
+            int order = displayOrder == null ? nextDisplayOrder(merchant) : displayOrder;
             db.update("""
                 INSERT INTO merchant_product(id,merchant_id,name,category,description,price_cents,stock,available,display_order)
                 VALUES(?,?,?,?,?,?,?,?,?)
-                """, id, merchant, name, category, description, price, stock, available, displayOrder == null ? 0 : displayOrder);
+                """, id, merchant, name, category, description, price, stock, available, order);
         } else {
             Map<String, Object> product = requireProduct(merchant, id, true);
             previous = ((Number) product.get("stock")).intValue();
@@ -202,9 +269,13 @@ public class ProductService {
     }
 
     private void requireStore(String id) {
+        requireStore(id, false);
+    }
+
+    private void requireStore(String id, boolean exclusive) {
         if (db.queryForList("""
-            SELECT id FROM merchant WHERE id=? AND audit_status='APPROVED' AND deleted_at IS NULL FOR SHARE
-            """, String.class, id).isEmpty()) {
+            SELECT id FROM merchant WHERE id=? AND audit_status='APPROVED' AND deleted_at IS NULL
+            """ + (exclusive ? " FOR UPDATE" : " FOR SHARE"), String.class, id).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "商户已删除或尚未通过审核");
         }
     }

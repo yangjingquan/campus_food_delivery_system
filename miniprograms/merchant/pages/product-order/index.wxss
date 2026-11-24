@@ -1,0 +1,118 @@
+.sort-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding-bottom: 0;
+}
+
+.sort-header {
+  flex: none;
+  padding-bottom: 12px;
+}
+
+.sort-scroll {
+  flex: 1;
+  height: 0;
+  width: 100%;
+}
+
+.sort-row {
+  position: relative;
+  height: 68px;
+  padding-bottom: 8px;
+}
+
+.sort-row.is-dragging {
+  z-index: 1;
+}
+
+.sort-row.shift-up {
+  transform: translateY(-100%);
+}
+
+.sort-row.shift-down {
+  transform: translateY(100%);
+}
+
+.sort-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding: 4px 6px 4px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.is-dragging .sort-item {
+  background: var(--tint);
+  border-color: var(--green);
+}
+
+.sort-name,
+.sort-category {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sort-name {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.sort-category {
+  margin-top: 0;
+}
+
+.sort-handle {
+  display: flex;
+  flex: 0 0 48px;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  color: var(--deep);
+  background: var(--field);
+  border-radius: 8px;
+}
+
+.sort-grip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sort-grip view {
+  width: 16px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+}
+
+.sort-footer {
+  flex: none;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+
+.sort-error {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.sort-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sort-actions .btn {
+  flex: 1;
+  min-height: 48px;
+}
+
+.sort-actions .primary {
+  flex: 2;
+}

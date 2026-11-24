@@ -1,5 +1,6 @@
 const api = require('../../utils/api');
 const ui = require('../../utils/ui');
+const filterStatuses = ['', 'PRODUCT_AVAILABLE', 'PRODUCT_UNLISTED', 'PRODUCT_SOLD_OUT'];
 
 Page({
   data: { rows: [], visible: [], thumbnails: {}, filter: 0, labels: ['全部商品', '在售', '已下架', '已售罄'], loading: true },
@@ -43,8 +44,8 @@ Page({
   },
 
   applyFilter(observe = true) {
-    const { rows, labels, filter } = this.data;
-    const visible = filter ? rows.filter(item => item.status === labels[filter]) : rows;
+    const { rows, filter } = this.data;
+    const visible = filter ? rows.filter(item => item.status === filterStatuses[filter]) : rows;
     this.setData({ visible }, observe ? () => this.observeThumbnails() : undefined);
   },
 
@@ -79,6 +80,8 @@ Page({
     const id = event.currentTarget.dataset.id;
     ui.go('/pages/product/index' + (id ? '?id=' + encodeURIComponent(id) : ''));
   },
+
+  reorder() { ui.go('/pages/product-order/index'); },
 
   toggle(event) {
     const item = this.data.rows.find(row => row.id === event.currentTarget.dataset.id);
