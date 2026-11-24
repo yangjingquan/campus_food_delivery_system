@@ -60,7 +60,7 @@ public class RiderOrders {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "配送订单不存在");
         }
         var order = rows.getFirst();
-        // 配送结束后仍可查履约与收益，收餐联系电话仅配送期间提供。
+        // 配送期间提供联系信息，送达后仅返回脱敏的订单联系人。
         if (Fulfillment.DELIVERING.is(order.get("status"))) {
             order.putAll(db.queryForMap("""
                 SELECT d.receiver_name AS receiver,d.phone,
@@ -68,6 +68,17 @@ public class RiderOrders {
                 FROM user_order_detail d
                 WHERE d.order_id=?
                 """, id));
+        } else if (Fulfillment.COMPLETED.is(order.get("status"))) {
+            var contact = db.query("""
+                SELECT d.receiver_name,d.phone,EXISTS (
+                    SELECT 1 FROM rider_delivery_proof p WHERE p.order_id=d.order_id AND p.rider_id=d.pickup_rider_id
+                ) AS deliveryPhotoAvailable
+                FROM user_order_detail d WHERE d.order_id=? AND d.pickup_rider_id=?
+                """, (row, index) -> Map.of(
+                    "maskedReceiver", maskReceiver(row.getString("receiver_name")),
+                    "maskedPhone", maskPhone(row.getString("phone")),
+                    "deliveryPhotoAvailable", row.getBoolean("deliveryPhotoAvailable")), id, rider);
+            contact.stream().findFirst().ifPresent(order::putAll);
         }
         order.put("products", db.queryForList("""
             SELECT name_snapshot AS name,quantity FROM user_order_item WHERE order_id=? ORDER BY id
@@ -82,6 +93,37 @@ public class RiderOrders {
             FROM order_note WHERE order_id=? AND actor_code IN ('MERCHANT','RIDER_SCAN','RIDER_DELIVERY') ORDER BY id
             """, id));
         return order;
+    }
+
+    public record DeliveryPhoto(byte[] data, String mediaType) {}
+
+    public DeliveryPhoto deliveryPhoto(String rider, String id) {
+        var photo = db.query("""
+            SELECT p.photo_data,p.media_type FROM rider_delivery_proof p
+            JOIN business_order o ON o.id=p.order_id
+            JOIN user_order_detail d ON d.order_id=o.id AND d.pickup_rider_id=p.rider_id
+            WHERE o.id=? AND p.rider_id=? AND o.fulfill_status='COMPLETED'
+            """, rows -> rows.next() ? new DeliveryPhoto(rows.getBytes("photo_data"), rows.getString("media_type")) : null,
+            id, rider);
+        if (photo == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "送达照片不存在");
+        }
+        return photo;
+    }
+
+    static String maskReceiver(String name) {
+        if (name == null || name.isBlank()) return "";
+        int[] points = name.strip().codePoints().toArray();
+        if (points.length == 1) return "*";
+        String first = new String(points, 0, 1);
+        if (points.length == 2) return first + "*";
+        return first + "*".repeat(points.length - 2) + new String(points, points.length - 1, 1);
+    }
+
+    static String maskPhone(String phone) {
+        if (phone == null || !phone.strip().matches("[0-9]{11}")) return "";
+        String number = phone.strip();
+        return number.substring(0, 3) + "****" + number.substring(7);
     }
 
     public Map<String, Object> batches() {

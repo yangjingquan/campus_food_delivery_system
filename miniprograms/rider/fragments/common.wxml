@@ -119,9 +119,11 @@
         <image class="delivery-photo-preview" src="{{modal.photo}}" mode="aspectFit" aria-label="送达照片预览"/>
         <button class="link delivery-photo-retake" bindtap="takeDeliveryPhoto" disabled="{{busy}}">重拍照片</button>
       </block>
-      <view class="modal-actions">
+      <view class="modal-actions {{modal.photo ? 'delivery-photo-actions' : ''}}">
         <button wx:if="{{modal.topic}}" class="btn outline" bindtap="closeModal" disabled="{{busy}}">取消</button>
-        <button class="btn primary" bindtap="confirmModal" loading="{{busy}}" disabled="{{busy}}">{{modal.confirm}}</button>
+        <button class="btn primary" bindtap="confirmModal" loading="{{busy && !modal.photo}}" disabled="{{busy}}">
+          {{modal.uploading ? '正在上传…' : modal.confirm}}
+        </button>
       </view>
     </view>
   </view>

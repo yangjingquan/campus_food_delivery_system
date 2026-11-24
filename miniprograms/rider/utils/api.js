@@ -51,14 +51,18 @@ async function token() {
 }
 
 async function request(path, method = 'GET', data) {
+  return withToken(bearer => send(method, path, data, bearer));
+}
+
+async function withToken(action) {
   const bearer = await token();
   try {
-    return await send(method, path, data, bearer);
+    return await action(bearer);
   } catch (error) {
     if (error.status !== 401) throw error;
     // 服务在业务处理前拒绝过期会话，更新凭证后可安全重发。
     if (wx.getStorageSync(tokenKey) === bearer) wx.removeStorageSync(tokenKey);
-    return send(method, path, data, await token());
+    return action(await token());
   }
 }
 
@@ -71,14 +75,19 @@ async function uploadImage(path, filePath, name, formData) {
     header: { Authorization: 'Bearer ' + bearer },
     timeout: 20000
   }).catch(() => { throw new Error('上传失败，请检查网络后重试'); }));
-  const bearer = await token();
-  try {
-    return await upload(bearer);
-  } catch (error) {
-    if (error.status !== 401) throw error;
-    if (wx.getStorageSync(tokenKey) === bearer) wx.removeStorageSync(tokenKey);
-    return upload(await token());
-  }
+  return withToken(upload);
+}
+
+function downloadDeliveryPhoto(orderId) {
+  return withToken(async bearer => {
+    const response = await wxCall('downloadFile', {
+      url: baseUrl() + '/orders/' + encodeURIComponent(orderId) + '/delivery-photo',
+      header: { Authorization: 'Bearer ' + bearer },
+      timeout: 12000
+    });
+    if (response.statusCode === 200 && response.tempFilePath) return response.tempFilePath;
+    throw Object.assign(new Error('送达照片加载失败'), { status: response.statusCode });
+  });
 }
 
 function apply(form, filePath) {
@@ -100,4 +109,4 @@ async function logout() {
   }
 }
 
-module.exports = { request, wxCall, apply, completeDelivery, logout };
+module.exports = { request, wxCall, apply, completeDelivery, downloadDeliveryPhoto, logout };

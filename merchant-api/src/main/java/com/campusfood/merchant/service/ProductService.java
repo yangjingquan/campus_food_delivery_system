@@ -23,10 +23,11 @@ public class ProductService {
     public List<Map<String, Object>> list(String merchant) {
         return db.queryForList("""
             SELECT p.id,p.name,p.category,p.description,p.price_cents AS priceCents,p.stock,p.reserved,p.available,
+                   p.display_order AS displayOrder,
                    GREATEST(0,p.stock-p.reserved) AS availableStock,
                    EXISTS(SELECT 1 FROM merchant_product_photo photo WHERE photo.product_id=p.id) AS hasPhoto
             FROM merchant_product p WHERE p.merchant_id=? AND p.deleted_at IS NULL
-            ORDER BY p.display_order,p.updated_at DESC,p.id
+            ORDER BY p.display_order,p.name,p.id
             """, merchant);
     }
 
@@ -122,6 +123,8 @@ public class ProductService {
         String description = Inputs.text(body, "description", "商品描述", 500, false);
         long price = Inputs.integer(body, "priceCents", "价格（分）", 1, 10_000_000);
         int stock = (int) Inputs.integer(body, "stock", "库存", 0, 1_000_000);
+        Integer displayOrder = body.containsKey("displayOrder")
+            ? (int) Inputs.integer(body, "displayOrder", "排序值", Integer.MIN_VALUE, Integer.MAX_VALUE) : null;
         boolean available = Inputs.flag(body, "available", "上下架状态");
         UploadedPhoto photo = UploadedPhoto.from(body, "商品图片");
         category = categories.requireForProduct(category);
@@ -130,9 +133,9 @@ public class ProductService {
             if (photo == null) throw Inputs.invalid("请上传一张商品图片");
             id = UUID.randomUUID().toString();
             db.update("""
-                INSERT INTO merchant_product(id,merchant_id,name,category,description,price_cents,stock,available)
-                VALUES(?,?,?,?,?,?,?,?)
-                """, id, merchant, name, category, description, price, stock, available);
+                INSERT INTO merchant_product(id,merchant_id,name,category,description,price_cents,stock,available,display_order)
+                VALUES(?,?,?,?,?,?,?,?,?)
+                """, id, merchant, name, category, description, price, stock, available, displayOrder == null ? 0 : displayOrder);
         } else {
             Map<String, Object> product = requireProduct(merchant, id, true);
             previous = ((Number) product.get("stock")).intValue();
@@ -145,9 +148,10 @@ public class ProductService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "库存已变化，请刷新商品后再编辑");
             }
             db.update("""
-                UPDATE merchant_product SET name=?,category=?,description=?,price_cents=?,stock=?,available=?
+                UPDATE merchant_product SET name=?,category=?,description=?,price_cents=?,stock=?,available=?,
+                    display_order=COALESCE(?,display_order)
                 WHERE merchant_id=? AND id=?
-                """, name, category, description, price, stock, available, merchant, id);
+                """, name, category, description, price, stock, available, displayOrder, merchant, id);
         }
         if (photo != null) {
             // 商品和图片在同一事务保存，编辑未提交新图时保留原图。

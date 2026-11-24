@@ -127,10 +127,12 @@ public class OrderService {
         ticket.putAll(db.queryForMap("""
             SELECT m.name AS merchantName,
                 IF(o.fulfillment_type='pickup',d.pickup_address,CONCAT(d.building,' ',d.room)) AS address,
-                d.created_at AS createdAt
+                d.created_at AS createdAt,d.receiver_name AS receiverName,d.phone
             FROM user_order_detail d JOIN business_order o ON o.id=d.order_id
             JOIN merchant m ON m.id=o.merchant_id WHERE d.order_id=? AND o.merchant_id=?
             """, id, merchant));
+        ticket.put("maskedReceiverName", ReceiptFormatter.maskName((String) ticket.remove("receiverName")));
+        ticket.put("maskedPhone", ReceiptFormatter.maskPhone((String) ticket.remove("phone")));
         ticket.put("lines", lines(id));
         return ticket;
     }

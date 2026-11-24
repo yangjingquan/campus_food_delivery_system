@@ -22,6 +22,24 @@
       </button>
     </view>
   </block>
+  <block wx:elif="{{order.status === 'COMPLETED' && (order.maskedReceiver || order.maskedPhone)}}">
+    <view class="divider"/>
+    <view class="small contact-row">
+      <text wx:if="{{order.maskedReceiver}}">点餐人 {{order.maskedReceiver}}</text>
+      <text wx:if="{{order.maskedPhone}}" class="muted">{{order.maskedPhone}}</text>
+    </view>
+  </block>
+</view>
+<view class="card" wx:if="{{order.status === 'COMPLETED'}}">
+  <view class="sectiontitle timeline-title">送达照片</view>
+  <button wx:if="{{photoPath}}" class="delivery-proof-button full" bindtap="previewDeliveryPhoto"
+    hover-class="pressed" aria-label="放大查看送达照片">
+    <image class="delivery-proof-image" src="{{photoPath}}" mode="aspectFit" aria-hidden="true"/>
+    <text class="small muted">点击放大查看</text>
+  </button>
+  <button wx:elif="{{photoError}}" class="btn outline" bindtap="loadDeliveryPhoto">照片加载失败，点击重试</button>
+  <text wx:elif="{{photoLoading}}" class="small muted">正在加载照片…</text>
+  <text wx:else class="small muted">该订单暂无送达照片</text>
 </view>
 <view class="card">
   <view class="info-group">

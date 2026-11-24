@@ -31,6 +31,7 @@
 | POST | `/pickup` | 逐单领取小票上的二维码 |
 | GET | `/orders?scope=active\|history\|income` | 查询本人配送及结算记录 |
 | GET | `/orders/{id}` | 查询本人订单、售后和配送详情 |
+| GET | `/orders/{id}/delivery-photo` | 查看本人已送达订单的送达照片 |
 | POST | `/orders/{id}/complete` | 上传送达照片并确认送达，multipart 字段 `photo`，JPEG/PNG，最大 4 MB |
 | POST | `/orders/{id}/location` | 上传该单定位 |
 | GET | `/finance` | 查询本人收益和账户余额 |

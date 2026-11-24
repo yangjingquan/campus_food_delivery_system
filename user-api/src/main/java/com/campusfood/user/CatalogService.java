@@ -103,7 +103,7 @@ public class CatalogService {
             "FROM merchant m LEFT JOIN merchant_product p ON p.merchant_id=m.id AND p.available=TRUE AND p.deleted_at IS NULL " +
             "WHERE m.audit_status='APPROVED' AND m.listed AND m.deleted_at IS NULL " +
             "AND (?='' OR m.id=?) AND (?='' OR m.name LIKE ? OR p.name LIKE ?) AND (?='' OR p.category=?) " +
-            "ORDER BY m.id,p.display_order,p.name";
+            "ORDER BY m.id,p.display_order,p.name,p.id";
         String like = "%" + term + "%";
         List<Map<String, Object>> rows = db.queryForList(sql, merchantId, merchantId, term, like, like, categoryFilter, categoryFilter);
         var pricing = OrderPricing.current(db, rows.stream().map(row -> row.get("merchant_id").toString()).distinct().toList());

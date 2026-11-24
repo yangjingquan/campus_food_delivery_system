@@ -99,6 +99,7 @@ function register(screen) {
     },
 
     onUnload() {
+      if (screen === 'detail') this.refreshSequence = (this.refreshSequence || 0) + 1;
       this.stopListening?.();
       if (screen === 'map') this.stopMapPolling();
     },
@@ -134,7 +135,11 @@ function register(screen) {
           this.formLoaded = true;
         }
         if (this.refreshSequence === sequence) {
+          if (screen === 'detail') {
+            Object.assign(patch, { photoPath: '', photoError: false, photoLoading: false });
+          }
           this.setData({ ...patch, loaded: true });
+          if (screen === 'detail' && patch.order?.deliveryPhotoAvailable) this.loadDeliveryPhoto();
           if (screen === 'map' && !this.mapTimer) {
             this.mapTimer = setInterval(() => this.refreshMap().catch(() => {}), 20000);
           }
@@ -144,6 +149,26 @@ function register(screen) {
       } finally {
         if (this.refreshSequence === sequence) this.setData({ loading: false });
       }
+    },
+
+    async loadDeliveryPhoto() {
+      const { order, photoLoading } = this.data;
+      if (!order?.deliveryPhotoAvailable || photoLoading) return;
+      const sequence = this.refreshSequence;
+      this.setData({ photoLoading: true, photoError: false });
+      try {
+        const photoPath = await api.downloadDeliveryPhoto(order.id);
+        if (sequence === this.refreshSequence) this.setData({ photoPath });
+      } catch {
+        if (sequence === this.refreshSequence) this.setData({ photoError: true });
+      } finally {
+        if (sequence === this.refreshSequence) this.setData({ photoLoading: false });
+      }
+    },
+
+    previewDeliveryPhoto() {
+      const { photoPath } = this.data;
+      if (photoPath) wx.previewImage({ current: photoPath, urls: [photoPath] });
     },
 
     async loadScreen() {
@@ -288,6 +313,7 @@ function register(screen) {
       this.setData({ busy: true });
       try {
         if (modal.topic === 'complete') {
+          this.setData({ 'modal.uploading': true });
           await api.completeDelivery(modal.id, modal.photo);
           toast('已确认送达');
           this.setData({ modal: null });
@@ -308,6 +334,7 @@ function register(screen) {
           navigate('withdrawDetail', result.withdrawalId, true);
         }
       } catch (error) {
+        if (modal.topic === 'complete') this.setData({ 'modal.uploading': false });
         toast(errorMessage(error));
       } finally {
         this.setData({ busy: false });

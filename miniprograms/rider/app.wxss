@@ -370,6 +370,15 @@ button[loading]::before { margin-right: 5px; }
 .product-row .muted { flex: none; }
 .delivery-destination .destination { margin: 8px 0 3px; }
 .contact-row .muted { display: block; }
+.page .delivery-proof-button { display: block; text-align: center; }
+.delivery-proof-image {
+  display: block;
+  width: 100%;
+  height: 160px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: var(--soft);
+}
 .timeline-title { margin: 0 0 9px; }
 .timeline-item {
   position: relative;
@@ -573,6 +582,15 @@ button[loading]::before { margin-right: 5px; }
   text-align: center;
 }
 .modal-actions .btn.outline { border-color: #c4d9cd; }
+.delivery-photo-actions .btn {
+  min-width: 0;
+  min-height: 46px;
+  white-space: nowrap;
+}
+.delivery-photo-actions .btn[disabled] { opacity: 1; }
+@media (max-width: 375px) {
+  .modal-actions.delivery-photo-actions .btn { padding: 6px; font-size: 14px; }
+}
 .sheet-layer { align-items: flex-end; padding: 0; }
 .picker-sheet {
   width: 100%;

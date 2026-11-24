@@ -39,8 +39,14 @@ public class ReceiptFormatter {
         receipt.append("--------------------------------<BR>");
         if (!pickup) receipt.append("<R>配送费：").append(money(ticket.get("deliveryCents"))).append("元</R><BR>");
         receipt.append("<R><B>总金额：").append(money(ticket.get("paidCents"))).append("元</B></R><BR>")
-                .append(pickup ? "取餐地点：" : "送货地址：").append(text(ticket.get("address"))).append("<BR>")
-                .append("下单时间：").append(time(ticket.get("createdAt"))).append("<BR><BR>");
+                .append(pickup ? "取餐地点：" : "送货地址：").append(text(ticket.get("address"))).append("<BR>");
+        if (ticket.get("maskedReceiverName") instanceof String name && !name.isEmpty()) {
+            receipt.append("点餐人：").append(text(name)).append("<BR>");
+        }
+        if (ticket.get("maskedPhone") instanceof String phone && !phone.isEmpty()) {
+            receipt.append("手机号：").append(phone).append("<BR>");
+        }
+        receipt.append("下单时间：").append(time(ticket.get("createdAt"))).append("<BR><BR>");
         String content = receipt.toString();
         if (content.getBytes(StandardCharsets.UTF_8).length > 5000) {
             throw Inputs.invalid("完整小票内容超过打印机 5000 字节限制，请复制小票内容处理");
@@ -60,6 +66,21 @@ public class ReceiptFormatter {
     static String time(Object value) {
         if (value instanceof Timestamp timestamp) return TIME.format(timestamp.toInstant());
         throw new IllegalArgumentException("下单时间不可用");
+    }
+
+    static String maskName(String name) {
+        if (name == null || name.isBlank()) return "";
+        int[] characters = name.strip().codePoints().toArray();
+        if (characters.length == 1) return "*";
+        String first = new String(characters, 0, 1);
+        if (characters.length == 2) return first + "*";
+        return first + "*".repeat(characters.length - 2) + new String(characters, characters.length - 1, 1);
+    }
+
+    static String maskPhone(String phone) {
+        if (phone == null) return "";
+        String number = phone.strip();
+        return number.matches("[0-9]{11}") ? number.substring(0, 3) + "****" + number.substring(7) : "";
     }
 
     static String text(Object value) {
