@@ -216,10 +216,7 @@ textarea.field { height: 64px; }
 .mine-screen .form-row { align-items: stretch; }
 .mine-screen .form-row .btn { flex: none; }
 .onboarding-screen .photo-placeholder { height: 110px; }
-.product-screen .photo-picker { min-height: 172px; }
 .photo-plus { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid #6caa8a; border-radius: 50%; background: #dbeee2; }
-.product-screen .photo-picker .photo { height: 172px; }
-.product-screen .photo-picker .photo-plus { margin-bottom: 5px; }
 .orders-screen .hero, .withdraw-screen .hero { background: #167653; }
 .withdraw-screen .hero .muted:last-child { margin-top: 20px; }
 .withdraw-screen .currency-field { min-height: 48px; }

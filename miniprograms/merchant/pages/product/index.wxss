@@ -1,0 +1,160 @@
+.editor-sheet {
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.editor-section {
+  padding: 16px 0;
+}
+
+.editor-section + .editor-section {
+  border-top: 1px solid var(--line);
+}
+
+.editor-field {
+  margin-top: 12px;
+}
+
+.product-editor .label {
+  font-weight: 600;
+}
+
+.product-editor .field,
+.product-editor .currency-field {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.product-editor .field:focus,
+.product-editor .currency-field:focus-within {
+  border-color: var(--green);
+}
+
+.product-editor .currency-field .field {
+  min-height: 40px;
+  padding-left: 0;
+  border: 0;
+}
+
+.product-editor textarea.field {
+  height: 70px;
+}
+
+.editor-picker,
+.editor-photo-button {
+  padding-right: 14px;
+}
+
+.editor-chevron {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-top: 1px solid var(--muted);
+  border-right: 1px solid var(--muted);
+  transform: rotate(45deg);
+}
+
+.editor-stock-note {
+  margin-top: 8px;
+}
+
+.editor-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.editor-status-label {
+  color: var(--muted);
+}
+
+.editor-status-options {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.editor-status-choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  min-height: 44px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.editor-status-choice.selected {
+  color: var(--deep);
+  font-weight: 650;
+}
+
+.editor-status-choice.selected::before {
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  left: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--green);
+}
+
+.editor-photo-button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 10px;
+  padding-left: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.editor-photo-preview {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+
+.editor-photo-image {
+  width: 100%;
+  height: 100%;
+}
+
+.editor-photo-action {
+  color: var(--deep);
+  font-weight: 600;
+}
+
+.editor-history-row {
+  margin-top: 7px;
+}
+
+.product-editor .action-dock {
+  border-top: 1px solid var(--line);
+  box-shadow: none;
+}
+
+.product-editor .action-dock .btn {
+  width: 100%;
+  max-width: 588px;
+  min-height: 44px;
+}

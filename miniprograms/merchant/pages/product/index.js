@@ -56,7 +56,9 @@ Page({
     const category = this.data.categories[categoryIndex];
     if (category !== undefined) this.setData({ categoryIndex, 'form.category': category });
   },
-  availability(event) { this.setData({ 'form.available': event.detail.value }); },
+  availability(event) {
+    if (!this.data.saving) this.setData({ 'form.available': event.currentTarget.dataset.status === 'on' });
+  },
   async choosePhoto() {
     if (this.data.choosingPhoto || this.data.saving) return;
     this.setData({ choosingPhoto: true, photoError: '' });
