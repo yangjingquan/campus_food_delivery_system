@@ -75,9 +75,18 @@ const snapshots = ref<SettlementSnapshot[]>([])
 const snapshotsLoading = ref(false)
 const snapshotsError = ref('')
 let snapshotRequest = 0
-const snapshotEvents: Record<string, string> = {
-  settlement_credit: '商户入账', rider_settlement_credit: '骑手入账',
-  rider_refund_debit: '商户承担骑手费用', rider_refund_advance: '平台垫付',
+const accountEventLabels: Record<string, string> = {
+  settlement_credit: '商户结算入账',
+  rider_settlement_credit: '骑手结算入账',
+  rider_refund_debit: '商户承担骑手费用',
+  rider_refund_advance: '平台垫付骑手费用',
+  debt_recover: '欠款扣回',
+  debt_receive: '平台收回垫付',
+  withdraw_freeze: '提现冻结',
+  withdraw_unfreeze: '审核拒绝解冻',
+  withdraw_paid: '提现出款',
+  transfer_failed_unfreeze: '转账失败解冻',
+  transfer_success: '转账成功',
 }
 const snapshotSources = { DEFAULT: '平台默认', MERCHANT: '商户独立', LEGACY: '原成交规则' }
 const activeRow = ref<Row | null>(null)
@@ -321,7 +330,9 @@ function displayValue(row: Row, key: string) {
   if (key === 'interveneReason') return row.interveneCode ? interventionLabel(row.interveneCode) : value
   if (key === 'operator' && row.operatorCode) return value || stateLabel(row.operatorCode)
   if (['paidCents', 'amountCents', 'balanceCents', 'frozenCents', 'availableDelta', 'frozenDelta'].includes(key)) return money(Number(value || 0))
-  if (key === 'eventType') return ({ debt_recover: '欠款扣回', debt_receive: '平台收回垫付', withdraw_freeze: '提现冻结', withdraw_unfreeze: '审核拒绝解冻', transfer_failed_unfreeze: '转账失败解冻', transfer_success: '转账成功' } as Record<string,string>)[value] || value
+  if (key === 'eventType' && typeof value === 'string' && Object.hasOwn(accountEventLabels, value)) {
+    return accountEventLabels[value]
+  }
   return value === undefined || value === null || value === '' ? '—' : value
 }
 function statusType(value: string) {
@@ -914,7 +925,7 @@ function runRowAction(row: Row) {
           <p v-else-if="!snapshotsLoading && !snapshots.length" class="muted">暂无结算快照</p>
           <el-collapse v-else>
             <el-collapse-item v-for="entry in snapshots" :key="entry.eventType" :name="entry.eventType">
-              <template #title>{{ snapshotEvents[entry.eventType] || entry.eventType }} · {{ money(entry.amountCents) }}</template>
+              <template #title>{{ displayValue(entry, 'eventType') }} · {{ money(entry.amountCents) }}</template>
               <div class="detail-grid">
                 <div class="detail-item"><span>规则</span><strong>{{ snapshotSources[entry.ruleSource] }} · 版本 {{ entry.ruleVersion }}</strong></div>
                 <div class="detail-item"><span>入账时间</span><strong>{{ new Date(entry.settledAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) }}</strong></div>
