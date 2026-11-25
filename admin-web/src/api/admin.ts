@@ -39,6 +39,17 @@ export interface AdminSessionUser {
   permissions: string[]
 }
 
+export interface MiniProgramUser {
+  id: string
+  nickname: string | null
+  merchantName: string | null
+  merchantStatus: string | null
+  riderName: string | null
+  riderStatus: string | null
+}
+
+export type MiniProgramRole = 'user' | 'merchant' | 'rider'
+
 export class AdminApiError extends Error {
   constructor(message: string, readonly status?: number) {
     super(message)
@@ -68,6 +79,11 @@ export const adminApi = {
   session() { return unwrap<AdminSessionUser>(http.get('/auth/session')) },
   logout() { return unwrap<{ ok: boolean }>(http.post('/auth/logout')) },
   changePassword(oldPassword: string, newPassword: string) { return unwrap<{ok: boolean}>(http.post('/auth/password', { oldPassword, newPassword })) },
+  users(params: { role: MiniProgramRole | ''; keyword: string; page: number; pageSize: number }, signal: AbortSignal) {
+    return unwrap<{ rows: MiniProgramUser[]; total: number; page: number; pageSize: number }>(
+      http.get('/users', { params, signal }),
+    )
+  },
   administrators() { return unwrap<{ users: Array<{id: number; username: string; enabled: boolean; roles: string}>; roles: Array<{code: string; name: string}> }>(http.get('/administrators')) },
   createAdministrator(data: { username: string; password: string; role: string }) { return unwrap<{ok: boolean}>(http.post('/administrators', data)) },
   updateAdministrator(id: number, data: { role: string; enabled: boolean }) { return unwrap<{ok: boolean}>(http.put(`/administrators/${id}/access`, data)) },

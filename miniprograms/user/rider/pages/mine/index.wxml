@@ -1,3 +1,4 @@
+<wxs module="states" src="../../utils/states.wxs"/>
 <import src="../../fragments/common.wxml"/>
 <view class="page root-page">
   <view class="root-content">

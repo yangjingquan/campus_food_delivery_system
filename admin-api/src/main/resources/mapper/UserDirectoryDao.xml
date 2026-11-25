@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campusfood.admin.dao.UserDirectoryDao">
+    <sql id="accounts">
+        WITH role_identities AS (
+            <!-- 用户表沿用现有用户小程序的 OpenID。商户和骑手身份保存各自的 AppID。 -->
+            SELECT CAST(COALESCE((SELECT TRIM(user_app_id) FROM wechat_config ORDER BY id DESC LIMIT 1), '')
+                   AS BINARY) AS app_id,
+                   CAST(openid AS BINARY) AS open_id, id AS user_id,
+                   NULL AS merchant_identity_id, NULL AS rider_identity_id
+            FROM user_profile
+            UNION ALL
+            SELECT CAST(app_id AS BINARY), CAST(open_id AS BINARY), NULL, id, NULL
+            FROM merchant_identity
+            UNION ALL
+            SELECT CAST(app_id AS BINARY), CAST(openid AS BINARY), NULL, NULL, id
+            FROM rider_identity
+        ), accounts AS (
+            SELECT MAX(user_id) AS user_id, MAX(merchant_identity_id) AS merchant_identity_id,
+                   MAX(rider_identity_id) AS rider_identity_id
+            FROM role_identities
+            GROUP BY app_id, open_id
+        )
+    </sql>
+
+    <sql id="matchingRows">
+        FROM accounts a
+        LEFT JOIN user_profile u ON u.id = a.user_id
+        LEFT JOIN merchant_identity mi ON mi.id = a.merchant_identity_id
+        LEFT JOIN merchant m ON m.id = mi.merchant_id
+        LEFT JOIN rider r ON r.id = a.rider_identity_id
+        <where>
+            <choose>
+                <when test="role == 'user'">a.user_id IS NOT NULL</when>
+                <when test="role == 'merchant'">a.merchant_identity_id IS NOT NULL</when>
+                <when test="role == 'rider'">a.rider_identity_id IS NOT NULL</when>
+            </choose>
+            <if test="keyword != ''">
+                AND (LOCATE(#{keyword}, u.display_name) &gt; 0
+                    OR LOCATE(#{keyword}, m.name) &gt; 0
+                    OR LOCATE(#{keyword}, r.name) &gt; 0)
+            </if>
+        </where>
+    </sql>
+
+    <select id="count" resultType="long">
+        <include refid="accounts"/>
+        SELECT COUNT(*)
+        <include refid="matchingRows"/>
+    </select>
+
+    <select id="list" resultType="map">
+        <include refid="accounts"/>
+        SELECT COALESCE(CONCAT('user:', a.user_id), CONCAT('merchant:', a.merchant_identity_id),
+                        CONCAT('rider:', a.rider_identity_id)) AS id,
+               u.display_name AS nickname,
+               m.name AS merchantName,
+               CASE WHEN a.merchant_identity_id IS NULL THEN NULL
+                    WHEN m.deleted_at IS NOT NULL THEN 'REMOVED'
+                    ELSE COALESCE(m.audit_status, 'NOT_ENROLLED') END AS merchantStatus,
+               r.name AS riderName,
+               CASE WHEN a.rider_identity_id IS NOT NULL
+                    THEN COALESCE(r.audit_status, 'NOT_ENROLLED') END AS riderStatus
+        <include refid="matchingRows"/>
+        ORDER BY a.user_id DESC, a.merchant_identity_id DESC, a.rider_identity_id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+</mapper>

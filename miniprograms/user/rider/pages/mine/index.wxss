@@ -1,1 +1,31 @@
 @import "../../styles/base.wxss";
+
+.profilehead .h2 {
+  overflow-wrap: anywhere;
+}
+
+.profile-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.profile-meta .chip {
+  padding: 2px 6px;
+}
+
+.page .profilehead .switch-role-button {
+  flex: none;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 10px;
+  background: var(--segment);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.switch-role-icon {
+  width: 16px;
+  height: 16px;
+}

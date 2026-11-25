@@ -6,9 +6,9 @@ Page({
     pending: '',
     error: '',
     options: [
-      { id: 'user', name: '用户端', description: '点餐、查看订单和管理收餐地址', icon: '/assets/v3-orders.svg' },
-      { id: 'merchant', name: '商户端', description: '管理店铺、商品和接单', icon: '/assets/v3-roles.svg' },
-      { id: 'rider', name: '骑手端', description: '领取餐品、查看配送和收益', icon: '/assets/v3-address.svg' }
+      { id: 'user', name: '我是吃货', description: '点餐、查看订单和管理收餐地址', icon: '/assets/v3-orders.svg' },
+      { id: 'merchant', name: '我是商户', description: '管理店铺、商品和接单', icon: '/assets/v3-roles.svg' },
+      { id: 'rider', name: '我是骑手', description: '领取餐品、查看配送和收益', icon: '/assets/v3-address.svg' }
     ]
   },
 

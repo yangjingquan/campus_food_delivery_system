@@ -1,1 +1,16 @@
 @import "../../styles/base.wxss";
+
+.mine-header .switch-role-button {
+  flex: none;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.mine-header .switch-role-icon {
+  width: 16px;
+  height: 16px;
+}

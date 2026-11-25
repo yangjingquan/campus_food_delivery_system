@@ -1,12 +1,17 @@
-<wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="profilehead">
   <view class="avatar">{{profile.initial}}</view>
   <view class="flex-fill">
     <view class="h2">{{profile.name || '校园骑手'}}</view>
-    <text class="small muted">学生骑手</text>
+    <view class="profile-meta">
+      <text class="small muted">学生骑手</text>
+      <template is="chip" data="{{label: states.label(profile.auditStatus), tone: approved ? '' : 'amber'}}"/>
+    </view>
   </view>
-  <template is="chip" data="{{label: states.label(profile.auditStatus), tone: approved ? '' : 'amber'}}"/>
+  <button class="btn switch-role-button" bindtap="openRolePicker" hover-class="pressed">
+    <image class="switch-role-icon" src="/assets/v3-roles.svg" mode="aspectFit" aria-hidden="true"/>
+    <text>切换角色</text>
+  </button>
 </view>
 <view class="card profile-stats" wx:if="{{approved}}">
   <view class="row">
@@ -26,9 +31,4 @@
 <view class="card flush">
   <template is="row" data="{{topic: 'permission', icon: 'pin', label: '位置授权说明', description: '按订单控制共享范围'}}"/>
   <template is="row" data="{{page: 'help', icon: 'help', label: '帮助', description: '常见问题与联系运营'}}"/>
-  <button class="listrow" bindtap="openRolePicker" hover-class="pressed">
-    <view class="rowicon"><template is="icon" data="{{name: 'user'}}"/></view>
-    <view class="text"><text class="strong">切换角色</text></view>
-    <text class="arrow" aria-hidden="true">›</text>
-  </button>
 </view>

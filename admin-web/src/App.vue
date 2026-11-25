@@ -26,6 +26,7 @@ const menuGroups: { label: string; items: MenuEntry[] }[] = [
     label: '运营工作台',
     items: [
       { name: 'overview', icon: 'Grid' },
+      { name: 'users', icon: 'User' },
       { id: 'merchant-nav', title: '商户管理', icon: 'Shop', children: ['merchants', 'products'] },
       { name: 'food-categories', icon: 'Grid' },
       { name: 'riders', icon: 'Bicycle' },

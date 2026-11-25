@@ -3,8 +3,16 @@
 <include src="../../fragments/role-gate.wxml"/>
 <block wx:if="{{roleReady}}">
 <view class="screen mine-screen tab-screen">
-  <view class="heading">我的店铺</view>
-  <view class="hint">营业状态、审核资料和接单设备</view>
+  <view class="row mine-header">
+    <view class="flex">
+      <view class="heading">我的店铺</view>
+      <view class="hint">营业状态、审核资料和接单设备</view>
+    </view>
+    <button class="btn switch-role-button" bindtap="openRolePicker" hover-class="pressed">
+      <image class="switch-role-icon" src="/assets/v3-roles.svg" mode="aspectFit" aria-hidden="true" />
+      <text>切换角色</text>
+    </button>
+  </view>
   <template is="state" data="{{error, loading, blocked}}" />
   <block wx:if="{{loggedIn && !error && !loading}}">
     <view class="hero">
@@ -44,7 +52,6 @@
     <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
     <button class="btn plain centered logout-button" bindtap="logout" disabled="{{saving}}" hover-class="pressed">退出登录</button>
   </block>
-  <button class="btn plain centered separator switch-role-button" bindtap="openRolePicker" hover-class="pressed">切换角色</button>
 </view>
 <merchant-tab-bar selected="/merchant/pages/mine/index"/>
 </block>

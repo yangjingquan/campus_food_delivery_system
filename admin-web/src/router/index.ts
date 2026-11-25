@@ -8,6 +8,7 @@ const WorkspaceView = () => import('../views/WorkspaceView.vue')
 const ConfigView = () => import('../views/ConfigView.vue')
 const WechatView = () => import('../views/WechatView.vue')
 const AdminUsersView = () => import('../views/AdminUsersView.vue')
+const UserDirectoryView = () => import('../views/UserDirectoryView.vue')
 const ProductCatalogView = () => import('../views/ProductCatalogView.vue')
 const FoodCategoriesView = () => import('../views/FoodCategoriesView.vue')
 const HomeBannersView = () => import('../views/HomeBannersView.vue')
@@ -26,6 +27,7 @@ export const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
     { path: '/overview', name: 'overview', component: DashboardView, meta: { title: '运营概览', permission: 'overview.view' } },
+    { path: '/users', name: 'users', component: UserDirectoryView, meta: { title: '用户列表', permission: 'user.view' } },
     { path: '/merchants', name: 'merchants', component: WorkspaceView, meta: { title: '商户列表', permission: 'merchant.view' } },
     { path: '/products', name: 'products', component: ProductCatalogView, meta: { title: '商户商品', permission: 'merchant.view' } },
     { path: '/food-categories', name: 'food-categories', component: FoodCategoriesView, meta: { title: '食品分类', permission: 'food-category.view' } },
