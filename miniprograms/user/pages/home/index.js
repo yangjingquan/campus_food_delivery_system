@@ -1,6 +1,7 @@
 const api = require('../../utils/api');
 const display = require('../../utils/display');
 const { openBannerLink } = require('../../utils/banner-link');
+const roles = require('../../utils/roles');
 
 const { showDialog, dialogEvents } = require('../../utils/dialog');
 
@@ -12,13 +13,19 @@ Page({
     addressLabel: '添加收餐地址', banners: [], currentBanner: 0
   },
 
-  onShow() {
+  async onShow() {
+    this.homeVisible = true;
+    if (await getApp().restoreWorkspace(() => this.homeVisible) || !this.homeVisible) return;
+    if (roles.activeRole() !== 'user') roles.activate('user');
     this.getTabBar?.()?.refresh('pages/home/index');
     const address = wx.getStorageSync('selectedAddress');
     this.setData({ addressLabel: address ? `${address.building} · ${address.room}` : '添加收餐地址' });
     this.loadBanners();
     this.load();
   },
+
+  onHide() { this.homeVisible = false; },
+  onUnload() { this.homeVisible = false; },
 
   async loadBanners() {
     const version = this.bannerRequest = (this.bannerRequest || 0) + 1;

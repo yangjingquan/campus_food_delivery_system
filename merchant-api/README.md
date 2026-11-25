@@ -1,6 +1,6 @@
 # 商户端开发与联调
 
-原生微信小程序目录为 `miniprograms/merchant`，当前 AppID 为 `wxc93dfbb2d1cb6fb4`。商户 API 使用父工程的 Spring Boot 4、Nacos、MySQL 和 Flyway，HTTP 路径为 `/api/merchant/v1`。微信登录实时读取管理后台最新的商户小程序配置，使用管理端的同一只读主密钥文件解密。若部署使用其他商户 AppID，请同时更新 `project.config.json`、服务环境变量 `WECHAT_MERCHANT_APP_ID` 和管理后台商户端微信配置。
+微信开发者工具导入统一工程 `miniprograms/user`，商户端代码在 `merchant` 分包，AppID 沿用「寝食记」的 `wxb2ef21a4d9800f4e`。商户 API 使用父工程的 Spring Boot 4、Nacos、MySQL 和 Flyway，HTTP 路径为 `/api/merchant/v1`。微信登录实时读取管理后台最新的统一小程序配置，使用管理端的同一只读主密钥文件解密。`project.config.json`、部署变量 `WECHAT_USER_APP_ID` 和管理后台的统一小程序 AppID 须一致。
 
 ## 本地启动
 
@@ -8,9 +8,9 @@
    ```sh
    mvn -pl merchant-api,admin-api,user-api,gateway -am package
    ```
-2. 在环境中配置随机 `INTERNAL_API_KEY`，运行 `scripts/start-local.sh`。Compose 将该值传给管理端和用户端以及商户端调用方。复用已有数据库时保留加密配置所用的 `.local/wechat-master.key`。管理员配置正确的商户 AppID 和 AppSecret 后，重新登录即可读取最新版本。
-3. 微信开发者工具导入 `miniprograms/merchant`。在 `miniprograms/merchant/utils/config.js` 手动设置 `apiEnvironment` 后重新编译。`development` 访问本机网关 `http://127.0.0.1:8082`，`production` 访问正式网关 `https://cfdapi.nexbyte.top`。当前默认使用 `production`。两套环境分别保存登录会话。正式联调前需在该 AppID 的微信后台登记 HTTPS 请求及下载域名。
-4. 首次微信登录后提交店铺资料，由管理后台的商户页面审核。资料变更独立审核。旧档案与微信身份需由平台核验后绑定；新登录无法按名称或手机号认领旧店。
+2. 在环境中配置随机 `INTERNAL_API_KEY`，运行 `scripts/start-local.sh`。Compose 将该值传给管理端和用户端以及商户端调用方。复用已有数据库时保留加密配置所用的 `.local/wechat-master.key`。管理员配置正确的统一 AppID 和 AppSecret 后，重新登录即可读取最新版本。
+3. 微信开发者工具导入 `miniprograms/user`。在 `miniprograms/user/utils/merchant/config.js` 手动设置 `apiEnvironment` 后重新编译。`development` 访问本机网关 `http://127.0.0.1:8082`，`production` 访问正式网关 `https://cfdapi.nexbyte.top`。当前默认使用 `production`。两套环境分别保存登录会话。正式联调前需在该 AppID 的微信后台登记 HTTPS 请求及下载域名。
+4. 首次微信登录后提交店铺资料，由管理后台的商户页面审核。资料变更独立审核。使用新版测试库时，由商户在统一入口重新提交资料。
 
 ## 数据和联调边界
 
@@ -22,6 +22,6 @@
 
 ## 微信提现
 
-管理员审核通过后，`user-api` 使用已通过审核的店铺所绑定的商户端微信身份发起转账。生产 `user-api` 要配置独立的 `MERCHANT_TRANSFER_SCENE_ID` 和 `MERCHANT_TRANSFER_SCENE_REPORTS`，并在管理员端保存商户小程序 AppID 和对应微信商户的签名材料。场景和报备信息取自实际获批的商家转账业务。[微信支付接入指引](https://pay.wechatpay.cn/doc/v3/merchant/4054257704)
+管理员审核通过后，`user-api` 使用已通过审核的店铺所绑定的商户端微信身份发起转账。生产 `user-api` 要配置独立的 `MERCHANT_TRANSFER_SCENE_ID` 和 `MERCHANT_TRANSFER_SCENE_REPORTS`，并在管理员端保存统一小程序 AppID 和对应微信商户的签名材料。场景和报备信息取自实际获批的商家转账业务。[微信支付接入指引](https://pay.wechatpay.cn/doc/v3/merchant/4054257704)
 
-发布时先启动更新后的 `user-api` 应用 V12 迁移，再发布 `merchant-api` 和商户小程序。微信提示待收款确认时，商户在「提现记录」操作。已提交的申请按原单查单；签名验证失败或结果未知时保留冻结。需核验收款人实名的金额目前保留在待打款，等待财务处理。
+发布时先启动更新后的 `user-api` 应用 V12 迁移，再发布 `merchant-api` 和统一小程序。微信提示待收款确认时，商户在「提现记录」操作。已提交的申请按原单查单；签名验证失败或结果未知时保留冻结。需核验收款人实名的金额目前保留在待打款，等待财务处理。

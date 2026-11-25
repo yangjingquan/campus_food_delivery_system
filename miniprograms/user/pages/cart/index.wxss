@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .cart-page button.clear-cart { min-width: 76px; background: #f6f6f1; }
 .cart-page button.merchant-link { display: block; width: 100%; min-height: 27px; margin-bottom: 14px; font-size: 16px; font-weight: 700; text-align: left; }
 .cart-page .foodline { align-items: flex-start; gap: 13px; min-height: 97px; }

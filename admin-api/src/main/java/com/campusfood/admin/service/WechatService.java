@@ -93,15 +93,17 @@ public class WechatService {
         String previousVersion = String.valueOf(current.get("id")), reason = "";
         if (type.equals("wechat.save-app")) {
             String appType = value(p, "appType");
-            if (!List.of("user", "merchant", "rider").contains(appType))
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "小程序类型无效");
+            if (!"user".equals(appType))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请保存统一小程序配置");
             String appId = value(p, "appId"), secret = value(p, "appSecret");
             if (!appId.isEmpty() && !appId.matches("wx[0-9a-fA-F]{16}"))
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AppID 格式无效");
-            validateSecret(appType + "_appsecret", secret);
-            current.put(appType + "_app_id", appId);
-            if (!secret.isEmpty()) current.put(appType + "_secret_id", encryption.encrypt(appType + "_appsecret", secret));
-            reason = appType + " 端 AppID；AppSecret：" + (secret.isEmpty() ? "保留" : "已替换");
+            validateSecret("user_appsecret", secret);
+            if (!appId.isEmpty() && !appId.equals(current.get("user_app_id")) && secret.isEmpty())
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "更换 AppID 时请填写对应的 AppSecret");
+            current.put("user_app_id", appId);
+            if (!secret.isEmpty()) current.put("user_secret_id", encryption.encrypt("user_appsecret", secret));
+            reason = "统一小程序 AppID；AppSecret：" + (secret.isEmpty() ? "保留" : "已替换");
         } else if (type.equals("wechat.save-payment")) {
             String[][] fields =
                     {{"merchantNo", "merchant_no"}, {"serialNo", "serial_no"}, {"publicKeyId", "public_key_id"}, {"paymentCallback", "payment_callback"}, {"refundCallback", "refund_callback"}, {"transferCallback", "transfer_callback"}};
@@ -137,12 +139,6 @@ public class WechatService {
             current = matches.get(0);
             reason = "目标版本 " + target + "；" + reason;
         } else throw new ResponseStatusException(HttpStatus.NOT_FOUND, "未知微信配置操作");
-        Set<String> ids = new HashSet<>();
-        for (String key : List.of("user_app_id", "merchant_app_id", "rider_app_id")) {
-            String id = Objects.toString(current.get(key), "");
-            if (!id.isEmpty() && !ids.add(id))
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "三端 AppID 不可重复");
-        }
         db.insertVersion(current.get("user_app_id"), current.get("merchant_app_id"), current.get("rider_app_id"),
                 current.get("merchant_no"), current.get("serial_no"), current.get("public_key_id"),
                 current.get("payment_callback"), current.get("refund_callback"), current.get("transfer_callback"),

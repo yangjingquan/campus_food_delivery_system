@@ -1,0 +1,10 @@
+{
+  "navigationBarTitleText": "经营数据",
+  "enablePullDownRefresh": true,
+  "navigationBarBackgroundColor": "#ffffff",
+  "backgroundColor": "#f3f6f3",
+  "backgroundTextStyle": "dark",
+  "usingComponents": {
+    "merchant-tab-bar": "/merchant/custom-tab-bar/index"
+  }
+}

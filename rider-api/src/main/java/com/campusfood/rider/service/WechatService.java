@@ -26,7 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class WechatService {
-    private static final String PURPOSE = "rider_appsecret";
+    private static final String PURPOSE = "user_appsecret";
 
     private final JdbcTemplate db;
     private final String appId;
@@ -101,7 +101,7 @@ public class WechatService {
         try {
             String token = accessToken();
             String response = client.post().uri("/cgi-bin/message/subscribe/send?access_token={token}", token)
-                .body(Map.of("touser", openid, "template_id", templateId, "page", "pages/waiting/index",
+                .body(Map.of("touser", openid, "template_id", templateId, "page", "rider/pages/waiting/index",
                     "lang", "zh_CN", "data", fields)).retrieve().body(String.class);
             int code = json.readTree(response).path("errcode").asInt(-1);
             if (code == 40001 || code == 42001) {
@@ -121,11 +121,11 @@ public class WechatService {
         try {
             // 与管理端保存配置使用同一密钥文件和 AES-GCM 用途标识。
             Map<String, Object> row = db.queryForMap("""
-                SELECT c.rider_app_id,s.purpose,s.nonce,s.ciphertext,s.key_fingerprint
-                FROM wechat_config c LEFT JOIN wechat_secret s ON s.id=c.rider_secret_id
+                SELECT c.user_app_id,s.purpose,s.nonce,s.ciphertext,s.key_fingerprint
+                FROM wechat_config c LEFT JOIN wechat_secret s ON s.id=c.user_secret_id
                 ORDER BY c.id DESC LIMIT 1
                 """);
-            if (!appId.equals(row.get("rider_app_id")) || !PURPOSE.equals(row.get("purpose"))) {
+            if (!appId.equals(row.get("user_app_id")) || !PURPOSE.equals(row.get("purpose"))) {
                 throw new IllegalStateException();
             }
             key = Base64.getDecoder().decode(Files.readString(Path.of(keyFile)).trim());

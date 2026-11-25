@@ -30,7 +30,7 @@ spring:
 app:
   internal-api-key: ${INTERNAL_API_KEY:}
   wechat-master-key-file: ${WECHAT_MASTER_KEY_FILE:}
-  wechat-app-id: ${WECHAT_RIDER_APP_ID:wx8ebb7eaaac795c54}
+  wechat-app-id: ${WECHAT_USER_APP_ID:wxb2ef21a4d9800f4e}
   user-api-url: ${RIDER_USER_API_URL:http://localhost:8081}
   user-api-key: ${USER_API_INTERNAL_KEY:}
   admin-api-url: ${RIDER_ADMIN_API_URL:http://localhost:8080}

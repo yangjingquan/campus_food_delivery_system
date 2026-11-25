@@ -1,10 +1,27 @@
 const api = require('./utils/api');
+const roles = require('./utils/roles');
 
 App({
   globalData: { config: null, user: null },
 
-  onLaunch() {
+  onLaunch(options) {
+    this.startRole = roles.rememberedRole(options);
     this.getConfig().catch(() => {});
+  },
+
+  onShow(options) { roles.onShow(options); },
+  onHide() { roles.onHide(); },
+
+  async restoreWorkspace(stillOnHome) {
+    const role = this.startRole;
+    this.startRole = 'user';
+    if (!role || role === 'user') return false;
+    try {
+      return await roles.enter(role, stillOnHome);
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: 'none' });
+      return false;
+    }
   },
 
   async getConfig(refresh = false) {

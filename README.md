@@ -28,7 +28,7 @@ Vue 管理端和用户小程序统一经 API Gateway 访问业务 API；Nacos �
 
 订单、支付、售后、审核和提现状态使用固定英文枚举码，四端按码展示中文。订单查询示例为 `status=PENDING_PAYMENT`，骑手入驻示例为 `gender=UNDISCLOSED`、`availability=MIDDAY_AND_EVENING`。选择 `CUSTOM` 时以 `HH:mm-HH:mm` 提交 `availableTime`。
 
-升级时应将数据库迁移与四个 API、管理端及三个小程序作为同一次发布协调，先在隔离库验证现有状态值。API 按 `admin-api`、`user-api`、商户和骑手 API 的依赖顺序完成迁移。
+升级时应将数据库迁移与四个 API、管理端及统一小程序作为同一次发布协调，先在隔离库验证现有状态值。API 按 `admin-api`、`user-api`、商户和骑手 API 的依赖顺序完成迁移。
 
 ## 启动
 
@@ -44,14 +44,16 @@ cd codes
 
 浏览器访问 http://localhost:5190。统一 API Gateway 本机端口为 8082，Nacos 控制台端口为 8088、服务地址端口为 8848；业务 API 只在容器网络内开放。MySQL 本机端口 3307，Redis 仅容器网络内访问。MySQL、Redis 和 Nacos 使用 Docker 卷；不要用 `docker compose down -v` 删除数据。首次运行 `scripts/start-local.sh` 时会为服务间认证生成随机密钥并保存在被 Git 忽略的 `.env` 中，不要删除或提交该文件。Nacos 为本地单机开发配置，当前未启用鉴权且只绑定本机回环地址，不能用于生产部署；生产环境启用鉴权时须配置独立的 `NACOS_AUTH_TOKEN`、节点身份值和客户端账号。初始账号默认 `admin` / `campus2026`，可在首次初始化前设置 `ADMIN_USER` 与 `ADMIN_PASSWORD`。登录后可从右上角修改密码；已有账号不会因修改环境变量改变密码。
 
-用户端微信原生小程序项目位于 `miniprograms/user`，AppID 已配置为 `wxb2ef21a4d9800f4e`。用户 API 默认经 Gateway 的 `/api/user/v1` 路由访问；本地 Compose 使用隔离标注的登录和支付模拟能力，不会调用微信扣款。模拟付款会将订单支付状态标记为“本地模拟支付成功”，避免计入管理员端真实已支付金额。
+统一微信原生小程序位于 `miniprograms/user`，沿用「寝食记」AppID `wxb2ef21a4d9800f4e`。用户端在主包，商户端和骑手端分别在 `merchant` 和 `rider` 分包。首次进入默认点餐，三个端的「我的」提供角色切换，普通冷启动恢复上次进入的工作台。用户 API 默认经 Gateway 的 `/api/user/v1` 路由访问；本地 Compose 使用隔离标注的登录和支付模拟能力，不会调用微信扣款。模拟付款会将订单支付状态标记为“本地模拟支付成功”，避免计入管理员端真实已支付金额。
 
 ```bash
 cd codes
 ./scripts/start-local.sh
 ```
 
-用微信开发者工具打开 `codes/miniprograms/user`。默认请求生产 HTTPS 网关；隔离联调时，在开发工具本地存储设置 `userApiBaseUrl` 为 `http://127.0.0.1:8082/api/user/v1` 后重新编译。真实登录与支付的配置方式见 [生产部署说明](deploy/production/README.md)。
+用微信开发者工具打开 `codes/miniprograms/user`。默认请求生产 HTTPS 网关；隔离联调时，在开发工具本地存储设置 `userApiBaseUrl` 为 `http://127.0.0.1:8082/api/user/v1` 后重新编译。真实登录与支付的配置方式见 [生产部署说明](deploy/production/README.md)。 商户和骑手的本地接口地址分别在 `utils/merchant/config.js`、`utils/rider/config.js` 设置，联调时三个角色应使用同一测试网关。
+
+管理员在「微信设置 → 小程序配置」保存一次共用 AppID 和 AppSecret；三个业务 API 使用 `WECHAT_USER_APP_ID`，与小程序工程 AppID 一致。使用隔离测试库重新提交店铺和学生骑手资料并审核，新版以重新入驻的数据为准。
 
 本地检查：
 
@@ -86,7 +88,7 @@ npm run dev
 - 四类角色：超级管理员、运营审核、财务、只读；服务端校验权限，超级管理员可维护账号和角色。修改或重置密码使既有会话失效，至少保留一名启用的超级管理员。不设置双人复核。
 - 提现申请的内部服务接口支持申请幂等、商户欠款优先扣回、提交时冻结、审核拒绝解冻及账本记录。欠款抵扣后余额不足时仍保留已扣回的欠款结果，并返回剩余可提现余额。审核通过为待打款，不表示到账。
 - 面向可信渠道服务的转账准备和结果内部接口支持固定转账单号、未知状态保留冻结、明确失败解冻、成功扣减冻结以及重复通知保护。**这些接口不是微信回调入口**：外部渠道适配服务必须先完成真实签名验签及结果核验。直接运行 `docker compose` 且未配置 `INTERNAL_API_KEY` 时，内部接口拒绝访问；不要在公网暴露内部接口或把密钥写入仓库。
-- 微信设置分为三端小程序、支付配置和配置版本审计；敏感值留空保留、AES-256-GCM 加密保存、读取不回显。配置版本变更和回滚生成审计记录。管理员页面只读显示 `USER_PAYMENT_MODE` 对应的支付状态。
+- 微信设置包括统一小程序配置、支付配置和配置版本审计；敏感值留空保留、AES-256-GCM 加密保存、读取不回显。配置版本变更和回滚生成审计记录。管理员页面只读显示 `USER_PAYMENT_MODE` 对应的支付状态。
 - 金额存储为整数分；比例计算工具使用 `HALF_UP` 四舍五入。实际订单结算和拆分尚未实现，不能据此认定完整结算规则已上线。
 
 历史 V1 迁移中的两条商户和两条骑手为本地初始化样例；其余业务表初始为空，等待所属业务服务写入。迁移不会删除已有业务数据。

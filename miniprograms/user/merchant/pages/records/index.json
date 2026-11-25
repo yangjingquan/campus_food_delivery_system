@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "账户记录",
+  "enablePullDownRefresh": true,
+  "navigationBarBackgroundColor": "#ffffff",
+  "backgroundColor": "#f3f6f3",
+  "backgroundTextStyle": "dark"
+}

@@ -48,6 +48,7 @@
 
   <view class="service-title">服务与说明</view>
   <view class="card service-card">
+    <button class="menurow" data-action="roles" bindtap="open"><view class="service-icon"><image src="/assets/v3-roles.svg" aria-hidden="true"/></view><text>切换角色</text><view class="chevron" aria-hidden="true"/></button>
     <button class="menurow" open-type="contact"><view class="service-icon"><image src="/assets/v3-support.svg" aria-hidden="true"/></view><text>联系平台客服</text><view class="chevron" aria-hidden="true"/></button>
     <button class="menurow" data-action="privacy" bindtap="open"><view class="service-icon"><image src="/assets/v3-privacy.svg" aria-hidden="true"/></view><text>隐私与服务说明</text><view class="chevron" aria-hidden="true"/></button>
     <button class="menurow" data-action="about" bindtap="open"><view class="service-icon"><image src="/assets/v3-about.svg" aria-hidden="true"/></view><text>关于寝食记</text><view class="chevron" aria-hidden="true"/></button>

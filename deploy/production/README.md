@@ -40,7 +40,7 @@ Build the four API images from the same revision before applying the migration. 
 1. Run the `campus-food-merchant-api` and `campus-food-gateway` Jenkins jobs from a revision that includes the merchant service and the gateway's `/api/merchant/**` route.
 2. On the production host, update the active `cfdapi.conf` for `shop-nginx` with the `/api/merchant/` location from `cfdapi.nginx.conf`. Preserve host-specific settings and existing certificate files. Run `docker exec shop-nginx nginx -t` before reloading with `docker exec shop-nginx nginx -s reload`.
 3. Verify that an empty JSON body sent to `POST https://cfdapi.nexbyte.top/api/merchant/v1/auth/login` returns HTTP 400 with a JSON response. Verify that the existing user configuration endpoint still returns 200.
-4. Save the merchant mini-program AppID and its matching AppSecret in the production admin console. The AppID must match `WECHAT_MERCHANT_APP_ID` in the merchant service and the mini-program's `project.config.json`. Then retry with a new WeChat login code from the developer tools.
+4. Save the shared mini-program AppID and AppSecret in the admin console. All three role APIs use `WECHAT_USER_APP_ID`, which must match `miniprograms/user/project.config.json`. Then retry each role with a fresh WeChat login code.
 
 ## Redis account
 
@@ -48,7 +48,7 @@ The existing Redis 7.4 container uses an unrestricted `default` account. `enable
 
 ## Known production boundary
 
-The user API supports real WeChat login once the user mini-program AppID and AppSecret are saved in the admin console. Configuration changes are read on subsequent logins without redeploying the service. Payment and refund processing are not implemented; this deployment keeps payment disabled. The existing user-facing Mini Program defaults to `https://cfdapi.nexbyte.top/api/user/v1` and URL checking is enabled. Add that HTTPS API domain to the mini-program's allowed request domains before upload in a later release.
+The user API supports real WeChat login once the user mini-program AppID and AppSecret are saved in the admin console. Configuration changes are read on subsequent logins without redeploying the service. Payment and refund processing are not implemented; this deployment keeps payment disabled. The unified Mini Program defaults to `https://cfdapi.nexbyte.top/api/user/v1` and URL checking is enabled. Add that HTTPS API domain to the mini-program's allowed request domains before upload in a later release.
 
 The Nacos console is available at `https://cfdnacos.nexbyte.top/` behind Nginx Basic Auth and Nacos login. `cfdnacos.nginx.conf` is the TLS proxy configuration; `cfdnacos-http.conf` supplies the HTTP redirect and ACME challenge path. The existing `/opt/shop/docker-compose.yml` must retain the Nacos proxy network and the two `/opt/campus-food/nginx/` bind mounts when `shop-nginx` is recreated.
 

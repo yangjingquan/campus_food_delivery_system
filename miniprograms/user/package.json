@@ -1,6 +1,9 @@
 {
-  "name": "campus-food-user-miniprogram",
+  "name": "campus-food-miniprogram",
   "version": "0.1.0",
   "private": true,
-  "scripts": { "test": "node --test tests/*.test.cjs", "check:js": "find . -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check" }
+  "scripts": {
+    "test": "node --test tests/*.test.cjs merchant/tests/*.test.cjs rider/tests/*.test.cjs",
+    "check:js": "find . -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check"
+  }
 }

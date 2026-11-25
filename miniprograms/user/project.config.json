@@ -2,7 +2,7 @@
   "appid": "wxb2ef21a4d9800f4e",
   "compileType": "miniprogram",
   "libVersion": "3.10.0",
-  "projectname": "寝食记-校园外卖用户端",
+  "projectname": "寝食记-校园外卖",
   "miniprogramRoot": "./",
   "setting": {
     "urlCheck": true,
@@ -33,7 +33,24 @@
   "condition": {},
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "tests"
+      },
+      {
+        "type": "folder",
+        "value": "merchant/tests"
+      },
+      {
+        "type": "folder",
+        "value": "rider/tests"
+      },
+      {
+        "type": "file",
+        "value": "package.json"
+      }
+    ],
     "include": []
   },
   "editorSetting": {}

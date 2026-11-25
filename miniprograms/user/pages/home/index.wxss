@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .home-page .h2 { font-size: 25px; }
 .home-page .subheading { margin-bottom: 10px; font-size: 10px; letter-spacing: 0; font-weight: 700; }
 .home-page button.address-link { margin-top: 6px; color: var(--ink); }

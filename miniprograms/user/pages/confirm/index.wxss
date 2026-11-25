@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .confirm-page button.address-card { display: block; min-height: 111px; }
 .address-card .subheading { color: #a84b21; font-size: 11px; letter-spacing: 0; }
 .address-title { margin: 4px 0 7px; font-size: 18px; }

@@ -1,0 +1,17 @@
+@import "../../styles/base.wxss";
+.receipt-heading { padding-bottom: 9px; text-align: center; }
+.receipt-lines { border-top: 1px dashed #c9d6cc; border-bottom: 1px dashed #c9d6cc; padding: 6px 0; margin-bottom: 5px; }
+.ticket-qr { display: block; width: 178px; height: 178px; margin: 9px auto; }
+.pickup-code { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-top: 7px; color: var(--muted); }
+.pickup-code .mono { min-width: 0; color: var(--ink); text-align: right; font-weight: 700; overflow-wrap: anywhere; }
+.receipt-store { font-size: 23px; font-weight: 750; overflow-wrap: anywhere; }
+.receipt-pickup-number { font-size: 18px; font-weight: 750; }
+.receipt-table { display: grid; grid-template-columns: minmax(0, 1fr) 64px 32px 70px; gap: 5px; padding: 4px 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+.receipt-table > text { min-width: 0; overflow-wrap: anywhere; }
+.receipt-table > text:not(:first-child) { text-align: right; }
+.receipt-table-head { color: var(--muted); }
+.ticket-screen .action-dock { gap: 10px; }
+.ticket-screen .action-dock .btn { width: auto; min-width: 0; flex: 1; max-width: 200px; }
+@media (max-width: 350px) {
+  .receipt-table { grid-template-columns: minmax(0, 1fr) 55px 28px 62px; gap: 3px; }
+}

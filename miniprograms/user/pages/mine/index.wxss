@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .mine-page { padding-top: 14px; }
 .profile-panel {
   position: relative;

@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .timeline-space { margin-top: 13px; }
 .event .small { overflow-wrap: anywhere; }
 .event > view:first-child { font-weight: 700; }

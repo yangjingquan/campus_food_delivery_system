@@ -169,6 +169,7 @@ Page({
 
   open(event) {
     const action = event.currentTarget.dataset.action;
+    if (action === 'roles') return require('../../utils/roles').openPicker('user');
     if (action === 'orders') wx.switchTab({ url: '/pages/orders/index' });
     if (action === 'addresses') wx.navigateTo({ url: '/pages/addresses/index' });
     if (action === 'rules') return this.showDeliveryRules();

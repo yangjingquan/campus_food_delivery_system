@@ -1,0 +1,9 @@
+<view wx:if="{{!roleReady}}" class="screen">
+  <view wx:if="{{roleError}}" class="card">
+    <view class="section">暂时无法进入商户端</view>
+    <view class="hint" aria-live="polite">{{roleError}}</view>
+    <button class="btn primary wide separator" bindtap="showMerchantPage" hover-class="pressed">重试</button>
+    <button class="btn plain wide separator" bindtap="openRolePicker" hover-class="pressed">切换角色</button>
+  </view>
+  <view wx:else class="card muted" aria-live="polite">正在验证商户身份…</view>
+</view>

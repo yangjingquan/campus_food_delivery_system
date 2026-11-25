@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .refund-intro { margin: 7px 0 15px; }
 .refund-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .refund-error { margin: 0 0 10px; }

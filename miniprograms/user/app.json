@@ -14,7 +14,8 @@
     "pages/addresses/index",
     "pages/address-edit/index",
     "pages/mine/index",
-    "pages/webview/index"
+    "pages/webview/index",
+    "pages/roles/index"
   ],
   "window": {
     "navigationBarTitleText": "寝食记",
@@ -30,15 +31,79 @@
     "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [
-      { "pagePath": "pages/home/index", "text": "点餐" },
-      { "pagePath": "pages/orders/index", "text": "订单" },
-      { "pagePath": "pages/mine/index", "text": "我的" }
+      {
+        "pagePath": "pages/home/index",
+        "text": "点餐"
+      },
+      {
+        "pagePath": "pages/orders/index",
+        "text": "订单"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的"
+      }
     ]
   },
   "permission": {
-    "scope.userLocation": { "desc": "用于选择收餐地址的地图位置，方便骑手准确送达" }
+    "scope.userLocation": {
+      "desc": "用于选择收餐地址及骑手配送时按订单共享位置"
+    }
   },
-  "requiredPrivateInfos": ["chooseLocation"],
+  "requiredPrivateInfos": [
+    "chooseLocation",
+    "getLocation"
+  ],
   "sitemapLocation": "sitemap.json",
-  "lazyCodeLoading": "requiredComponents"
+  "lazyCodeLoading": "requiredComponents",
+  "preloadRule": {
+    "pages/roles/index": {
+      "network": "all",
+      "packages": ["merchant", "rider"]
+    }
+  },
+  "subPackages": [
+    {
+      "root": "merchant",
+      "pages": [
+        "pages/orders/index",
+        "pages/products/index",
+        "pages/finance/index",
+        "pages/mine/index",
+        "pages/onboarding/index",
+        "pages/order/index",
+        "pages/aftersales/index",
+        "pages/product/index",
+        "pages/ticket/index",
+        "pages/map/index",
+        "pages/records/index",
+        "pages/withdraw/index",
+        "pages/devices/index"
+      ]
+    },
+    {
+      "root": "rider",
+      "pages": [
+        "pages/home/index",
+        "pages/orders/index",
+        "pages/wallet/index",
+        "pages/mine/index",
+        "pages/waiting/index",
+        "pages/scan/index",
+        "pages/scanResult/index",
+        "pages/detail/index",
+        "pages/map/index",
+        "pages/records/index",
+        "pages/income/index",
+        "pages/incomeDetail/index",
+        "pages/withdraw/index",
+        "pages/withdrawals/index",
+        "pages/withdrawDetail/index",
+        "pages/join/index",
+        "pages/audit/index",
+        "pages/profile/index",
+        "pages/help/index"
+      ]
+    }
+  ]
 }

@@ -1,1 +1,69 @@
-{ "desc": "寝食记用户端小程序页面索引", "rules": [{ "action": "allow", "page": "*" }] }
+{
+  "desc": "寝食记用户端小程序页面索引",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "pages/home/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/store/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/cart/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/confirm/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/payment/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/payment-result/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/orders/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/order-detail/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/map/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/refund/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/aftersale/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/addresses/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/address-edit/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/mine/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/webview/index"
+    },
+    {
+      "action": "disallow",
+      "page": "*"
+    }
+  ]
+}

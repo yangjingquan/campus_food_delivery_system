@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "配送记录",
+  "navigationBarBackgroundColor": "#ffffff",
+  "backgroundColor": "#f4f7f5",
+  "backgroundTextStyle": "dark",
+  "enablePullDownRefresh": true
+}

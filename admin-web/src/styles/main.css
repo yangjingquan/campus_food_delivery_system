@@ -497,16 +497,9 @@ button { color: inherit; }
   .detail-grid { grid-template-columns: 1fr; }
   .version-detail > div { grid-template-columns: 90px 1fr; }
 }
-.wx-app-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:22px; }
-.wx-app-cards button { display:grid; gap:8px; text-align:left; padding:18px; border:1px solid #e8edf4; border-radius:9px; background:#fff; color:#425974; cursor:pointer; }
-.wx-app-cards button.active { border-color:#9fbff4; background:#f3f8ff; }
-.wx-app-cards button small { color:#8595a9; }
-@media (max-width:700px) { .wx-app-cards { grid-template-columns:1fr; } }
 .wechat-page .status-tile > span { font-size:13px; }
 .wechat-page .status-tile > small { font-size:11px; }
 .wechat-page .wechat-tabs > .el-tabs__header .el-tabs__item { font-size:14px; }
-.wx-app-cards button { font-size:14px; }
-.wx-app-cards button small { font-size:12px; }
 .wechat-page .side-note h3 { font-size:13px; }
 .wechat-page .side-note p { font-size:12px; }
 .wechat-page .security-banner span { font-size:12px; }
@@ -547,9 +540,7 @@ button { color: inherit; }
 .payment-layout { grid-template-columns: minmax(0, 1fr); }
 .payment-form-wrap { max-width: 840px; }
 .wechat-status-grid .status-tile { min-height: 90px; }
-.wx-app-cards button { min-height: 76px; transition: border-color .16s ease, background .16s ease; }
-.wx-app-cards button:hover { border-color: #9db9e4; background: #f7faff; }
-.wx-app-cards button:focus-visible, .metric-card:focus-visible, .todo-cell:focus-visible { outline: 3px solid #80aff3; outline-offset: 2px; }
+.metric-card:focus-visible, .todo-cell:focus-visible { outline: 3px solid #80aff3; outline-offset: 2px; }
 
 /* Login: keep the form centered independently of the footer. */
 .login-page { grid-template-columns: minmax(320px, .85fr) minmax(480px, 1.15fr); background: #f7f9fc; }

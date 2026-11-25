@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .payment-page .card .small { margin-top: 4px; }
 .payment-page .payment-total .price { font-size: 14px; }
 .payment-page .card .split { margin-top: 16px; padding-top: 13px; }

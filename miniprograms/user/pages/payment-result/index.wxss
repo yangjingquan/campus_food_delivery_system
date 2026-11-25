@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .result-order-head {
   display: flex;
   align-items: baseline;

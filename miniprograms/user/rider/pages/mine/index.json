@@ -1,0 +1,10 @@
+{
+  "navigationBarTitleText": "我的",
+  "usingComponents": {
+    "rider-tab-bar": "/rider/custom-tab-bar/index"
+  },
+  "navigationBarBackgroundColor": "#ffffff",
+  "backgroundColor": "#f4f7f5",
+  "backgroundTextStyle": "dark",
+  "enablePullDownRefresh": true
+}

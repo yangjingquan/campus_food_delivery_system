@@ -1,0 +1,280 @@
+@import "../../styles/base.wxss";
+.finance-screen {
+  padding-top: 12px;
+}
+
+.finance-heading {
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.finance-section-title {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.balance-summary,
+.sales-section,
+.account-links {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.balance-summary {
+  margin-top: 12px;
+  padding: 12px 14px 10px;
+  border-color: #d4e5da;
+  background: #edf5ef;
+}
+
+.balance-main {
+  gap: 12px;
+}
+
+.balance-label,
+.balance-item {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.balance-value,
+.balance-amount,
+.metric-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-value {
+  margin-top: 2px;
+  color: var(--deep);
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.balance-withdraw {
+  flex: none;
+  min-height: 44px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.balance-foot,
+.sales-metrics,
+.account-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.balance-foot {
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #d4e5da;
+}
+
+.balance-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 5px;
+}
+
+.balance-amount {
+  color: var(--ink);
+  font-weight: 550;
+}
+
+.sales-section {
+  margin-top: 14px;
+  padding: 8px 14px 12px;
+}
+
+.sales-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+}
+
+.period-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.period-option {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.period-option > text {
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.period-option.active {
+  color: var(--deep);
+  font-weight: 650;
+}
+
+.period-option.active > text {
+  background: var(--tint);
+}
+
+.period-option[disabled] {
+  opacity: .8;
+}
+
+.sales-metrics {
+  border-top: 1px solid var(--line);
+}
+
+.sales-metric {
+  min-width: 0;
+  padding: 10px 8px 10px 0;
+}
+
+.sales-metric:nth-child(even) {
+  padding-right: 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+
+.sales-metric:nth-child(n+3) {
+  border-top: 1px solid var(--line);
+}
+
+.metric-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.metric-icon,
+.account-icon,
+.note-icon {
+  display: block;
+  flex: none;
+}
+
+.metric-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.metric-value {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.net-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #edf5ef;
+}
+
+.net-value {
+  margin: 0 0 0 auto;
+  color: var(--deep);
+  text-align: right;
+}
+
+.sales-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.note-icon {
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+}
+
+.account-section {
+  margin-top: 16px;
+}
+
+.account-links {
+  margin-top: 8px;
+}
+
+.account-link {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 50px;
+  padding: 8px 10px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.35;
+}
+
+.account-link:nth-child(even) { border-left: 1px solid var(--line); }
+.account-link:nth-child(n+3) { border-top: 1px solid var(--line); }
+
+.account-icon {
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  border-radius: 6px;
+  background: var(--field);
+}
+
+.account-link-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.account-chevron {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-right: 2px;
+  border-top: 1px solid var(--muted);
+  border-right: 1px solid var(--muted);
+  transform: rotate(45deg);
+}
+
+@media (max-width: 350px) {
+  .period-option > text { padding-inline: 5px; }
+  .sales-metric:nth-child(even) { padding-left: 8px; }
+}

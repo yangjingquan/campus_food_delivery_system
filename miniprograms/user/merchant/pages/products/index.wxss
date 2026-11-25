@@ -1,0 +1,123 @@
+@import "../../styles/base.wxss";
+.products-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding-bottom: 76px;
+  padding-bottom: calc(76px + env(safe-area-inset-bottom));
+}
+
+.products-scroll {
+  flex: 1;
+  height: 0;
+  width: 100%;
+  overscroll-behavior-y: none;
+}
+
+.products-content {
+  padding-bottom: 12px;
+}
+
+.product-sort-row {
+  position: relative;
+  padding-top: 9px;
+}
+
+.product-sort-row .card {
+  margin-top: 0;
+}
+
+.product-sort-row.drop-before::before,
+.product-sort-row.drop-after::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  right: 12px;
+  left: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--green);
+  pointer-events: none;
+}
+
+.product-sort-row.drop-before::before { top: 3px; }
+.product-sort-row.drop-after::after { bottom: -5px; }
+
+.product-sort-row.is-dragging {
+  z-index: 1;
+}
+
+.product-sort-row.is-dragging .card {
+  background: var(--tint);
+  outline: 1px solid var(--green);
+}
+
+.product-actions {
+  align-items: center;
+}
+
+.product-actions-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.product-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  touch-action: none;
+}
+
+.product-grip {
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  gap: 3px 4px;
+}
+
+.product-grip view {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.product-handle-pressed { background: var(--field); }
+
+.products-order-footer {
+  flex: none;
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.products-order-footer .notice {
+  margin: 0 0 8px;
+}
+
+.products-order-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.products-order-footer .btn {
+  min-height: 48px;
+}
+
+.products-order-actions .plain {
+  flex: 1;
+}
+
+.products-order-actions .primary {
+  flex: 2;
+}

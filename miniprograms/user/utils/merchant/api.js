@@ -1,0 +1,84 @@
+const { apiEnvironment, baseUrl } = require('./config');
+const sessionKey = 'merchant-session:' + apiEnvironment;
+let loginInFlight;
+
+function token() {
+  return wx.getStorageSync(sessionKey) || '';
+}
+
+function request(path, data, method = 'GET') {
+  const bearer = token();
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url: baseUrl() + path,
+      method,
+      data,
+      timeout: 12000,
+      header: bearer ? { Authorization: 'Bearer ' + bearer } : {},
+      success(res) {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.data);
+          return;
+        }
+        if (res.statusCode === 401 && token() === bearer) wx.removeStorageSync(sessionKey);
+        const error = new Error((res.data && res.data.message) || '服务暂不可用，请稍后重试');
+        error.status = res.statusCode;
+        reject(error);
+      },
+      fail() {
+        reject(new Error('连接商户服务失败，请检查网络后重试'));
+      }
+    });
+  });
+}
+
+async function login() {
+  if (!loginInFlight) loginInFlight = exchangeCode().finally(() => { loginInFlight = null; });
+  return loginInFlight;
+}
+
+async function exchangeCode() {
+  const code = await new Promise((resolve, reject) => {
+    wx.login({
+      success: result => result.code ? resolve(result.code) : reject(new Error('微信登录未返回凭证')),
+      fail: () => reject(new Error('微信登录失败，请重试'))
+    });
+  });
+  const session = await request('/auth/login', { code }, 'POST');
+  wx.setStorageSync(sessionKey, session.token);
+}
+
+async function profile() {
+  if (token()) {
+    try {
+      return await request('/profile');
+    } catch (error) {
+      if (error.status !== 401) throw error;
+    }
+  }
+  if (!token()) await login();
+  return request('/profile');
+}
+
+async function logout() {
+  if (token()) await request('/auth/logout', {}, 'POST');
+  wx.removeStorageSync(sessionKey);
+}
+
+function photo(path = '/profile/photo') {
+  return new Promise((resolve, reject) => {
+    // 图片走临时文件，避免把 Base64 原图放进小程序视图数据。
+    wx.downloadFile({
+      url: baseUrl() + path,
+      header: { Authorization: 'Bearer ' + token() },
+      timeout: 12000,
+      success(res) {
+        if (res.statusCode === 200) resolve(res.tempFilePath);
+        else reject(new Error('图片暂不可用'));
+      },
+      fail: () => reject(new Error('图片加载失败'))
+    });
+  });
+}
+
+module.exports = { request, login, logout, profile, token, photo };

@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .address-edit-page .field { margin: 13px 0 15px; }
 .address-edit-page .field label { margin-bottom: 2px; }
 .default-row { box-sizing: border-box; min-height: 62px; margin-top: 16px; padding-block: 9px; }

@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .address-heading { margin-bottom: 19px; }
 .address-heading .h2 { margin-bottom: 8px; font-size: 26px; }
 .address-owner { margin: 9px 0 3px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }

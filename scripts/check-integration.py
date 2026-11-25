@@ -260,7 +260,9 @@ try:
     assert sql("SELECT COUNT(*) FROM wechat_secret WHERE purpose='user_appsecret' AND HEX(ciphertext) LIKE '%"+secret.encode().hex().upper()+"%'")=='0'
     oldversion=state['config']['version']
     sql("UPDATE wechat_secret SET key_fingerprint=NULL WHERE purpose='user_appsecret'")
-    check(200,action('wechat.save-app',{'version':oldversion,'appType':'merchant','appId':'wx0123456789abcdee','appSecret':'abcdef0123456789abcdef0123456789'},token),'legacy key fingerprint')
+    check(400,action('wechat.save-app',{'version':oldversion,'appType':'merchant','appId':'wx0123456789abcdee','appSecret':secret},token),'legacy app configuration is read-only')
+    check(400,action('wechat.save-app',{'version':oldversion,'appType':'user','appId':'wx0123456789abcdee','appSecret':''},token),'new AppID requires matching secret')
+    check(200,action('wechat.save-app',{'version':oldversion,'appType':'user','appId':'wx0123456789abcdef','appSecret':'abcdef0123456789abcdef0123456789'},token),'legacy key fingerprint')
     assert sql('SELECT COUNT(*) FROM wechat_secret WHERE key_fingerprint IS NULL')=='0'
     oldversion=check(200,call('GET','/api/admin/v1/workspace?section=wechat',token=token),'wechat version')['config']['version']
     private_key=subprocess.run(['openssl','genpkey','-algorithm','RSA','-pkeyopt','rsa_keygen_bits:2048'],check=True,text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL).stdout

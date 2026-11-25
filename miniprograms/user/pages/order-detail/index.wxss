@@ -1,3 +1,4 @@
+@import "../../styles/base.wxss";
 .progress { position: relative; display: flex; margin-top: 16px; }
 .progress::before { content: ''; position: absolute; top: 4px; left: 10%; right: 10%; height: 1px; background: #e1e4da; }
 .step { position: relative; flex: 1 1 0; min-width: 0; text-align: center; color: #676c61; font-size: 11px; }

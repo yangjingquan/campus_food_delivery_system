@@ -26,7 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class WechatService {
-    private static final String PURPOSE = "merchant_appsecret";
+    private static final String PURPOSE = "user_appsecret";
 
     private final JdbcTemplate db;
     private final String appId;
@@ -77,11 +77,11 @@ public class WechatService {
         try {
             // 与管理端保存配置使用同一密钥文件和 AES-GCM 用途标识。
             Map<String, Object> row = db.queryForMap("""
-                SELECT c.merchant_app_id,s.purpose,s.nonce,s.ciphertext,s.key_fingerprint
-                FROM wechat_config c LEFT JOIN wechat_secret s ON s.id=c.merchant_secret_id
+                SELECT c.user_app_id,s.purpose,s.nonce,s.ciphertext,s.key_fingerprint
+                FROM wechat_config c LEFT JOIN wechat_secret s ON s.id=c.user_secret_id
                 ORDER BY c.id DESC LIMIT 1
                 """);
-            if (!appId.equals(row.get("merchant_app_id")) || !PURPOSE.equals(row.get("purpose"))) {
+            if (!appId.equals(row.get("user_app_id")) || !PURPOSE.equals(row.get("purpose"))) {
                 throw new IllegalStateException();
             }
             key = Base64.getDecoder().decode(Files.readString(Path.of(keyFile)).trim());
@@ -105,6 +105,6 @@ public class WechatService {
             if (key != null) Arrays.fill(key, (byte) 0);
             if (clear != null) Arrays.fill(clear, (byte) 0);
         }
-        throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "管理员后台的商户小程序微信配置不可用");
+        throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "管理员后台的小程序微信配置不可用");
     }
 }

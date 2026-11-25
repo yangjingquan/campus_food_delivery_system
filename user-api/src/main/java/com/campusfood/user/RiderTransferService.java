@@ -109,7 +109,7 @@ class RiderTransferService {
 
     private void scan(Party party, Settings settings) {
         boolean forMerchant = party == Party.MERCHANT;
-        var current = settings.ready() ? config.currentTransferConfiguration(forMerchant) : null;
+        var current = settings.ready() ? config.currentTransferConfiguration() : null;
         if (current == null) {
             String reason = settings.ready()
                 ? MATERIAL_REQUIRED.replace("骑手", party.label)
@@ -209,7 +209,7 @@ class RiderTransferService {
         boolean forMerchant = party == Party.MERCHANT;
         String appId = order.get("app_id").toString();
         String openId = order.get("openid").toString();
-        var credentials = config.transferPayment(version, forMerchant);
+        var credentials = config.transferPayment(version, forMerchant, appId);
         String requestKey = Objects.toString(order.get("request_key"), "");
         if (requestKey.startsWith("payout-retry-") && !Boolean.TRUE.equals(db.queryForObject("""
             SELECT EXISTS(SELECT 1 FROM %s WHERE withdrawal_id=? AND channel_state IN ('FAIL','CANCELLED')
@@ -262,7 +262,8 @@ class RiderTransferService {
     }
 
     private void retryOriginal(Party party, Settings settings, Map<String, Object> order, String id) {
-        var credentials = config.transferPayment(((Number) order.get("config_version")).longValue(), party == Party.MERCHANT);
+        var credentials = config.transferPayment(((Number) order.get("config_version")).longValue(),
+            party == Party.MERCHANT, order.get("app_id").toString());
         String bill = billNumber(id);
         var result = wechat.queryTransfer(credentials, bill);
         if (!"NOT_FOUND".equals(result.path("code").asText())) {
@@ -355,7 +356,8 @@ class RiderTransferService {
     }
 
     private void query(Party party, Map<String, Object> order, String id) {
-        var credentials = config.transferPayment(((Number) order.get("config_version")).longValue(), party == Party.MERCHANT);
+        var credentials = config.transferPayment(((Number) order.get("config_version")).longValue(),
+            party == Party.MERCHANT, order.get("app_id").toString());
         String bill = billNumber(id);
         var result = wechat.queryTransfer(credentials, bill);
         if ("NOT_FOUND".equals(result.path("code").asText())) {
