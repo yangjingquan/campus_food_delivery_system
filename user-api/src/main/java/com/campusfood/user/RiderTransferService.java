@@ -1,6 +1,7 @@
 package com.campusfood.user;
 
 import com.campusfood.domain.BusinessStates.WithdrawalReason;
+import com.campusfood.domain.WithdrawalLimits;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -99,6 +100,7 @@ class RiderTransferService {
 
     @Scheduled(fixedDelayString = "${app.rider-transfer.scan-ms:30000}", initialDelay = 30000)
     void scan() {
+        returnPendingBelowMinimum();
         scan(Party.RIDER, rider);
     }
 
@@ -139,11 +141,12 @@ class RiderTransferService {
         String newOrderScope = forMerchant
             ? "(w.status='PENDING_PAYOUT' AND c.withdrawal_id IS NULL AND t.id IS NULL) OR "
                 + "(w.status IN ('PENDING_PAYOUT','TRANSFERRING') AND c.channel_state='PREPARING')"
-            : "w.status IN ('PENDING_PAYOUT','TRANSFERRING') AND c.withdrawal_id IS NULL";
+            : "w.status IN ('PENDING_PAYOUT','TRANSFERRING') AND c.withdrawal_id IS NULL"
+                + " AND w.amount_cents>=" + WithdrawalLimits.MINIMUM_CENTS;
         String trackedScope = forMerchant ? "AND c.channel_state<>'PREPARING'" : "";
         // SQL 标识符及连接条件全部来自固定枚举，业务值通过参数绑定。
         var orders = db.queryForList("""
-            SELECT w.id,w.amount_cents,w.created_at,w.request_key,%s AS name,COALESCE(c.app_id,i.app_id) AS app_id,
+            SELECT w.id,w.amount_cents,w.created_at,w.request_key,w.reason,w.reason_code,%s AS name,COALESCE(c.app_id,i.app_id) AS app_id,
                    COALESCE(c.recipient_open_id,%s) AS openid,%s AS current_openid,c.config_version,
                    c.channel_state,c.merchant_no,c.request_payload,COALESCE(t.retry_requested,0) AS retry_requested,
                    t.created_at>CURRENT_TIMESTAMP-INTERVAL 30 DAY AS retry_recent
@@ -169,7 +172,10 @@ class RiderTransferService {
             String id = order.get("id").toString();
             boolean retry = truthy(order.get("retry_requested"));
             try {
-                if (retry) {
+                if (retry && belowRiderMinimum(party, order)) {
+                    clearRetry(id);
+                    query(party, order, id);
+                } else if (retry) {
                     retryOriginal(party, settings, order, id);
                 } else if (order.get("config_version") == null || "PREPARING".equals(order.get("channel_state"))) {
                     long version = order.get("config_version") instanceof Number stored ? stored.longValue() : current.version();
@@ -201,6 +207,24 @@ class RiderTransferService {
                     if (changed > 0) log.warn("Withdrawal transfer preparation failed for {} ({})", id,
                         exception.getClass().getSimpleName());
                 }
+            }
+        }
+    }
+
+    private void returnPendingBelowMinimum() {
+        var ids = db.queryForList("""
+            SELECT w.id FROM withdrawal_request w
+            LEFT JOIN rider_transfer_channel c ON c.withdrawal_id=w.id
+            LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
+            WHERE w.applicant_type='RIDER' AND w.status='PENDING_PAYOUT'
+                AND w.amount_cents>0 AND w.amount_cents<? AND c.withdrawal_id IS NULL AND t.id IS NULL
+            ORDER BY w.created_at,w.id LIMIT 20
+            """, String.class, WithdrawalLimits.MINIMUM_CENTS);
+        for (String id : ids) {
+            try {
+                returnBelowMinimum(id, Map.of());
+            } catch (RuntimeException e) {
+                log.warn("Could not return unsubmitted low-value rider withdrawal {} ({})", id, e.getClass().getSimpleName());
             }
         }
     }
@@ -361,6 +385,15 @@ class RiderTransferService {
         String bill = billNumber(id);
         var result = wechat.queryTransfer(credentials, bill);
         if ("NOT_FOUND".equals(result.path("code").asText())) {
+            // queryTransfer 接受的是验签成功的 404；历史单超过查单时效或缺少拒绝记录时仍保留冻结。
+            if (belowRiderMinimum(party, order) && truthy(order.get("retry_recent"))
+                    && "UNKNOWN".equals(order.get("channel_state"))
+                    && WithdrawalReason.WECHAT_SUBMISSION_ERROR.is(order.get("reason_code"))
+                    && WithdrawalLimits.REJECTED_SUBMISSION_REASON.equals(order.get("reason"))
+                    && credentials.merchant().equals(order.get("merchant_no"))) {
+                returnBelowMinimum(id, Map.of("appId", credentials.appId(), "merchantNo", credentials.merchant()));
+                return;
+            }
             db.update("UPDATE " + party.channel + " SET checked_at=?,channel_state='UNKNOWN' WHERE withdrawal_id=?",
                 System.currentTimeMillis(), id);
             processingReason(id, BILL_NOT_FOUND, true);
@@ -368,6 +401,16 @@ class RiderTransferService {
         }
         validateTransfer(order, credentials, bill, result);
         apply(party, id, bill, result);
+    }
+
+    private void returnBelowMinimum(String id, Map<String, String> channel) {
+        admin.post().uri("/internal/v1/withdrawals/{id}/transfer/return-below-minimum", id)
+            .body(channel).retrieve().toBodilessEntity();
+    }
+
+    private static boolean belowRiderMinimum(Party party, Map<String, Object> order) {
+        return party == Party.RIDER && order.get("amount_cents") instanceof Number amount
+            && amount.longValue() > 0 && amount.longValue() < WithdrawalLimits.MINIMUM_CENTS;
     }
 
     private void validateTransfer(Map<String, Object> order,

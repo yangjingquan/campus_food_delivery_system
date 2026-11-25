@@ -9,6 +9,7 @@
     <view class="card">
       <text class="label">提现金额（元）</text>
       <view class="currency-field"><text aria-hidden="true">¥</text><input aria-label="提现金额（元）" class="field" type="digit" value="{{amount}}" bindinput="input" placeholder="0.00" /></view>
+      <view class="hint">单笔提现最低 {{minimumWithdrawal}}</view>
       <view class="hint">提交后冻结申请金额。审核进度与打款结果可在提现记录中查看。</view>
       <view wx:if="{{formError}}" class="notice error" aria-live="polite">{{formError}}</view>
     </view>

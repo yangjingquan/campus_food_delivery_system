@@ -4,6 +4,7 @@
   <view class="divider"/>
   <view class="label">提现金额 / 元</view>
   <view class="moneyinput"><text>¥</text><input type="digit" placeholder-class="amount-placeholder" placeholder="0.00" value="{{amount}}" bindinput="amountInput" aria-label="提现金额"/></view>
+  <view class="small muted top-space">单笔最低 ¥{{finance.minimumWithdrawal}}</view>
   <view wx:if="{{fieldError}}" class="error-text">{{fieldError}}</view>
   <view class="row">
     <text class="small muted">可提现 ¥{{finance.available}}</text>

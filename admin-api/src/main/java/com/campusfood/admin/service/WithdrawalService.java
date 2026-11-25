@@ -3,6 +3,7 @@ package com.campusfood.admin.service;
 import com.campusfood.domain.BusinessStates.AccountStatus;
 import com.campusfood.domain.BusinessStates.AccountType;
 import com.campusfood.domain.BusinessStates.WithdrawalReason;
+import com.campusfood.domain.WithdrawalLimits;
 
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -78,6 +79,9 @@ public class WithdrawalService {
         var a = matches.get(0);
         if (!AccountStatus.ACCOUNT_ACTIVE.is(a.get("status")) || !List.of("MERCHANT", "RIDER").contains(a.get("type")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "账户不可提现");
+        if (requested < WithdrawalLimits.MINIMUM_CENTS)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, AccountType.RIDER.is(a.get("type"))
+                ? WithdrawalLimits.RIDER_MINIMUM_MESSAGE : WithdrawalLimits.MERCHANT_MINIMUM_MESSAGE);
         if (AccountType.MERCHANT.is(a.get("type")) && requests.hasInFlight(account)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已有进行中的提现申请，请先查看记录");
         }
@@ -141,6 +145,8 @@ public class WithdrawalService {
         var row = rows.get(0);
         String account = Objects.toString(row.get("account_id"), "");
         long amount = ((Number) row.get("amount_cents")).longValue();
+        if (decision.equals("approve") && belowRiderMinimum(row, amount))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, WithdrawalLimits.RIDER_MINIMUM_MESSAGE + "，请拒绝并退回该申请");
         if (account.isEmpty())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "历史申请缺少关联账户，需人工核对");
         accounts.lockAccount(account);
@@ -164,6 +170,9 @@ public class WithdrawalService {
         if (rows.isEmpty())
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "提现申请不存在");
         var withdrawal = rows.get(0);
+        long amount = ((Number) withdrawal.get("amount_cents")).longValue();
+        if (belowRiderMinimum(withdrawal, amount))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, WithdrawalLimits.RIDER_MINIMUM_MESSAGE);
         var attempts = transfers.lockTransfer(id);
         if (attempts.isEmpty())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "缺少原转账记录");
@@ -190,7 +199,6 @@ public class WithdrawalService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "提现资金账户不存在");
         var account = accountRows.get(0);
         String type = Objects.toString(account.get("type"), "");
-        long amount = ((Number) withdrawal.get("amount_cents")).longValue();
         if (!AccountStatus.ACCOUNT_ACTIVE.is(account.get("status")) || !List.of("MERCHANT", "RIDER").contains(type)
                 || ((Number) account.get("balance_cents")).longValue() < amount)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "提现账户不可用或可提现余额不足");
@@ -216,13 +224,16 @@ public class WithdrawalService {
 
     @Transactional
     public Map<String, Object> prepareTransfer(String id) {
-        var rows = requests.lockStatus(id);
+        var rows = requests.lockWithdrawal(id);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "提现申请不存在");
+        var row = rows.getFirst();
+        if (belowRiderMinimum(row, ((Number) row.get("amount_cents")).longValue()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, WithdrawalLimits.RIDER_MINIMUM_MESSAGE);
         // 重试使用已有转账单号，避免重复创建渠道请求。
         var prior = transfers.findTransfer(id);
         if (!prior.isEmpty()) return Map.of("transferId", prior.get(0).get("id"),
                 "status", WithdrawalTransfer.valueOf(prior.get(0).get("status").toString()).name());
-        if (!Withdrawal.PENDING_PAYOUT.name().equals(rows.get(0).get("status")))
+        if (!Withdrawal.PENDING_PAYOUT.name().equals(row.get("status")))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "提现申请不在待打款状态");
         String transferId = "T" + UUID.randomUUID().toString().replace("-", "");
         db.insertTransfer(transferId, id, WithdrawalTransfer.PROCESSING);
@@ -282,6 +293,51 @@ public class WithdrawalService {
         requests.updateStatus(next, reason, id);
         db.insertChannelAudit(id, next.name(), reason);
         return Map.of("ok", true, "status", next.name());
+    }
+
+    /** 已发起的低额单由渠道服务在验签查无原单后提交，未发起的低额单只查本地记录。 */
+    @Transactional
+    public Map<String, Object> returnBelowMinimum(String id, Map<?, ?> payload) {
+        String appId = val(payload, "appId"), merchantNo = val(payload, "merchantNo");
+        boolean verifiedNotFound = !appId.isEmpty() && !merchantNo.isEmpty();
+        if (appId.isEmpty() != merchantNo.isEmpty())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "原转账渠道信息不完整");
+        var rows = requests.lockWithdrawal(id);
+        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "提现申请不存在");
+        var row = rows.getFirst();
+        long amount = ((Number) row.get("amount_cents")).longValue();
+        if (!belowRiderMinimum(row, amount))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请不符合骑手低额退回条件");
+        String reason = WithdrawalLimits.RETURNED_BELOW_MINIMUM;
+        var status = Withdrawal.valueOf(row.get("status").toString());
+        if (status == Withdrawal.PAYOUT_FAILED && reason.equals(row.get("reason"))) {
+            return Map.of("ok", true, "status", status.name());
+        }
+
+        var transfer = transfers.lockTransfer(id);
+        boolean eligible = verifiedNotFound
+            ? status == Withdrawal.TRANSFERRING && !transfer.isEmpty()
+                && WithdrawalReason.WECHAT_SUBMISSION_ERROR.is(row.get("reason_code"))
+                && WithdrawalLimits.REJECTED_SUBMISSION_REASON.equals(row.get("reason"))
+                && db.hasRejectedRiderChannel(id, appId, merchantNo)
+            : status == Withdrawal.PENDING_PAYOUT && transfer.isEmpty() && !db.hasRiderChannel(id);
+        if (!eligible) throw new ResponseStatusException(HttpStatus.CONFLICT, "原转账状态需核对");
+
+        String account = Objects.toString(row.get("account_id"), "");
+        if (account.isEmpty() || accounts.lockAccount(account) == null || db.outstandingFrozen(account, id) != amount
+                || accounts.unfreezeFunds(amount, amount, account, amount) != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "原申请冻结流水需核对");
+        }
+        journal(account, "transfer_failed_unfreeze", id, amount, -amount);
+        if (verifiedNotFound) transfers.finalizeTransfer(WithdrawalTransfer.FAILED, null, reason, id);
+        requests.updateStatus(Withdrawal.PAYOUT_FAILED, reason, id);
+        db.insertReviewAudit("渠道服务", "withdrawal.channel", id, status.name(), Withdrawal.PAYOUT_FAILED.name(), reason);
+        return Map.of("ok", true, "status", Withdrawal.PAYOUT_FAILED.name());
+    }
+
+    private static boolean belowRiderMinimum(Map<String, Object> row, long amount) {
+        return AccountType.RIDER.is(row.get("applicant_type")) && amount > 0
+            && amount < WithdrawalLimits.MINIMUM_CENTS;
     }
 
     private void journal(String account, String type, String ref, long available, long frozen) {

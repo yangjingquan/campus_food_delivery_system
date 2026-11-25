@@ -1,5 +1,6 @@
 package com.campusfood.admin.entity;
 
+import com.campusfood.domain.BusinessStates.AccountType;
 import com.campusfood.domain.BusinessStates.Withdrawal;
 
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -11,6 +12,7 @@ public class WithdrawalRequest {
     @TableId
     private String id;
     private String accountId;
+    private AccountType applicantType;
     private Long amountCents;
     private Withdrawal status;
     private String reason;
@@ -24,6 +26,10 @@ public class WithdrawalRequest {
 
     public String getAccountId() {
         return accountId;
+    }
+
+    public AccountType getApplicantType() {
+        return applicantType;
     }
 
     public Long getAmountCents() {

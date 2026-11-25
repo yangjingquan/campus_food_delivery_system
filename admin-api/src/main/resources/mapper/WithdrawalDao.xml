@@ -48,6 +48,26 @@
         INSERT INTO withdrawal_transfer(id,withdrawal_id,status) VALUES(#{transferId},#{withdrawalId},#{status})
     </insert>
 
+    <select id="hasRiderChannel" resultType="boolean">
+        SELECT EXISTS (SELECT 1 FROM rider_transfer_channel WHERE withdrawal_id=#{id})
+    </select>
+
+    <select id="hasRejectedRiderChannel" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM rider_transfer_channel c
+            JOIN withdrawal_transfer t ON t.withdrawal_id=c.withdrawal_id
+            WHERE c.withdrawal_id=#{id} AND c.app_id=#{appId} AND c.merchant_no=#{merchantNo}
+                AND c.channel_state='UNKNOWN' AND c.package_info IS NULL
+                AND t.status IN ('PROCESSING','UNKNOWN') AND t.channel_reference IS NULL AND NOT t.retry_requested
+                AND t.created_at &gt; CURRENT_TIMESTAMP-INTERVAL 30 DAY
+        )
+    </select>
+
+    <select id="outstandingFrozen" resultType="long">
+        SELECT COALESCE(SUM(frozen_delta),0) FROM account_journal
+        WHERE account_id=#{accountId} AND reference_id=#{id}
+    </select>
+
     <insert id="insertChannelAudit">
         INSERT INTO admin_audit_log(actor,action_name,target_id,before_status,after_status,reason) VALUES('渠道服务',
         'withdrawal.channel',#{withdrawalId},'TRANSFERRING',#{afterState},#{reason})

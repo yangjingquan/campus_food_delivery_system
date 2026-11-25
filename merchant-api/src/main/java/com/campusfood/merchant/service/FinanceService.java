@@ -1,5 +1,7 @@
 package com.campusfood.merchant.service;
 
+import com.campusfood.domain.WithdrawalLimits;
+
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -36,7 +38,8 @@ public class FinanceService {
             SELECT COALESCE(SUM(platform_advance_cents-recovered_cents),0)
             FROM finance_debt WHERE merchant_account_id=?
             """, Long.class, merchant);
-        return Map.of("sales", sales, "account", account, "debtCents", debt, "merchantId", merchant);
+        return Map.of("sales", sales, "account", account, "debtCents", debt, "merchantId", merchant,
+            "minimumWithdrawalCents", WithdrawalLimits.MINIMUM_CENTS);
     }
 
     public List<Map<String, Object>> records(String merchant, String kind) {

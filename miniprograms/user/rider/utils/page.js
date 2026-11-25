@@ -444,6 +444,9 @@ function register(screen) {
       }
       const [whole, decimals = ''] = amount.split('.');
       const cents = Number(whole) * 100 + Number(decimals.padEnd(2, '0'));
+      if (cents < this.data.finance.minimumWithdrawalCents) {
+        return this.setData({ fieldError: '单笔提现最低 ¥' + this.data.finance.minimumWithdrawal });
+      }
       // 网络结果不明时保留原请求键，退出页面后再次提交同一笔金额仍可取回原结果。
       const storageKey = 'rider-withdraw-intent-' + this.data.profile.id;
       const prior = wx.getStorageSync(storageKey) || {};

@@ -25,6 +25,13 @@ public interface WithdrawalDao {
 
     boolean hasRetryRecipient(@Param("id") String id, @Param("accountId") String accountId, @Param("type") String type);
 
+    boolean hasRiderChannel(@Param("id") String id);
+
+    boolean hasRejectedRiderChannel(@Param("id") String id, @Param("appId") String appId,
+                                    @Param("merchantNo") String merchantNo);
+
+    long outstandingFrozen(@Param("accountId") String accountId, @Param("id") String id);
+
     int insertTransfer(@Param("transferId") String transferId, @Param("withdrawalId") String withdrawalId,
                        @Param("status") WithdrawalTransfer status);
 

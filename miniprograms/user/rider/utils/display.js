@@ -47,7 +47,13 @@ function maskPhone(phone) {
 
 function finance(data) {
   const keys = ['fee', 'commission', 'due', 'funded', 'pending', 'held', 'available', 'frozen', 'paidOut'];
-  return { ...data, ...Object.fromEntries(keys.map(key => [key, money(data[key + 'Cents'])])) };
+  const minimumWithdrawalCents = data.minimumWithdrawalCents ?? 10;
+  return {
+    ...data,
+    ...Object.fromEntries(keys.map(key => [key, money(data[key + 'Cents'])])),
+    minimumWithdrawalCents,
+    minimumWithdrawal: money(minimumWithdrawalCents)
+  };
 }
 
 function withdrawal(data) {

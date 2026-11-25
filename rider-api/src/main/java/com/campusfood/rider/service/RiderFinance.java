@@ -1,6 +1,7 @@
 package com.campusfood.rider.service;
 
 import com.campusfood.domain.BusinessStates.Withdrawal;
+import com.campusfood.domain.WithdrawalLimits;
 
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,7 @@ public class RiderFinance {
             SELECT balance_cents AS availableCents,frozen_cents AS frozenCents
             FROM finance_account WHERE id=? AND type='RIDER'
             """, rider).stream().findFirst().orElse(Map.of("availableCents", 0, "frozenCents", 0)));
+        totals.put("minimumWithdrawalCents", WithdrawalLimits.MINIMUM_CENTS);
         totals.put("paidOutCents", db.queryForObject("""
             SELECT COALESCE(SUM(amount_cents),0) FROM withdrawal_request
             WHERE account_id=? AND applicant_type='RIDER' AND status='PAID'

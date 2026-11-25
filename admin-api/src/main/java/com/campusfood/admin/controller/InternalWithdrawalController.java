@@ -53,4 +53,11 @@ public class InternalWithdrawalController {
         authorize(key);
         return withdrawals.transferResult(id, body);
     }
+
+    @PostMapping("/withdrawals/{id}/transfer/return-below-minimum")
+    public Map<String, Object> returnBelowMinimum(@RequestHeader(value = "X-Internal-Key", required = false) String key,
+                                                   @PathVariable String id, @RequestBody Map<String, Object> body) {
+        authorize(key);
+        return withdrawals.returnBelowMinimum(id, body);
+    }
 }
