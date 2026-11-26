@@ -525,6 +525,7 @@ button { color: inherit; }
 .profile-button:hover { background: #f2f6fc; }
 .el-button:not(.is-link):not(.is-text) { min-height: 38px; padding-right: 16px; padding-left: 16px; font-weight: 600; }
 .el-button + .el-button { margin-left: 0; }
+.el-dialog__footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
 .el-message-box__btns { display: flex; justify-content: flex-end; gap: 12px; }
 .el-button.is-link { min-height: 32px; }
 .el-input__wrapper, .el-select__wrapper, .el-textarea__inner { min-height: 38px; border-radius: 8px; box-shadow: 0 0 0 1px #d9e2ed inset; }
