@@ -15,13 +15,17 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class FinanceService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final String IS_WITHDRAWAL_APPLICANT = """
+        ((w.applicant_identity_id=i.id AND w.recipient_app_id=i.app_id AND w.recipient_open_id=i.open_id)
+         OR (w.applicant_identity_id IS NULL AND c.app_id=i.app_id AND c.recipient_open_id=i.open_id))
+        """;
     private final JdbcTemplate db;
 
     public FinanceService(JdbcTemplate db) {
         this.db = db;
     }
 
-    public Map<String, Object> summary(String merchant, int days) {
+    public Map<String, Object> summary(String merchant, int days, long identityId) {
         int period = days == 30 ? 30 : days == 7 ? 7 : 1;
         long from = LocalDate.now(BUSINESS_ZONE).minusDays(period - 1L).atStartOfDay(BUSINESS_ZONE).toInstant().toEpochMilli();
         var sales = db.queryForMap("""
@@ -39,10 +43,11 @@ public class FinanceService {
             FROM finance_debt WHERE merchant_account_id=?
             """, Long.class, merchant);
         return Map.of("sales", sales, "account", account, "debtCents", debt, "merchantId", merchant,
-            "minimumWithdrawalCents", WithdrawalLimits.MINIMUM_CENTS);
+            "minimumWithdrawalCents", WithdrawalLimits.MINIMUM_CENTS, "withdrawalIdentityId", Long.toString(identityId));
     }
 
-    public List<Map<String, Object>> records(String merchant, String kind) {
+    public List<Map<String, Object>> records(String merchant, String kind, long identityId) {
+        if ("withdrawals".equals(kind)) return withdrawalRecords(merchant, identityId);
         String sql = switch (kind) {
             case "settlements" -> """
                 SELECT o.id,o.food_cents AS foodCents,o.food_refunded_cents AS foodRefundedCents,
@@ -77,21 +82,28 @@ public class FinanceService {
                        frozen_delta AS frozenDelta,created_at AS createdAt
                 FROM account_journal WHERE account_id=? ORDER BY id DESC LIMIT 100
                 """;
-            case "withdrawals" -> """
-                SELECT w.id,w.amount_cents AS amountCents,w.created_at AS createdAt,w.reason,
-                       CASE WHEN w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM' THEN 'AWAITING_CONFIRMATION'
-                            WHEN w.status='TRANSFERRING' AND c.channel_state='UNKNOWN' THEN 'CONFIRMATION_UNKNOWN'
-                            ELSE w.status END AS status,
-                       (w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM'
-                            AND c.package_info IS NOT NULL AND c.checked_at>=
-                                UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3))*1000-120000) AS canConfirm
-                FROM withdrawal_request w
-                LEFT JOIN merchant_transfer_channel c ON c.withdrawal_id=w.id
-                WHERE w.account_id=? AND w.applicant_type='MERCHANT' ORDER BY w.created_at DESC,w.id DESC LIMIT 100
-                """;
             default -> throw Inputs.invalid("未知财务记录类型");
         };
         return db.queryForList(sql, merchant);
+    }
+
+    private List<Map<String, Object>> withdrawalRecords(String merchant, long identityId) {
+        return db.queryForList("""
+            SELECT w.id,w.amount_cents AS amountCents,w.created_at AS createdAt,w.reason,
+                CASE WHEN w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM' THEN 'AWAITING_CONFIRMATION'
+                     WHEN w.status='TRANSFERRING' AND c.channel_state='UNKNOWN' THEN 'CONFIRMATION_UNKNOWN'
+                     ELSE w.status END AS status,
+                COALESCE(%s,FALSE) AS isApplicant,
+                COALESCE(%s AND w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM'
+                    AND c.app_id=i.app_id AND c.recipient_open_id=i.open_id
+                    AND c.package_info IS NOT NULL AND c.checked_at>=?,FALSE) AS canConfirm
+            FROM withdrawal_request w
+            JOIN merchant_identity i ON i.id=? AND i.merchant_id=w.account_id
+            LEFT JOIN merchant_transfer_channel c ON c.withdrawal_id=w.id
+            WHERE w.account_id=? AND w.applicant_type='MERCHANT'
+            ORDER BY w.created_at DESC,w.id DESC LIMIT 100
+            """.formatted(IS_WITHDRAWAL_APPLICANT, IS_WITHDRAWAL_APPLICANT),
+            System.currentTimeMillis() - 120_000L, identityId, merchant);
     }
 
     public Map<String, Object> withdrawalConfirmation(String merchant, long identityId, String withdrawalId) {
@@ -102,9 +114,9 @@ public class FinanceService {
             JOIN merchant_identity i ON i.merchant_id=w.account_id
                 AND i.app_id=c.app_id AND i.open_id=c.recipient_open_id
             WHERE w.id=? AND w.account_id=? AND i.id=? AND w.applicant_type='MERCHANT'
-                AND w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM'
+                AND %s AND w.status='TRANSFERRING' AND c.channel_state='WAIT_USER_CONFIRM'
                 AND c.package_info IS NOT NULL AND c.checked_at>=?
-            """, withdrawalId, merchant, identityId, System.currentTimeMillis() - 120_000L)
+            """.formatted(IS_WITHDRAWAL_APPLICANT), withdrawalId, merchant, identityId, System.currentTimeMillis() - 120_000L)
             .stream().findFirst().orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.CONFLICT, "暂时无法确认收款，请刷新提现记录"));
     }

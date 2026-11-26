@@ -57,13 +57,13 @@ public class DomainClient {
         return call(user.post().uri("/internal/v1/merchants/{merchant}/orders/{order}/refund", merchant, order).body(body));
     }
 
-    public Map<String, Object> withdraw(String accountId, Map<String, Object> body) {
+    public Map<String, Object> withdraw(String accountId, long merchantIdentityId, Map<String, Object> body) {
         long amount = Inputs.integer(body, "amountCents", "提现金额（分）", 1, 100_000_000_000L);
         String requestKey = Inputs.text(body, "requestKey", "提现申请编号", 64, true);
         if (!requestKey.matches("[A-Za-z0-9_-]{8,64}")) throw Inputs.invalid("提现申请编号无效");
-        // 服务端指定资金账户并给幂等键加店铺作用域，客户端无法指定其他账户。
         return call(admin.post().uri("/internal/v1/withdrawals")
-            .body(Map.of("accountId", accountId, "requestKey", accountId + "-" + requestKey, "amountCents", amount)));
+            .body(Map.of("accountId", accountId, "merchantIdentityId", merchantIdentityId,
+                "requestKey", requestKey, "amountCents", amount)));
     }
 
     private Map<String, Object> call(RestClient.RequestHeadersSpec<?> request) {

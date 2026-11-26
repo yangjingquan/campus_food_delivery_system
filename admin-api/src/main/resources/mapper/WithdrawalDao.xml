@@ -3,14 +3,15 @@
 <mapper namespace="com.campusfood.admin.dao.WithdrawalDao">
     <!-- 依赖幂等键唯一约束，重复申请不再插入新的意图记录。 -->
     <insert id="insertIntentIfAbsent">
-        INSERT IGNORE INTO withdrawal_intent(request_key,account_id,requested_cents,status) VALUES(#{requestKey},
-        #{accountId},#{requestedCents},#{status})
+        INSERT IGNORE INTO withdrawal_intent(request_key,account_id,requested_cents,status,applicant_identity_id)
+        VALUES(#{requestKey},#{accountId},#{requestedCents},#{status},#{applicantIdentityId})
     </insert>
 
     <insert id="insertWithdrawal">
         INSERT INTO withdrawal_request(id,applicant,applicant_type,amount_cents,status,created_at,
-        account_id,request_key) VALUES(#{id},#{applicant},#{applicantType},#{amount},#{status},
-        #{createdAt},#{accountId},#{requestKey})
+        account_id,request_key,applicant_identity_id,recipient_app_id,recipient_open_id)
+        VALUES(#{id},#{applicant},#{applicantType},#{amount},#{status},#{createdAt},#{accountId},#{requestKey},
+        #{recipient.identityId},#{recipient.appId},#{recipient.openId})
     </insert>
 
     <insert id="insertReviewAudit">
@@ -23,25 +24,47 @@
         WHERE action_name='withdrawal.review' AND target_id=#{id})
     </select>
 
-    <select id="hasRetryRecipient" resultType="boolean">
+    <select id="lockMerchantRecipient" resultType="com.campusfood.admin.dto.MerchantWithdrawalRecipient">
+        SELECT i.id AS identityId,i.app_id AS appId,i.open_id AS openId
+        FROM merchant_identity i JOIN merchant m ON m.id=i.merchant_id
+        WHERE i.id=#{identityId} AND i.merchant_id=#{accountId} AND m.deleted_at IS NULL
+          AND m.audit_status='APPROVED' AND i.open_id&lt;&gt;''
+        FOR UPDATE OF i
+    </select>
+
+    <select id="lockMerchantRetryRecipient" resultType="com.campusfood.admin.dto.MerchantWithdrawalRecipient">
+        SELECT i.id AS identityId,c.app_id AS appId,c.recipient_open_id AS openId
+        FROM withdrawal_request w JOIN merchant_transfer_channel c ON c.withdrawal_id=w.id
+        JOIN merchant_identity i ON i.merchant_id=w.account_id
+            AND i.app_id=c.app_id AND i.open_id=c.recipient_open_id
+        JOIN merchant m ON m.id=i.merchant_id AND m.deleted_at IS NULL AND m.audit_status='APPROVED'
+        JOIN wechat_config cfg ON cfg.id=(SELECT MAX(id) FROM wechat_config)
+            AND cfg.merchant_app_id=c.app_id AND cfg.merchant_no=c.merchant_no
+        WHERE w.id=#{id} AND w.account_id=#{accountId} AND c.channel_state IN ('FAIL','CANCELLED')
+            AND (w.applicant_identity_id IS NULL OR (w.applicant_identity_id=i.id
+                AND w.recipient_app_id=c.app_id AND w.recipient_open_id=c.recipient_open_id))
+        FOR UPDATE OF i
+    </select>
+
+    <select id="hasRiderRetryRecipient" resultType="boolean">
         SELECT EXISTS (
-        <choose>
-            <when test="type == 'MERCHANT'">
-                SELECT 1 FROM merchant_transfer_channel c
-                JOIN merchant_identity i ON i.merchant_id=#{accountId}
-                    AND i.app_id=c.app_id AND i.open_id=c.recipient_open_id
-                JOIN wechat_config cfg ON cfg.id=(SELECT MAX(id) FROM wechat_config)
-                    AND cfg.merchant_app_id=c.app_id AND cfg.merchant_no=c.merchant_no
-            </when>
-            <otherwise>
-                SELECT 1 FROM rider_transfer_channel c
-                JOIN rider_identity i ON i.rider_id=#{accountId} AND i.app_id=c.app_id
-                    AND i.openid=COALESCE(c.recipient_open_id,i.openid) AND i.openid&lt;&gt;''
-                JOIN wechat_config cfg ON cfg.id=(SELECT MAX(id) FROM wechat_config)
-                    AND cfg.rider_app_id=c.app_id AND cfg.merchant_no=c.merchant_no
-            </otherwise>
-        </choose>
-        WHERE c.withdrawal_id=#{id} AND c.channel_state IN ('FAIL','CANCELLED'))
+            SELECT 1 FROM rider_transfer_channel c
+            JOIN rider_identity i ON i.rider_id=#{accountId} AND i.app_id=c.app_id
+                AND i.openid=COALESCE(c.recipient_open_id,i.openid) AND i.openid&lt;&gt;''
+            JOIN wechat_config cfg ON cfg.id=(SELECT MAX(id) FROM wechat_config)
+                AND cfg.rider_app_id=c.app_id AND cfg.merchant_no=c.merchant_no
+            WHERE c.withdrawal_id=#{id} AND c.channel_state IN ('FAIL','CANCELLED'))
+    </select>
+
+    <select id="hasMerchantChannel" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM merchant_transfer_channel WHERE withdrawal_id=#{id})
+    </select>
+
+    <select id="hasMerchantChannelRecipient" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM withdrawal_request w JOIN merchant_transfer_channel c ON c.withdrawal_id=w.id
+            WHERE w.id=#{id} AND c.recipient_open_id&lt;&gt;''
+                AND (w.recipient_open_id IS NULL OR (w.recipient_app_id=c.app_id AND w.recipient_open_id=c.recipient_open_id)))
     </select>
 
     <insert id="insertTransfer">

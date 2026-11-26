@@ -1,6 +1,7 @@
 package com.campusfood.admin.service;
 
 import com.campusfood.admin.dao.BusinessDao;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -81,6 +82,15 @@ public class MiniProgramAccountService {
             String.class, identityId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "骑手微信身份不存在");
         return rows.getFirst();
+    }
+
+    List<Map<String, Object>> merchantMembers(String merchantId) {
+        return db.queryForList("""
+            SELECT CAST(i.id AS CHAR) AS identityId,CAST(u.id AS CHAR) AS userNumber,u.display_name AS nickname
+            FROM merchant_identity i LEFT JOIN user_profile u
+                ON i.app_id=? AND CAST(u.openid AS BINARY)=CAST(i.open_id AS BINARY)
+            WHERE i.merchant_id=? ORDER BY i.id
+            """, appId, merchantId);
     }
 
     void bindMerchant(long identityId, String merchantId, String actor) {

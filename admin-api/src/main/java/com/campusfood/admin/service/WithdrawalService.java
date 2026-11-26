@@ -1,5 +1,6 @@
 package com.campusfood.admin.service;
 
+import com.campusfood.admin.dto.MerchantWithdrawalRecipient;
 import com.campusfood.domain.BusinessStates.AccountStatus;
 import com.campusfood.domain.BusinessStates.AccountType;
 import com.campusfood.domain.BusinessStates.WithdrawalReason;
@@ -58,17 +59,40 @@ public class WithdrawalService {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "金额须为正整数分");
     }
 
+    private static Long merchantIdentity(Map<?, ?> payload) {
+        String value = val(payload, "merchantIdentityId");
+        if (value.isEmpty()) return null;
+        try {
+            if (value.matches("[1-9][0-9]{0,18}")) return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            // Invalid identity ID.
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效商户申请人");
+    }
+
     @Transactional
     public Map<String, Object> request(Map<?, ?> payload) {
         String account = val(payload, "accountId"), key = val(payload, "requestKey");
         long requested = cents(payload, "amountCents");
         if (!key.matches("[A-Za-z0-9_-]{8,100}") || account.isEmpty() || account.length() > 64)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效账户或幂等键");
+        Long identityId = merchantIdentity(payload);
+        MerchantWithdrawalRecipient recipient = null;
+        if (identityId != null) {
+            if (key.length() > 64) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效商户提现幂等键");
+            recipient = db.lockMerchantRecipient(identityId, account);
+            if (recipient == null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "申请人已不属于该商户");
+            if (intents.selectById(account + "-" + key) != null) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "该编号已用于历史提现，请先核对提现记录");
+            }
+            key = "merchant-" + identityId + "-" + key;
+        }
         // 先占用幂等键；重复请求读取原结果，不重复变更余额。
-        int createdIntent = db.insertIntentIfAbsent(key, account, requested, WithdrawalIntent.PROCESSING);
+        int createdIntent = db.insertIntentIfAbsent(key, account, requested, WithdrawalIntent.PROCESSING, identityId);
         if (createdIntent == 0) {
             var old = intents.lockIntent(key);
             if (!account.equals(old.get("account_id")) ||
+                    !Objects.equals(identityId, old.get("applicant_identity_id")) ||
                     requested != ((Number) old.get("requested_cents")).longValue())
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "幂等键已用于其他申请");
             return result(old);
@@ -82,12 +106,17 @@ public class WithdrawalService {
         if (requested < WithdrawalLimits.MINIMUM_CENTS)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, AccountType.RIDER.is(a.get("type"))
                 ? WithdrawalLimits.RIDER_MINIMUM_MESSAGE : WithdrawalLimits.MERCHANT_MINIMUM_MESSAGE);
-        if (AccountType.MERCHANT.is(a.get("type")) && requests.hasInFlight(account)) {
+        boolean merchant = AccountType.MERCHANT.is(a.get("type"));
+        if (merchant && recipient == null)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户提现须通过本人商户账号发起");
+        if (!merchant && recipient != null)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "提现账号与资金账户类型不一致");
+        if (merchant && requests.hasInFlight(account)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已有进行中的提现申请，请先查看记录");
         }
         long available = ((Number) a.get("balance_cents")).longValue(), recovered = 0;
         // 商户申请提现时先按欠款记录顺序扣回，并分别记录双方账本。
-        if (AccountType.MERCHANT.is(a.get("type"))) {
+        if (merchant) {
             var outstandingDebts = debts.lockOutstandingDebts(account);
             for (var debt : outstandingDebts) {
                 long due = ((Number) debt.get("platform_advance_cents")).longValue() -
@@ -112,11 +141,12 @@ public class WithdrawalService {
         }
         String id = "W" + UUID.randomUUID().toString().replace("-", "");
         // 申请受理时立即冻结提现金额，审核拒绝或明确失败时再解冻。
-        accounts.freezeAvailable(requested, requested, account);
+        if (accounts.freezeAvailable(requested, requested, account) != 1)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "冻结申请金额失败，请刷新余额");
         journal(account, "withdraw_freeze", id, -requested, requested);
         String created = LocalDateTime.now(ZoneId.of("Asia/Shanghai")).format(
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        db.insertWithdrawal(id, a.get("name"), a.get("type"), requested, Withdrawal.PENDING_REVIEW, created, account, key);
+        db.insertWithdrawal(id, a.get("name"), a.get("type"), requested, Withdrawal.PENDING_REVIEW, created, account, key, recipient);
         intents.markAccepted(recovered, available - requested, id, key);
         return Map.of("status", WithdrawalIntent.ACCEPTED.name(), "withdrawalId", id, "recoveredCents", recovered, "availableCents",
                 available - requested);
@@ -147,11 +177,16 @@ public class WithdrawalService {
         long amount = ((Number) row.get("amount_cents")).longValue();
         if (decision.equals("approve") && belowRiderMinimum(row, amount))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, WithdrawalLimits.RIDER_MINIMUM_MESSAGE + "，请拒绝并退回该申请");
+        if (decision.equals("approve") && AccountType.MERCHANT.is(row.get("applicant_type"))
+                && row.get("recipient_open_id") == null && !db.hasMerchantChannel(id))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "历史申请缺少收款人，请拒绝并退回该申请");
         if (account.isEmpty())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "历史申请缺少关联账户，需人工核对");
         accounts.lockAccount(account);
         Withdrawal next = decision.equals("reject") ? Withdrawal.REVIEW_REJECTED : Withdrawal.PENDING_PAYOUT;
         if (decision.equals("reject")) {
+            if (AccountType.MERCHANT.is(row.get("applicant_type")) && db.outstandingFrozen(account, id) != amount)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "原申请冻结流水需核对");
             int updated = accounts.unfreezeFunds(amount, amount, account, amount);
             if (updated != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "冻结余额不足，需人工核对");
             journal(account, "withdraw_unfreeze", id, amount, -amount);
@@ -183,6 +218,8 @@ public class WithdrawalService {
         if ((status == Withdrawal.TRANSFERRING || status == Withdrawal.AWAITING_CONFIRMATION)
                 && (transfer == WithdrawalTransfer.PROCESSING || transfer == WithdrawalTransfer.UNKNOWN) && !hasChannelReference
                 && WithdrawalReason.WECHAT_FUNDS_INSUFFICIENT.is(withdrawal.get("reason_code"))) {
+            if (AccountType.MERCHANT.is(withdrawal.get("applicant_type")) && !db.hasMerchantChannelRecipient(id))
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "原转账缺少匹配的收款人");
             if (transfers.queueRetry(id) != 1)
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "该笔提现已在重试队列中");
             db.insertReviewAudit(actor, "withdrawal.retry", id, status.name(), status.name(), "原单重试");
@@ -194,6 +231,10 @@ public class WithdrawalService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已存在关联的重试申请");
 
         String accountId = Objects.toString(withdrawal.get("account_id"), "");
+        boolean merchant = AccountType.MERCHANT.is(withdrawal.get("applicant_type"));
+        MerchantWithdrawalRecipient recipient = merchant ? db.lockMerchantRetryRecipient(id, accountId) : null;
+        if (merchant && recipient == null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "原转账终态或收款身份需核对");
         var accountRows = accounts.lockForWithdrawal(accountId);
         if (accountRows.isEmpty())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "提现资金账户不存在");
@@ -206,7 +247,7 @@ public class WithdrawalService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先处理该商户进行中的提现或欠款");
         if (AccountType.MERCHANT.is(type) && amount >= 200_000)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该金额需先核验商户收款人实名");
-        if (!db.hasRetryRecipient(id, accountId, type))
+        if (!merchant && !db.hasRiderRetryRecipient(id, accountId))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "原转账终态或收款身份需核对");
 
         // 微信已终结的单据保留原流水，使用关联申请和新的渠道单号。
@@ -216,10 +257,36 @@ public class WithdrawalService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "重新冻结申请金额失败");
         journal(accountId, "withdraw_freeze", retryId, -amount, amount);
         db.insertWithdrawal(retryId, account.get("name"), type, amount, Withdrawal.PENDING_PAYOUT,
-                Objects.toString(withdrawal.get("created_at")), accountId, key);
+                Objects.toString(withdrawal.get("created_at")), accountId, key, recipient);
         requests.updateStatus(Withdrawal.PENDING_PAYOUT, "原单打款失败，等待渠道重试", retryId);
         db.insertReviewAudit(actor, "withdrawal.retry", id, status.name(), status.name(), "关联重试申请 " + retryId);
         return Map.of("ok", true, "withdrawalId", retryId);
+    }
+
+    @Transactional
+    public Map<String, Object> returnUnidentifiedMerchantWithdrawal(Map<?, ?> payload, String actor) {
+        String id = val(payload, "id"), reason = val(payload, "reason");
+        if (reason.isEmpty() || reason.length() > 500)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写 1 至 500 字的退回原因");
+        var rows = requests.lockWithdrawal(id);
+        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "提现申请不存在");
+        var row = rows.getFirst();
+        if (!AccountType.MERCHANT.is(row.get("applicant_type")) || row.get("recipient_open_id") != null
+                || !Withdrawal.PENDING_PAYOUT.is(row.get("status"))
+                || !transfers.lockTransfer(id).isEmpty() || db.hasMerchantChannel(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅可退回没有收款身份及转账记录的历史待打款申请");
+        }
+        String account = Objects.toString(row.get("account_id"), "");
+        long amount = ((Number) row.get("amount_cents")).longValue();
+        if (account.isEmpty() || accounts.lockAccount(account) == null || db.outstandingFrozen(account, id) != amount
+                || accounts.unfreezeFunds(amount, amount, account, amount) != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "原申请冻结流水需核对");
+        }
+        journal(account, "transfer_failed_unfreeze", id, amount, -amount);
+        requests.updateStatus(Withdrawal.PAYOUT_FAILED, reason, id);
+        db.insertReviewAudit(actor, "withdrawal.return-unidentified", id, Withdrawal.PENDING_PAYOUT.name(),
+            Withdrawal.PAYOUT_FAILED.name(), reason);
+        return Map.of("ok", true, "status", Withdrawal.PAYOUT_FAILED.name());
     }
 
     @Transactional
@@ -229,6 +296,8 @@ public class WithdrawalService {
         var row = rows.getFirst();
         if (belowRiderMinimum(row, ((Number) row.get("amount_cents")).longValue()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, WithdrawalLimits.RIDER_MINIMUM_MESSAGE);
+        if (AccountType.MERCHANT.is(row.get("applicant_type")) && !db.hasMerchantChannelRecipient(id))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "提现渠道与原收款人不匹配");
         // 重试使用已有转账单号，避免重复创建渠道请求。
         var prior = transfers.findTransfer(id);
         if (!prior.isEmpty()) return Map.of("transferId", prior.get(0).get("id"),

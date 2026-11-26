@@ -11,6 +11,7 @@ public class WithdrawalIntent {
     @TableId
     private String requestKey;
     private String accountId;
+    private Long applicantIdentityId;
     private Long requestedCents;
     private Long recoveredCents;
     private Long availableAfter;
@@ -23,6 +24,10 @@ public class WithdrawalIntent {
 
     public String getAccountId() {
         return accountId;
+    }
+
+    public Long getApplicantIdentityId() {
+        return applicantIdentityId;
     }
 
     public Long getRequestedCents() {

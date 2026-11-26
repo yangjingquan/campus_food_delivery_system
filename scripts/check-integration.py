@@ -234,16 +234,31 @@ try:
     assert {'admin.role.create', 'admin.role.update', 'admin.role.delete', 'admin.password-reset'} <= {
         event['action'] for event in events
     }
+    identity_migrations = ROOT / 'merchant-api/src/main/resources/db/migration'
+    sql((identity_migrations / 'V1__merchant_identity.sql').read_text())
+    sql((identity_migrations / 'V5__merchant_multiple_accounts.sql').read_text())
+    sql("""
+        INSERT INTO merchant(id,name,contact,phone,address,audit_status,business_status,joined_at) VALUES
+        ('MTEST','测试商户','联系人','13800000000','测试地址','APPROVED','STORE_CLOSED','2026-11-01 09:00:00'),
+        ('MMULTI','多笔欠款测试','联系人','13800000000','测试地址','APPROVED','STORE_CLOSED','2026-11-01 09:00:00');
+        INSERT INTO merchant_identity(id,app_id,open_id,merchant_id) VALUES
+        (1001,'wx0000000000000001','merchant-test-a','MTEST'),
+        (1002,'wx0000000000000001','merchant-test-b','MMULTI'),
+        (1003,'wx0000000000000001','merchant-test-c','MTEST');
+    """)
     sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('MTEST','测试商户','MERCHANT',10000,'ACCOUNT_ACTIVE'),('RTEST','测试骑手','RIDER',10000,'ACCOUNT_ACTIVE'); INSERT INTO finance_debt(id,order_id,merchant,rider,rider_due_cents,merchant_balance_cents,platform_advance_cents,recovered_cents,merchant_account_id) VALUES('DTEST','OTEST','测试商户','测试骑手',3000,10000,3000,0,'MTEST');")
-    p={'accountId':'MTEST','requestKey':'test-debt-0001','amountCents':8000}
+    p={'accountId':'MTEST','merchantIdentityId':1001,'requestKey':'test-debt-0001','amountCents':8000}
     first=check(200,call('POST','/internal/v1/withdrawals',p,internal=True),'debt offset')
     assert first['status']=='INSUFFICIENT_FUNDS' and first['recoveredCents']==3000 and first['availableCents']==7000,first
     again=check(200,call('POST','/internal/v1/withdrawals',p,internal=True),'idempotent retry')
     assert again['recoveredCents']==3000 and sql("SELECT balance_cents FROM finance_account WHERE id='SYSTEM_PLATFORM'")=='3000'
-    p={'accountId':'MTEST','requestKey':'test-freeze-001','amountCents':7000}
+    p={'accountId':'MTEST','merchantIdentityId':1001,'requestKey':'test-freeze-001','amountCents':7000}
     freeze=check(200,call('POST','/internal/v1/withdrawals',p,internal=True),'freeze'); assert freeze['status']=='ACCEPTED'
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='MTEST'")=='0,7000'
-    wid=freeze['withdrawalId'];check(200,action('withdrawal.review',{'id':wid,'decision':'reject','reason':'测试拒绝'},token),'reject')
+    wid=freeze['withdrawalId']
+    assert sql("SELECT CONCAT(applicant_identity_id,':',recipient_open_id) FROM withdrawal_request WHERE id='"+wid+"'")=='1001:merchant-test-a'
+    check(409,call('POST','/internal/v1/withdrawals',{**p,'merchantIdentityId':1003},internal=True),'second member sees shared in-flight withdrawal')
+    check(200,action('withdrawal.review',{'id':wid,'decision':'reject','reason':'测试拒绝'},token),'reject')
     assert sql("SELECT CONCAT(balance_cents,',',frozen_cents) FROM finance_account WHERE id='MTEST'")=='7000,0'
     check(409,action('withdrawal.review',{'id':wid,'decision':'reject','reason':'重复'},token),'repeat review')
     sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('MMULTI','多笔欠款测试','MERCHANT',10000,'ACCOUNT_ACTIVE'); "
@@ -251,7 +266,7 @@ try:
         "('D01','O1','多笔欠款测试','骑手',3000,10000,3000,1000,'MMULTI'),"
         "('D02','O2','多笔欠款测试','骑手',2000,10000,2000,2000,'MMULTI'),"
         "('D03','O3','多笔欠款测试','骑手',2000,10000,2000,0,'MMULTI')")
-    multi=check(200,call('POST','/internal/v1/withdrawals',{'accountId':'MMULTI','requestKey':'test-multi-debt','amountCents':5000},internal=True),'multiple debts')
+    multi=check(200,call('POST','/internal/v1/withdrawals',{'accountId':'MMULTI','merchantIdentityId':1002,'requestKey':'test-multi-debt','amountCents':5000},internal=True),'multiple debts')
     assert multi['recoveredCents']==4000 and multi['availableCents']==1000
     assert sql("SELECT GROUP_CONCAT(CONCAT(id,':',recovered_cents) ORDER BY id SEPARATOR ',') FROM finance_debt WHERE merchant_account_id='MMULTI'")=='D01:3000,D02:2000,D03:2000'
     assert sql("SELECT COUNT(*) FROM account_journal WHERE account_id='MMULTI' AND event_type='debt_recover'")=='2'

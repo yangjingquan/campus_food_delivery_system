@@ -6,18 +6,21 @@ const DEFAULT_MINIMUM_WITHDRAWAL_CENTS = 10;
 
 register({
   data: { loading: true, amount: '' },
-  onLoad() { this.refresh(); },
+  onShow() { return this.refresh(); },
   onPullDownRefresh() { this.refresh().finally(() => wx.stopPullDownRefresh()); },
   async refresh() {
     this.setData({ loading: true, error: '' });
     try {
-      const { account, debtCents, merchantId, minimumWithdrawalCents = DEFAULT_MINIMUM_WITHDRAWAL_CENTS } =
+      const { account, debtCents, merchantId, withdrawalIdentityId, minimumWithdrawalCents = DEFAULT_MINIMUM_WITHDRAWAL_CENTS } =
         await api.request('/finance');
+      if (!/^[1-9]\d*$/.test(withdrawalIdentityId ?? '')) throw new Error('提现账号暂不可用，请重新进入商户端');
       const max = Math.max(0, account.availableCents - debtCents);
-      this.storageKey = 'merchant-withdraw-' + merchantId;
-      const intent = wx.getStorageSync(this.storageKey);
-      if (intent) this.setData({ amount: (intent.amountCents / 100).toFixed(2), pending: true });
+      const storageKey = 'merchant-withdraw-' + merchantId + '-' + withdrawalIdentityId;
+      const intent = wx.getStorageSync(storageKey);
+      const accountChanged = storageKey !== this.storageKey;
+      this.storageKey = storageKey;
       this.setData({
+        pending: !!intent, amount: intent ? (intent.amountCents / 100).toFixed(2) : accountChanged ? '' : this.data.amount,
         max, available: ui.money(max), debt: ui.money(debtCents),
         minimumWithdrawalCents, minimumWithdrawal: ui.money(minimumWithdrawalCents)
       });
@@ -42,7 +45,7 @@ register({
           throw new Error('单笔提现最低 ' + this.data.minimumWithdrawal);
         }
         if (amountCents > this.data.max) throw new Error('提现金额超过可提现余额');
-        if (!await ui.confirm('确认申请提现', '申请 ' + ui.money(amountCents) + '，提交后进入管理员审核。')) return;
+        if (!await ui.confirm('确认申请提现', '申请 ' + ui.money(amountCents) + '，审核通过后由当前微信账号确认收款。')) return;
         intent = { amountCents, requestKey: 'wd_' + Date.now() + '_' + Math.random().toString(36).slice(2) };
         wx.setStorageSync(storageKey, intent);
         this.setData({ pending: true });

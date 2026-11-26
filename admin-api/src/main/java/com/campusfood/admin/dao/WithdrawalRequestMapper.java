@@ -18,15 +18,19 @@ public interface WithdrawalRequestMapper extends BaseMapper<WithdrawalRequest> {
     }
 
     default boolean hasInFlight(String accountId) {
-        return exists(Wrappers.<WithdrawalRequest>lambdaQuery().eq(WithdrawalRequest::getAccountId, accountId)
-                .in(WithdrawalRequest::getStatus, Withdrawal.PENDING_REVIEW, Withdrawal.PENDING_PAYOUT, Withdrawal.TRANSFERRING, Withdrawal.AWAITING_CONFIRMATION));
+        return !selectObjs(Wrappers.<WithdrawalRequest>lambdaQuery().select(WithdrawalRequest::getId)
+                .eq(WithdrawalRequest::getAccountId, accountId)
+                .in(WithdrawalRequest::getStatus, Withdrawal.PENDING_REVIEW, Withdrawal.PENDING_PAYOUT,
+                        Withdrawal.TRANSFERRING, Withdrawal.AWAITING_CONFIRMATION)
+                .last("LIMIT 1 FOR SHARE")).isEmpty();
     }
 
     default List<Map<String, Object>> lockWithdrawal(String id) {
         return selectMaps(Wrappers.<WithdrawalRequest>lambdaQuery()
                 .select(WithdrawalRequest::getId, WithdrawalRequest::getAccountId,
                         WithdrawalRequest::getApplicantType, WithdrawalRequest::getAmountCents, WithdrawalRequest::getStatus,
-                        WithdrawalRequest::getReason, WithdrawalRequest::getReasonCode, WithdrawalRequest::getCreatedAt)
+                        WithdrawalRequest::getReason, WithdrawalRequest::getReasonCode, WithdrawalRequest::getCreatedAt,
+                        WithdrawalRequest::getRecipientOpenId)
                 .eq(WithdrawalRequest::getId, id).last("FOR UPDATE"));
     }
 

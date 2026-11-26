@@ -3,6 +3,7 @@ package com.campusfood.admin.service;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 
 import com.campusfood.domain.DisplayOrder;
@@ -204,17 +205,43 @@ public class MerchantManagementService {
         identities.bindMerchant(identity, id, actor);
     }
 
+    List<Map<String, Object>> members(String id) {
+        var merchant = merchants.selectById(id);
+        if (merchant == null || merchant.getDeletedAt() != null)
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存在");
+        if (!admin.hasBindingColumn("merchant_identity", "merchant_id")) return List.of();
+        return identities.merchantMembers(id);
+    }
+
     private Map<String, Object> unbind(String id, Map<?, ?> payload, String actor) {
         String reason = MiniProgramAccountService.unbindReason(payload);
-        locks.lock("merchant_enrollment");
-        var bound = db.queryForList("SELECT id FROM merchant_identity WHERE merchant_id=? FOR UPDATE", Long.class, id);
-        if (bound.isEmpty()) return Map.of("ok", true, "id", id);
-        long identity = bound.getFirst();
-        if (!Long.toString(identity).equals(String.valueOf(payload.get("bindingId")))) {
-            throw MiniProgramAccountService.conflict("关联账号已变化，请刷新后重试");
+        long identity;
+        try {
+            identity = Long.parseLong(text(payload, "bindingId", "小程序身份编号", 19));
+        } catch (NumberFormatException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "小程序身份编号无效");
         }
-        identities.requireSettledWithdrawals(id);
-        if (merchants.lockPendingRevision(id) != null) {
+        if (identity <= 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "小程序身份编号无效");
+        locks.lock("merchant_enrollment");
+        var members = db.queryForList("""
+            SELECT app_id,open_id FROM merchant_identity WHERE id=? AND merchant_id=? FOR UPDATE
+            """, identity, id);
+        if (members.isEmpty()) throw MiniProgramAccountService.conflict("关联账号已变化，请刷新后重试");
+        var member = members.getFirst();
+        if (!db.queryForList("""
+            SELECT w.id FROM withdrawal_request w LEFT JOIN merchant_transfer_channel c ON c.withdrawal_id=w.id
+            WHERE w.account_id=? AND w.applicant_type='MERCHANT'
+                AND w.status IN ('PENDING_REVIEW','PENDING_PAYOUT','TRANSFERRING','AWAITING_CONFIRMATION')
+                AND (w.applicant_identity_id=? OR (w.applicant_identity_id IS NULL
+                    AND c.app_id=? AND c.recipient_open_id=?))
+            LIMIT 1 FOR SHARE OF w
+            """, String.class, id, identity, member.get("app_id"), member.get("open_id")).isEmpty()) {
+            throw MiniProgramAccountService.conflict("该成员有未结束的提现，请处理后再解除关联");
+        }
+        boolean hasOtherMember = Boolean.TRUE.equals(db.queryForObject("""
+            SELECT EXISTS(SELECT 1 FROM merchant_identity WHERE merchant_id=? AND id<>?)
+            """, Boolean.class, id, identity));
+        if (!hasOtherMember && merchants.lockPendingRevision(id) != null) {
             throw MiniProgramAccountService.conflict("请先处理该商户的待审资料");
         }
         db.update("UPDATE merchant_identity SET merchant_id=NULL WHERE id=?", identity);

@@ -93,7 +93,6 @@ public class BusinessService {
         return switch (section) {
             case "orders" -> Map.of("rows", orders());
             case "aftersales" -> Map.of("rows", db.listRefunds(), "orders", orders());
-            case "withdrawals" -> Map.of("rows", db.listWithdrawals());
             case "finance" -> Map.of("accounts", db.listAccounts(),
                     "ledger", db.listLedger(),
                     "journal", db.listJournal(),
@@ -108,6 +107,10 @@ public class BusinessService {
             }
             default -> throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "该模块尚未接入");
         };
+    }
+
+    public Map<String, Object> withdrawals(boolean hasMerchantChannel) {
+        return Map.of("rows", db.listWithdrawals(hasMerchantChannel));
     }
 
     private static String field(Map<?, ?> p, String key) {

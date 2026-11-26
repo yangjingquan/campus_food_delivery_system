@@ -75,6 +75,12 @@ export interface AdminAuditEntry {
   createdAt: string
 }
 
+export interface MerchantMember {
+  identityId: string
+  userNumber: string | null
+  nickname: string | null
+}
+
 export interface MiniProgramUser {
   id: string
   nickname: string | null
@@ -171,6 +177,10 @@ export const adminApi = {
   },
   merchantPhoto(id: string, signal?: AbortSignal) {
     return unwrap<Blob>(http.get(`/merchants/${encodeURIComponent(id)}/photo`, { responseType: 'blob', signal }))
+  },
+  merchantMembers(id: string, signal: AbortSignal) {
+    return unwrap<{ rows: MerchantMember[] }>(
+      http.get(`/merchants/${encodeURIComponent(id)}/bindings`, { signal }))
   },
   merchantPricing(id: string) {
     return unwrap<{ version: number; enabled: boolean; pricing?: Pricing }>(

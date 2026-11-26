@@ -12,6 +12,7 @@ public class WithdrawalRequest {
     @TableId
     private String id;
     private String accountId;
+    private String recipientOpenId;
     private AccountType applicantType;
     private Long amountCents;
     private Withdrawal status;
@@ -26,6 +27,10 @@ public class WithdrawalRequest {
 
     public String getAccountId() {
         return accountId;
+    }
+
+    public String getRecipientOpenId() {
+        return recipientOpenId;
     }
 
     public AccountType getApplicantType() {

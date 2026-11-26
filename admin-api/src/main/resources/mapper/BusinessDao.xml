@@ -30,7 +30,10 @@
 
     <select id="listWithdrawals" resultType="map">
         SELECT w.id,w.applicant,w.applicant_type AS applicantType,w.amount_cents AS amountCents,
-        w.status AS status,w.created_at AS createdAt,w.reason,
+        w.status AS status,w.created_at AS createdAt,w.reason,CAST(w.applicant_identity_id AS CHAR) AS applicantIdentityId,
+        (w.applicant_type='MERCHANT' AND w.recipient_open_id IS NULL
+            <if test="hasMerchantChannel">AND mc.withdrawal_id IS NULL</if>
+        ) AS missingMerchantRecipient,
         CASE WHEN w.status='PENDING_REVIEW'
             AND NOT EXISTS (SELECT 1 FROM admin_audit_log a
               WHERE a.action_name='withdrawal.review' AND a.target_id=w.id)
@@ -44,8 +47,12 @@
               AND NOT EXISTS (SELECT 1 FROM withdrawal_request r WHERE r.request_key=CONCAT('payout-retry-',w.id))
             THEN 'new' END AS retryMode,
         COALESCE(t.retry_requested,0) AS retryRequested,
+        (t.id IS NULL) AS noTransfer,
         original.id AS originalWithdrawalId
         FROM withdrawal_request w LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
+        <if test="hasMerchantChannel">
+            LEFT JOIN merchant_transfer_channel mc ON w.applicant_type='MERCHANT' AND mc.withdrawal_id=w.id
+        </if>
         LEFT JOIN withdrawal_request original ON w.request_key LIKE 'payout-retry-%'
             AND original.id=SUBSTRING(w.request_key,LENGTH('payout-retry-')+1)
         ORDER BY w.created_at DESC,w.id

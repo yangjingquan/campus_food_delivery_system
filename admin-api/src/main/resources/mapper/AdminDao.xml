@@ -11,15 +11,15 @@
     </insert>
 
     <select id="listMerchants" resultType="map">
-        SELECT id,name,contact,phone,address,auditStatus,businessStatus,orderCount,joinedAt,auditReason,hasPhoto,listed,bindingId FROM (
+        SELECT id,name,contact,phone,address,auditStatus,businessStatus,orderCount,joinedAt,auditReason,hasPhoto,listed,bindingCount FROM (
         SELECT id,name,contact,phone,address,audit_status AS auditStatus,business_status AS businessStatus,
         order_count AS orderCount,joined_at AS joinedAt,audit_reason AS auditReason,
         EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=merchant.id) AS hasPhoto,listed,display_order AS sortOrder,
         0 AS reviewRow,
         <choose>
-            <when test="bindings">(SELECT CAST(i.id AS CHAR) FROM merchant_identity i WHERE i.merchant_id=merchant.id)</when>
-            <otherwise>NULL</otherwise>
-        </choose> AS bindingId
+            <when test="bindings">(SELECT COUNT(*) FROM merchant_identity i WHERE i.merchant_id=merchant.id)</when>
+            <otherwise>0</otherwise>
+        </choose> AS bindingCount
         FROM merchant WHERE deleted_at IS NULL
         UNION ALL
         SELECT CONCAT('revision:',m.id),r.name,r.contact,r.phone,r.address,r.status,'PROFILE_REVISION',

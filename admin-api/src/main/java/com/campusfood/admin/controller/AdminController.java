@@ -108,6 +108,12 @@ public class AdminController {
                 .body((byte[]) photo.get("image_data"));
     }
 
+    @GetMapping("/merchants/{id}/bindings")
+    public ResponseEntity<Map<String, Object>> merchantMembers(@PathVariable String id,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.merchantMembers(id, authorization));
+    }
+
     @GetMapping("/merchants/{id}/printer")
     public ResponseEntity<Map<String, Object>> merchantPrinter(@PathVariable String id,
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {

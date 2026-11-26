@@ -15,7 +15,7 @@ public interface WithdrawalIntentMapper extends BaseMapper<WithdrawalIntent> {
     default Map<String, Object> lockIntent(String requestKey) {
         // 重复插入已持有共享锁；继续共享读取可避免并发重放时升级成排他锁而死锁。
         List<Map<String, Object>> rows = selectMaps(Wrappers.<WithdrawalIntent>lambdaQuery()
-                .select(WithdrawalIntent::getAccountId, WithdrawalIntent::getRequestedCents,
+                .select(WithdrawalIntent::getAccountId, WithdrawalIntent::getApplicantIdentityId, WithdrawalIntent::getRequestedCents,
                         WithdrawalIntent::getRecoveredCents, WithdrawalIntent::getAvailableAfter,
                         WithdrawalIntent::getStatus, WithdrawalIntent::getWithdrawalId)
                 .eq(WithdrawalIntent::getRequestKey, requestKey).last("FOR SHARE"));

@@ -7,7 +7,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElImage, ElMessage, ElMessageBox, ElUpload, type UploadInstance, type UploadProps } from 'element-plus'
 import { Search, Upload } from '@element-plus/icons-vue'
-import { adminApi, AdminApiError, type MerchantPrinter } from '../api/admin'
+import { adminApi, AdminApiError, type MerchantMember, type MerchantPrinter } from '../api/admin'
 import ListPagination from '../components/ListPagination.vue'
 import RowDragHandle from '../components/RowDragHandle.vue'
 import { useRowReorder } from '../domain/useRowReorder'
@@ -106,6 +106,28 @@ const accountEventLabels: Record<string, string> = {
 }
 const snapshotSources = { DEFAULT: '平台默认', MERCHANT: '商户独立', LEGACY: '原成交规则' }
 const activeRow = ref<Row | null>(null)
+const merchantMembers = ref<MerchantMember[]>([])
+const merchantMembersLoading = ref(false)
+const merchantMembersError = ref('')
+const merchantMembersVersion = ref(0)
+const merchantMembersId = computed(() => drawer.value && section.value === 'merchants'
+  && auth.can('user.view') && activeRow.value && isStore(activeRow.value) ? String(activeRow.value.id) : '')
+watch([merchantMembersId, merchantMembersVersion], async ([id], _, onCleanup) => {
+  merchantMembers.value = []
+  merchantMembersError.value = ''
+  merchantMembersLoading.value = !!id
+  if (!id) return
+  const request = new AbortController()
+  onCleanup(() => request.abort())
+  try {
+    const result = await adminApi.merchantMembers(id, request.signal)
+    if (!request.signal.aborted) merchantMembers.value = result.rows
+  } catch (error) {
+    if (!request.signal.aborted) merchantMembersError.value = error instanceof Error ? error.message : '账号列表加载失败'
+  } finally {
+    if (!request.signal.aborted) merchantMembersLoading.value = false
+  }
+})
 const pickupQrOrderId = computed(() => drawer.value && section.value === 'orders'
   && activeRow.value?.fulfillStatus === 'AWAITING_RIDER' ? String(activeRow.value.id) : '')
 const pickupQrUrl = ref('')
@@ -138,7 +160,7 @@ const photoError = ref('')
 let photoRequest = 0
 const keyNames: Record<string, string> = {
   originalWithdrawalId: '原提现编号', listed: '上架状态', enabled: '接单状态',
-  id: '编号', bindingId: '小程序账号', name: '名称', contact: '联系人', phone: '联系方式', address: '地址', auditStatus: '审核状态', auditReason: '审核说明', businessStatus: '营业状态', joinedAt: '登记时间',
+  id: '编号', bindingId: '小程序账号', bindingCount: '小程序账号', applicantIdentityId: '申请人商户账号 ID', name: '名称', contact: '联系人', phone: '联系方式', address: '地址', auditStatus: '审核状态', auditReason: '审核说明', businessStatus: '营业状态', joinedAt: '登记时间',
   gender: '性别', availableTime: '可送餐时间', deliveries: '配送单数', balanceCents: '可提现余额', paymentId: '合并支付单号', merchantId: '商户编号', merchant: '商户', rider: '骑手', items: '商品摘要', foodCents: '餐品金额', deliveryCents: '配送费', paidCents: '用户实付', refundedCents: '累计退款', foodRefundedCents: '累计退餐品', paymentStatus: '支付状态', fulfillStatus: '履约状态', refundStatus: '售后状态', settlementStatus: '结算状态', accepted: '商户已接单', pendingRefund: '存在处理中退款', locking: '结算锁定', paymentCount: '支付单退款次数', paidAt: '支付时间', completedAt: '完成时间', closedAt: '关闭时间', intervene: '待管理员介入', interveneReason: '介入原因', coordinationNotes: '协调记录',
   reason: '说明', type: '类型', amountCents: '金额', status: '处理状态', channelStatus: '渠道状态', createdAt: '创建时间', operator: '操作人', applicant: '申请主体', applicantType: '主体类型', time: '时间', subject: '账务主体', foodAmount: '餐品金额', deliveryAmount: '配送费', paidAmount: '实付金额', refundAmount: '退款金额', settlement: '结算状态', riderDue: '骑手应得', merchantBalance: '商户可扣余额', platformAdvance: '平台垫付', recovered: '已扣回', note: '说明',
 }
@@ -149,7 +171,7 @@ const columnSets: Record<string, Array<{ key: string; label: string; minWidth?: 
     { key: 'id', label: '商户编号', minWidth: 100 }, { key: 'name', label: '商户名称', minWidth: 140 },
     { key: 'contact', label: '联系人', minWidth: 100 }, { key: 'phone', label: '联系方式', minWidth: 130 },
     { key: 'auditStatus', label: '审核状态', minWidth: 105 }, { key: 'businessStatus', label: '营业状态', minWidth: 100 },
-    { key: 'listed', label: '上架状态', minWidth: 95 }, { key: 'bindingId', label: '小程序账号', minWidth: 105 },
+    { key: 'listed', label: '上架状态', minWidth: 95 }, { key: 'bindingCount', label: '小程序账号', minWidth: 105 },
     { key: 'joinedAt', label: '入驻时间', minWidth: 150 },
   ],
   riders: [
@@ -206,6 +228,10 @@ const currentRows = computed(() => financeSection.value ? finance.value[financeS
 function withdrawalDisplayRow(row: Row): Row {
   const status = row.status
   const reviewable = Number(row.reviewable) === 1
+  if (Number(row.missingMerchantRecipient) === 1 && Number(row.noTransfer) === 1
+      && ['PENDING_REVIEW', 'PENDING_PAYOUT'].includes(status)) {
+    return { ...row, reviewable, reason: '历史申请缺少收款人，请退回资金后由原申请人重新提交' }
+  }
   if (row.retryRequested === true || Number(row.retryRequested) === 1) {
     return { ...row, status, reviewable, reason: '重试已提交，等待微信查单' }
   }
@@ -220,6 +246,11 @@ function withdrawalDisplayRow(row: Row): Row {
 
 function canReviewWithdrawal(row: Row) {
   return auth.can('withdrawal.review') && row.status === 'PENDING_REVIEW' && row.reviewable === true
+}
+
+function canReturnLegacyWithdrawal(row: Row) {
+  return auth.can('withdrawal.review') && row.status === 'PENDING_PAYOUT'
+    && Number(row.missingMerchantRecipient) === 1 && Number(row.noTransfer) === 1
 }
 
 function canRetryWithdrawal(row: Row) {
@@ -365,7 +396,8 @@ function displayValue(row: Row, key: string) {
   const value = row[key]
   if (key === 'settlement' && value === 'LEGACY_DETAIL') return row.settlementDetail || '—'
   if (stateFields.has(key)) return stateLabel(value)
-  if (key === 'bindingId') return section.value === 'merchants' && !isStore(row) ? '—' : value ? '已绑定' : '待绑定'
+  if (key === 'bindingCount') return !isStore(row) ? '—' : Number(value) ? '已绑定 ' + value + ' 个' : '待绑定'
+  if (key === 'bindingId') return value ? '已绑定' : '待绑定'
   if (key === 'enabled') return riderEnabled(row) ? '启用中' : '已停用'
   if (key === 'availableTime') return row.availability === 'CUSTOM' ? value : stateLabel(row.availability)
   if (key === 'channelStatus') return value === 'LEGACY_DETAIL' ? row.channelDetail : stateLabel(value)
@@ -495,6 +527,15 @@ function openBinding(row: Row) {
   bindingTarget.value = { id: String(row.id), name: row.name, role: section.value === 'merchants' ? 'merchant' : 'rider' }
 }
 
+async function refreshBindingDetails(id: string, role: 'merchant' | 'rider') {
+  if (role === 'rider') drawer.value = false
+  await load()
+  if (role === 'merchant' && merchantMembersId.value === id) {
+    activeRow.value = rows.value.find(row => row.id === id) || activeRow.value
+    merchantMembersVersion.value++
+  }
+}
+
 async function saveBinding() {
   const target = bindingTarget.value
   if (!target || !bindingUserNumber.value || bindingSaving.value) return
@@ -502,9 +543,8 @@ async function saveBinding() {
   try {
     await adminApi.action(target.role + '.bind', { id: target.id, userNumber: bindingUserNumber.value })
     bindingDialog.value = false
-    drawer.value = false
     ElMessage.success('小程序账号已关联')
-    await load()
+    await refreshBindingDetails(target.id, target.role)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '关联失败')
   } finally {
@@ -512,24 +552,23 @@ async function saveBinding() {
   }
 }
 
-async function unbind(row: Row) {
-  const role = section.value === 'merchants' ? 'merchant' : 'rider'
+async function unbind(row: Row, member?: MerchantMember) {
+  const role = member ? 'merchant' : 'rider'
   let reason: string
   try {
     const result = await ElMessageBox.prompt(
       role === 'rider' ? '解除后原微信将失去档案访问权限。重新绑定后需提交学生证审核。'
-        : '解除后原微信将失去该商户的访问权限。请先核对在途业务和资金记录。',
-      '解除 ' + row.name + ' 的小程序账号关联',
+        : '解除后该微信将失去商户权限。该成员有未结束的提现时，请先处理提现。',
+      '解除 ' + (member?.nickname || member?.identityId || row.name) + ' 的小程序账号关联',
       { inputType: 'textarea', inputValidator: value => !!value?.trim() && value.trim().length <= 500 || '请填写 1 至 500 字的解绑原因',
         confirmButtonText: '解除关联', cancelButtonText: '取消', type: 'warning' },
     )
     reason = result.value
   } catch { return }
   try {
-    await adminApi.action(role + '.unbind', { id: row.id, bindingId: row.bindingId, reason })
-    drawer.value = false
+    await adminApi.action(role + '.unbind', { id: row.id, bindingId: member ? member.identityId : row.bindingId, reason })
     ElMessage.success('已解除关联')
-    await load()
+    await refreshBindingDetails(String(row.id), role)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '解除关联失败')
   }
@@ -547,7 +586,7 @@ async function coordinate(row: Order) {
 }
 function coordinateFromDrawer() { if (activeRow.value) coordinate(activeRow.value as unknown as Order) }
 async function reviewWithdrawal(row: Row, decision: 'approve' | 'reject') {
-  if (!canReviewWithdrawal(row)) return
+  if (!canReviewWithdrawal(row) || (decision === 'approve' && Number(row.missingMerchantRecipient) === 1)) return
   let reason = ''
   try {
     if (decision === 'reject') {
@@ -561,6 +600,28 @@ async function reviewWithdrawal(row: Row, decision: 'approve' | 'reject') {
     await load()
   } catch(error) { if(error instanceof Error && !['cancel', 'close'].includes(error.message)) ElMessage.error(error.message) }
 }
+async function returnLegacyWithdrawal(row: Row) {
+  if (!canReturnLegacyWithdrawal(row) || retryingWithdrawalId.value) return
+  retryingWithdrawalId.value = row.id
+  try {
+    const { value } = await ElMessageBox.prompt('退回后将解冻该笔金额，由原申请人重新提交。', '退回历史提现', {
+      inputType: 'textarea',
+      inputValidator: value => !!value?.trim() && value.trim().length <= 500 || '请填写 1 至 500 字的退回原因',
+      confirmButtonText: '退回并解冻', cancelButtonText: '取消', type: 'warning',
+    })
+    await adminApi.action('withdrawal.return-unidentified', { id: row.id, reason: value })
+    ElMessage.success('已退回申请并解冻资金')
+    await load()
+    if (activeRow.value?.id === row.id) {
+      activeRow.value = rows.value.find(item => item.id === row.id) ?? null
+    }
+  } catch (error) {
+    if (error instanceof Error && !['cancel', 'close'].includes(error.message)) ElMessage.error(error.message)
+  } finally {
+    retryingWithdrawalId.value = ''
+  }
+}
+
 async function retryWithdrawal(row: Row) {
   if (!canRetryWithdrawal(row) || retryingWithdrawalId.value) return
   retryingWithdrawalId.value = row.id
@@ -885,9 +946,12 @@ function runRowAction(row: Row) {
           <template v-else-if="section === 'withdrawals'">
             <el-button link type="primary" @click="openDetails(scope.row)">详情</el-button>
             <template v-if="canReviewWithdrawal(scope.row)">
-              <el-button link type="success" @click="reviewWithdrawal(scope.row, 'approve')">通过</el-button>
+              <el-button v-if="Number(scope.row.missingMerchantRecipient) !== 1" link type="success"
+                @click="reviewWithdrawal(scope.row, 'approve')">通过</el-button>
               <el-button link type="danger" @click="reviewWithdrawal(scope.row, 'reject')">拒绝</el-button>
             </template>
+            <el-button v-if="canReturnLegacyWithdrawal(scope.row)" link type="warning"
+              :loading="retryingWithdrawalId === scope.row.id" @click="returnLegacyWithdrawal(scope.row)">退回历史申请</el-button>
             <el-button v-if="canRetryWithdrawal(scope.row)" link type="primary"
               :loading="retryingWithdrawalId === scope.row.id" @click="retryWithdrawal(scope.row)">重试打款</el-button>
           </template>
@@ -924,8 +988,7 @@ function runRowAction(row: Row) {
       <el-form-item v-if="applicationChoice === 'existing'" label="选择商户" required>
         <el-select v-model="applicationStoreId" filterable placeholder="搜索商户名称、地址或编号" aria-label="选择商户">
           <el-option v-for="{ row, suggested } in availableStores" :key="row.id" :value="row.id"
-            :label="[row.name, row.address, row.id, suggested ? '可能匹配' : '', row.bindingId ? '已绑定' : ''].filter(Boolean).join(' · ')"
-            :disabled="!!row.bindingId" />
+            :label="[row.name, row.address, row.id, suggested ? '可能匹配' : ''].filter(Boolean).join(' · ')" />
         </el-select>
       </el-form-item>
       <div v-if="applicationChoice === 'create' && availableStores.some(store => store.suggested)" class="muted">
@@ -1076,7 +1139,11 @@ function runRowAction(row: Row) {
         <p v-else class="muted">{{ photoError || (activeRow.hasPhoto ? '正在加载照片…' : '暂无学生证照片') }}</p>
       </div>
       <div class="detail-grid">
-        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!(section === 'merchants' && key === 'orderCount') && !['coordinationNotes','snapshot','hasPhoto','bindingId','reviewable','retryMode','retryRequested','availability','interveneCode','operatorCode','channelDetail'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow, key) }}</strong></div></template>
+        <template v-for="[key] in Object.entries(activeRow)" :key="key"><div v-if="!(section === 'merchants' && key === 'orderCount') && !['coordinationNotes','snapshot','hasPhoto','bindingId','bindingCount','missingMerchantRecipient','noTransfer','reviewable','retryMode','retryRequested','availability','interveneCode','operatorCode','channelDetail'].includes(key)" class="detail-item"><span>{{ keyLabel(key) }}</span><strong>{{ detailValue(activeRow, key) }}</strong></div></template>
+      </div>
+      <div v-if="section === 'withdrawals' && canReturnLegacyWithdrawal(activeRow)" class="detail-section">
+        <el-button type="warning" :loading="retryingWithdrawalId === activeRow.id"
+          @click="returnLegacyWithdrawal(activeRow)">退回历史申请</el-button>
       </div>
       <div v-if="section === 'withdrawals' && canRetryWithdrawal(activeRow)" class="detail-section">
         <el-button type="primary" :loading="retryingWithdrawalId === activeRow.id"
@@ -1121,10 +1188,32 @@ function runRowAction(row: Row) {
           {{ note.previousStatus && note.nextStatus ? stateLabel(note.previousStatus) + ' → ' + stateLabel(note.nextStatus) : note.note }}
         </p><p v-if="!activeRow.coordinationNotes?.length" class="muted">暂无协调备注</p></div>
       </template>
-      <div v-if="section === 'riders' || (section === 'merchants' && isStore(activeRow))" class="detail-section">
+      <div v-if="section === 'merchants' && isStore(activeRow)" class="detail-section">
+        <h3>已绑定小程序账号</h3>
+        <p class="muted">{{ displayValue(activeRow, 'bindingCount') }}</p>
+        <template v-if="auth.can('user.view')">
+          <div v-loading="merchantMembersLoading">
+            <p v-if="merchantMembersError" role="alert">{{ merchantMembersError }}
+              <el-button link type="primary" @click="merchantMembersVersion++">重新加载</el-button>
+            </p>
+            <div v-for="member in merchantMembers" :key="member.identityId" class="linked-order">
+              <div>
+                <strong>{{ member.nickname || '小程序账号' }}</strong>
+                <div class="muted">
+                  {{ member.userNumber ? '用户编号 ' + member.userNumber + ' · ' : '' }}商户账号 ID {{ member.identityId }}
+                </div>
+              </div>
+              <el-button v-if="auth.can('merchant.manage')" link type="danger"
+                @click="unbind(activeRow, member)">解除关联</el-button>
+            </div>
+          </div>
+          <el-button v-if="auth.can('merchant.manage')" link type="primary" @click="openBinding(activeRow)">添加账号</el-button>
+        </template>
+      </div>
+      <div v-if="section === 'riders'" class="detail-section">
         <h3>小程序账号</h3>
         <span>{{ activeRow.bindingId ? '已绑定' : '待绑定' }}</span>
-        <template v-if="auth.can('user.view') && auth.can(section === 'merchants' ? 'merchant.manage' : 'rider.manage')">
+        <template v-if="auth.can('user.view') && auth.can('rider.manage')">
           <el-button v-if="activeRow.bindingId" link type="danger" @click="unbind(activeRow)">解除关联</el-button>
           <el-button v-else link type="primary" @click="openBinding(activeRow)">关联账号</el-button>
         </template>

@@ -1,5 +1,6 @@
 package com.campusfood.admin.dao;
 
+import com.campusfood.admin.dto.MerchantWithdrawalRecipient;
 import com.campusfood.domain.BusinessStates.WithdrawalIntent;
 import com.campusfood.domain.BusinessStates.Withdrawal;
 import com.campusfood.domain.BusinessStates.WithdrawalTransfer;
@@ -10,12 +11,14 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface WithdrawalDao {
     int insertIntentIfAbsent(@Param("requestKey") String requestKey, @Param("accountId") String accountId,
-                             @Param("requestedCents") long requestedCents, @Param("status") WithdrawalIntent status);
+                             @Param("requestedCents") long requestedCents, @Param("status") WithdrawalIntent status,
+                             @Param("applicantIdentityId") Long applicantIdentityId);
 
     int insertWithdrawal(@Param("id") String id, @Param("applicant") Object applicant,
                          @Param("applicantType") Object applicantType, @Param("amount") long amount,
                          @Param("status") Withdrawal status, @Param("createdAt") String createdAt,
-                         @Param("accountId") String accountId, @Param("requestKey") String requestKey);
+                         @Param("accountId") String accountId, @Param("requestKey") String requestKey,
+                         @Param("recipient") MerchantWithdrawalRecipient recipient);
 
     int insertReviewAudit(@Param("actor") String actor, @Param("action") String action,
                           @Param("targetId") Object targetId, @Param("beforeState") String beforeState,
@@ -23,7 +26,16 @@ public interface WithdrawalDao {
 
     boolean hasReviewHistory(@Param("id") String id);
 
-    boolean hasRetryRecipient(@Param("id") String id, @Param("accountId") String accountId, @Param("type") String type);
+    MerchantWithdrawalRecipient lockMerchantRecipient(@Param("identityId") long identityId,
+                                                        @Param("accountId") String accountId);
+
+    MerchantWithdrawalRecipient lockMerchantRetryRecipient(@Param("id") String id, @Param("accountId") String accountId);
+
+    boolean hasRiderRetryRecipient(@Param("id") String id, @Param("accountId") String accountId);
+
+    boolean hasMerchantChannel(@Param("id") String id);
+
+    boolean hasMerchantChannelRecipient(@Param("id") String id);
 
     boolean hasRiderChannel(@Param("id") String id);
 

@@ -204,17 +204,20 @@ public class MerchantController {
 
     @GetMapping("/finance")
     public Map<String, Object> finance(@RequestHeader(value = AUTH, required = false) String auth, @RequestParam(defaultValue = "1") int days) {
-        return finance.summary(store(auth), days);
+        var identity = sessions.require(auth);
+        return finance.summary(identity.approvedStore(), days, identity.id());
     }
 
     @GetMapping("/finance/{kind}")
     public List<Map<String, Object>> financeRecords(@RequestHeader(value = AUTH, required = false) String auth, @PathVariable String kind) {
-        return finance.records(store(auth), kind);
+        var identity = sessions.require(auth);
+        return finance.records(identity.approvedStore(), kind, identity.id());
     }
 
     @PostMapping("/finance/withdrawals")
     public Map<String, Object> withdraw(@RequestHeader(value = AUTH, required = false) String auth, @RequestBody Map<String, Object> body) {
-        return domain.withdraw(store(auth), body);
+        var identity = sessions.require(auth);
+        return domain.withdraw(identity.approvedStore(), identity.id(), body);
     }
 
     @GetMapping("/finance/withdrawals/{id}/confirmation")

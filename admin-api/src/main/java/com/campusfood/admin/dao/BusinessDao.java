@@ -36,7 +36,7 @@ public interface BusinessDao extends BaseMapper<BusinessOrder> {
 
     List<Map<String, Object>> listRefunds();
 
-    List<Map<String, Object>> listWithdrawals();
+    List<Map<String, Object>> listWithdrawals(@Param("hasMerchantChannel") boolean hasMerchantChannel);
 
     List<Map<String, Object>> listAccounts();
 

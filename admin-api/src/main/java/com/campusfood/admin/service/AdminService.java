@@ -178,6 +178,7 @@ public class AdminService {
         };
         authorization.require(username, permission);
         if (section.equals("wechat")) return wechat.workspace();
+        if (section.equals("withdrawals")) return business.withdrawals(db.hasBindingColumn("merchant_transfer_channel", "recipient_open_id"));
         if (section.equals("config")) {
             var result = new java.util.LinkedHashMap<>(business.workspace(section));
             result.put("printing", printing.current());
@@ -218,6 +219,13 @@ public class AdminService {
         return photo;
     }
 
+    public Map<String, Object> merchantMembers(String id, String authHeader) {
+        String username = actor(authHeader);
+        authorization.require(username, "merchant.view");
+        authorization.require(username, "user.view");
+        return Map.of("rows", merchantManagement.members(id));
+    }
+
     public Map<String, Object> merchantPrinter(String id, String authHeader) {
         authorization.require(actor(authHeader), "merchant.printer.edit");
         return merchantPrinters.current(id);
@@ -250,7 +258,7 @@ public class AdminService {
             case "rider.audit" -> "rider.audit";
             case "order.coordinate" -> "order.coordinate";
             case "refund.apply", "refund.offline", "refund.query" -> "refund.manage";
-            case "withdrawal.review", "withdrawal.retry" -> "withdrawal.review";
+            case "withdrawal.review", "withdrawal.retry", "withdrawal.return-unidentified" -> "withdrawal.review";
             case "config.save", "config.save-printing" -> "config.edit";
             case "wechat.save-app", "wechat.save-payment", "wechat.rollback" -> "wechat.edit";
             default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "操作不存在");
@@ -272,6 +280,7 @@ public class AdminService {
         if (permission.equals("merchant.manage")) return merchantManagement.action(type, payload, username);
         if (type.equals("withdrawal.review")) return withdrawals.review(payload, username);
         if (type.equals("withdrawal.retry")) return withdrawals.retry(payload, username);
+        if (type.equals("withdrawal.return-unidentified")) return withdrawals.returnUnidentifiedMerchantWithdrawal(payload, username);
         if (!type.equals("merchant.audit") && !type.equals("rider.audit"))
             return business.action(type, payload, username);
         String id = String.valueOf(payload.get("id"));

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.campusfood.admin.dao.FinanceAccountMapper;
+import com.campusfood.admin.dto.MerchantWithdrawalRecipient;
 import com.campusfood.admin.dao.FinanceDebtMapper;
 import com.campusfood.admin.dao.WithdrawalDao;
 import com.campusfood.admin.dao.WithdrawalIntentMapper;
@@ -52,7 +53,7 @@ class WithdrawalMinimumTest {
     @Test
     void merchantNineCentsIsRejectedBeforeDebtRecoveryOrFreeze() {
         mockNewRequest(9, "MERCHANT");
-        var error = assertThrows(ResponseStatusException.class, () -> service.request(request(9)));
+        var error = assertThrows(ResponseStatusException.class, () -> service.request(merchantRequest(9)));
         assertEquals(400, error.getStatusCode().value());
         assertEquals(WithdrawalLimits.MERCHANT_MINIMUM_MESSAGE, error.getReason());
         verifyNoInteractions(debts);
@@ -62,8 +63,29 @@ class WithdrawalMinimumTest {
     @Test
     void merchantTenCentsPassesTheMinimum() {
         mockNewRequest(10, "MERCHANT");
-        assertEquals("ACCEPTED", service.request(request(10)).get("status"));
+        assertEquals("ACCEPTED", service.request(merchantRequest(10)).get("status"));
+        verify(db).insertWithdrawal(anyString(), eq("测试账户"), eq("MERCHANT"), eq(10L),
+            eq(Withdrawal.PENDING_REVIEW), anyString(), eq(ACCOUNT), eq("merchant-12-" + KEY),
+            eq(new MerchantWithdrawalRecipient(12L, "wx-qa", "openid-12")));
         verify(accounts).freezeAvailable(10, 10, ACCOUNT);
+    }
+
+    @Test
+    void aMerchantAccountCannotUseAnotherMembersIntent() {
+        when(db.lockMerchantRecipient(12L, ACCOUNT))
+            .thenReturn(new MerchantWithdrawalRecipient(12L, "wx-qa", "openid-12"));
+        when(intents.lockIntent("merchant-12-" + KEY)).thenReturn(Map.of(
+            "account_id", ACCOUNT, "applicant_identity_id", 34L, "requested_cents", 10L, "status", "ACCEPTED"));
+        assertEquals(409, assertThrows(ResponseStatusException.class,
+            () -> service.request(merchantRequest(10))).getStatusCode().value());
+        verifyNoInteractions(accounts, debts);
+    }
+
+    @Test
+    void invalidMerchantMembershipCannotFreezeStoreBalance() {
+        assertEquals(403, assertThrows(ResponseStatusException.class,
+            () -> service.request(merchantRequest(10))).getStatusCode().value());
+        verifyNoInteractions(accounts, debts);
     }
 
     @Test
@@ -123,7 +145,14 @@ class WithdrawalMinimumTest {
     }
 
     private void mockNewRequest(long amount, String type) {
-        when(db.insertIntentIfAbsent(KEY, ACCOUNT, amount, WithdrawalIntent.PROCESSING)).thenReturn(1);
+        boolean merchant = "MERCHANT".equals(type);
+        when(db.insertIntentIfAbsent(merchant ? "merchant-12-" + KEY : KEY,
+            ACCOUNT, amount, WithdrawalIntent.PROCESSING, merchant ? 12L : null)).thenReturn(1);
+        if (merchant) {
+            when(db.lockMerchantRecipient(12L, ACCOUNT))
+                .thenReturn(new MerchantWithdrawalRecipient(12L, "wx-qa", "openid-12"));
+        }
+        when(accounts.freezeAvailable(amount, amount, ACCOUNT)).thenReturn(1);
         when(accounts.lockForWithdrawal(ACCOUNT)).thenReturn(List.of(Map.of(
             "type", type, "status", "ACCOUNT_ACTIVE", "balance_cents", 500L, "name", "测试账户")));
     }
@@ -141,6 +170,10 @@ class WithdrawalMinimumTest {
 
     private static Map<String, Object> request(long amount) {
         return Map.of("accountId", ACCOUNT, "requestKey", KEY, "amountCents", amount);
+    }
+
+    private static Map<String, Object> merchantRequest(long amount) {
+        return Map.of("accountId", ACCOUNT, "requestKey", KEY, "amountCents", amount, "merchantIdentityId", 12L);
     }
 
     private static Map<String, Object> row(String status, String reason) {

@@ -35,6 +35,12 @@ Admin Flyway migration `V20` converts the withdrawal request, idempotency, and t
 
 Build the four API images from the same revision before applying the migration. Use a coordinated maintenance window for `admin-api`, `user-api`, `merchant-api` and `rider-api` because they share the affected schema. Pause those services and take a database backup. Start the updated `admin-api` first, verify `V20`, then start the updated `user-api` and verify `V11` before starting the merchant and rider APIs. The single-service Jenkins rollback only switches the image tag. After these migrations the old images require a matching pre-migration schema, so keep the APIs paused if you need to investigate a failed migration.
 
+### Merchant accounts and withdrawal recipients
+
+Schedule a maintenance window and pause merchant withdrawals and the old payout worker. Apply admin migration `V31`, then start the updated `user-api` before starting `merchant-api` with migration `V5`. Release the updated admin web app and mini program with these services. Once a store has multiple accounts, keep payouts paused if rolling back to an earlier worker. The earlier worker chooses a recipient from the store's current bindings.
+
+Existing transfer orders with a WeChat channel record use that record's recipient. Reviewers can reject historical applications pending review and return historical applications pending payout when the recipient and the transfer record are both missing.
+
 ## Enable the merchant API route
 
 1. Run the `campus-food-merchant-api` and `campus-food-gateway` Jenkins jobs from a revision that includes the merchant service and the gateway's `/api/merchant/**` route.

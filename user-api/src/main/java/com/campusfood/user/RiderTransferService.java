@@ -47,7 +47,12 @@ class RiderTransferService {
         RIDER("骑手", "rider_transfer_channel", "rider_identity i ON i.rider_id=w.account_id",
             "i.openid", "r.name"),
         MERCHANT("商户", "merchant_transfer_channel",
-            "merchant_identity i ON i.merchant_id=w.account_id", "i.open_id", "NULL");
+            """
+            merchant_identity i ON i.merchant_id=w.account_id
+                AND i.app_id=COALESCE(w.recipient_app_id,c.app_id)
+                AND i.open_id=COALESCE(w.recipient_open_id,c.recipient_open_id)
+                AND (w.applicant_identity_id IS NULL OR i.id=w.applicant_identity_id)
+            """, "i.open_id", "NULL");
 
         final String label;
         final String channel;
@@ -125,11 +130,12 @@ class RiderTransferService {
             String reason = IDENTITY_REQUIRED.replace("骑手", party.label);
             db.update("""
                 UPDATE withdrawal_request w
+                LEFT JOIN %s c ON c.withdrawal_id=w.id
                 LEFT JOIN %s
                 SET w.reason=?,w.reason_code=NULL
                 WHERE w.applicant_type=? AND w.status='PENDING_PAYOUT'
                     AND (i.id IS NULL OR %s='' OR i.app_id<>?) AND NOT (w.reason <=> ?)
-                """.formatted(party.identity, party.openId), reason, party.name(), current.appId(), reason);
+                """.formatted(party.channel, party.identity, party.openId), reason, party.name(), current.appId(), reason);
             if (forMerchant) {
                 db.update("""
                     UPDATE withdrawal_request SET reason=?,reason_code=NULL
@@ -143,18 +149,24 @@ class RiderTransferService {
                 + "(w.status IN ('PENDING_PAYOUT','TRANSFERRING') AND c.channel_state='PREPARING')"
             : "w.status IN ('PENDING_PAYOUT','TRANSFERRING') AND c.withdrawal_id IS NULL"
                 + " AND w.amount_cents>=" + WithdrawalLimits.MINIMUM_CENTS;
-        String trackedScope = forMerchant ? "AND c.channel_state<>'PREPARING'" : "";
-        // SQL 标识符及连接条件全部来自固定枚举，业务值通过参数绑定。
+        String trackedScope = forMerchant ? """
+            AND c.channel_state<>'PREPARING' AND (w.recipient_open_id IS NULL
+                OR (w.recipient_app_id=c.app_id AND w.recipient_open_id=c.recipient_open_id))
+            """ : "";
+        String recipientApp = forMerchant ? "COALESCE(w.recipient_app_id,c.app_id)" : "COALESCE(c.app_id,i.app_id)";
+        String recipientOpenId = forMerchant ? "COALESCE(w.recipient_open_id,c.recipient_open_id)"
+            : "COALESCE(c.recipient_open_id,i.openid)";
+        // 历史单据仅从已记录的渠道收款人恢复，商户绑定关系只用于核验当前身份。
         var orders = db.queryForList("""
-            SELECT w.id,w.amount_cents,w.created_at,w.request_key,w.reason,w.reason_code,%s AS name,COALESCE(c.app_id,i.app_id) AS app_id,
-                   COALESCE(c.recipient_open_id,%s) AS openid,%s AS current_openid,c.config_version,
+            SELECT w.id,w.amount_cents,w.created_at,w.request_key,w.reason,w.reason_code,%s AS name,%s AS app_id,
+                   %s AS openid,%s AS current_openid,c.config_version,
                    c.channel_state,c.merchant_no,c.request_payload,COALESCE(t.retry_requested,0) AS retry_requested,
                    t.created_at>CURRENT_TIMESTAMP-INTERVAL 30 DAY AS retry_recent
             FROM withdrawal_request w
+            LEFT JOIN %s c ON c.withdrawal_id=w.id
             LEFT JOIN %s
             %s
             LEFT JOIN withdrawal_transfer t ON t.withdrawal_id=w.id
-            LEFT JOIN %s c ON c.withdrawal_id=w.id
             WHERE w.applicant_type=? AND (
                 (w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND c.withdrawal_id IS NOT NULL %s)
                 OR ((%s) AND i.app_id=? AND %s<>'' %s))
@@ -162,11 +174,11 @@ class RiderTransferService {
             ORDER BY CASE WHEN t.retry_requested THEN 0 ELSE 1 END,
                 CASE WHEN w.reason_code IN ('SUBMISSION_BLOCKED','INVALID_APPLICATION_TIME') AND c.checked_at IS NULL THEN 1 ELSE 0 END,
                 COALESCE(c.checked_at,0),w.created_at,w.id LIMIT 20
-            """.formatted(party.name, party.openId, party.openId,
-                party.identity, forMerchant ? "" : "LEFT JOIN rider r ON r.id=i.id", party.channel, trackedScope,
+            """.formatted(party.name, recipientApp, recipientOpenId, party.openId,
+                party.channel, party.identity, forMerchant ? "" : "LEFT JOIN rider r ON r.id=i.id", trackedScope,
                 newOrderScope, party.openId, forMerchant ? "AND w.amount_cents<" + REAL_NAME_THRESHOLD
                     + " AND (c.withdrawal_id IS NULL OR (c.app_id=i.app_id AND c.recipient_open_id=i.open_id))"
-                    + " AND EXISTS (SELECT 1 FROM merchant m WHERE m.id=w.account_id AND m.audit_status='APPROVED')" : ""),
+                    + " AND EXISTS (SELECT 1 FROM merchant m WHERE m.id=w.account_id AND m.deleted_at IS NULL AND m.audit_status='APPROVED')" : ""),
             party.name(), current == null ? null : current.appId(), System.currentTimeMillis() - 25_000);
         for (var order : orders) {
             String id = order.get("id").toString();
@@ -321,7 +333,7 @@ class RiderTransferService {
             UPDATE %s c JOIN withdrawal_transfer t ON t.withdrawal_id=c.withdrawal_id
             JOIN withdrawal_request w ON w.id=c.withdrawal_id JOIN finance_account a ON a.id=w.account_id
             SET t.retry_requested=FALSE,c.channel_state='SUBMITTING',c.checked_at=?,c.request_payload=?,
-                c.recipient_open_id=?,w.reason='已发起原单重试，等待微信结果',w.reason_code=NULL
+                c.recipient_open_id=COALESCE(c.recipient_open_id,?),w.reason='已发起原单重试，等待微信结果',w.reason_code=NULL
             WHERE w.id=? AND w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION') AND w.reason_code='WECHAT_FUNDS_INSUFFICIENT'
                 AND c.channel_state='UNKNOWN' AND c.package_info IS NULL AND t.retry_requested
                 AND t.status IN ('PROCESSING','UNKNOWN') AND t.channel_reference IS NULL

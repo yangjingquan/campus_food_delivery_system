@@ -73,3 +73,29 @@ test('微信拉起失败时保留错误码并隐藏凭据，取消时只刷新',
   assert.deepEqual(cancelled.modals, []);
   assert.equal(cancelled.requests.at(-1), 'refresh');
 });
+
+test('同一商户切换账号时只恢复当前申请人的提现草稿', async () => {
+  let page;
+  let identity = '101';
+  const storage = new Map([['merchant-withdraw-store-101', { amountCents: 320, requestKey: 'wd-original' }]]);
+  runInNewContext(readFileSync(join(__dirname, '../pages/withdraw/index.js'), 'utf8'), {
+    wx: { getStorageSync: key => storage.get(key) },
+    require(name) {
+      if (name.endsWith('/page')) return { register(definition) { page = definition; } };
+      if (name.endsWith('/ui')) return { money: cents => String(cents / 100) };
+      return { async request() {
+        return { account: { availableCents: 1000 }, debtCents: 0, merchantId: 'store', withdrawalIdentityId: identity };
+      } };
+    }
+  });
+  page.setData = values => Object.assign(page.data, values);
+  await page.onShow();
+  assert.equal(page.data.amount, '3.20');
+  assert.equal(page.data.pending, true);
+
+  identity = '102';
+  await page.onShow();
+  assert.equal(page.data.amount, '');
+  assert.equal(page.data.pending, false);
+  assert.equal(storage.get('merchant-withdraw-store-101').requestKey, 'wd-original');
+});
