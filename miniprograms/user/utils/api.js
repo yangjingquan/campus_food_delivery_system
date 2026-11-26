@@ -18,12 +18,13 @@ function request(method, path, data, options = {}) {
   });
 }
 
-function updateAvatar(avatarPath) {
+function updateAvatar(avatarPath, displayName) {
   return new Promise((resolve, reject) => {
     wx.uploadFile({
       url: BASE_URL + '/me',
       filePath: avatarPath,
       name: 'avatar',
+      ...(displayName ? { formData: { displayName } } : {}),
       header: { Authorization: 'Bearer ' + wx.getStorageSync('userToken') },
       timeout: 12000,
       success({ statusCode, data: body }) {

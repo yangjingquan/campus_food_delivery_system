@@ -8,7 +8,7 @@
     </view>
     <view class="dialog-actions">
       <button wx:if="{{dialog.cancel}}" class="dialog-cancel" bindtap="cancelDialog">取消</button>
-      <button class="dialog-confirm" bindtap="confirmDialog">确定</button>
+      <button class="dialog-confirm" bindtap="confirmDialog">{{dialog.confirmText || '确定'}}</button>
     </view>
   </view>
 </view>

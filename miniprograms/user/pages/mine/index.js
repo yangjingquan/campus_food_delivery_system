@@ -3,16 +3,27 @@ const { deliveryFee } = require('../../utils/display');
 
 const { showDialog, dialogEvents } = require('../../utils/dialog');
 
+const DEFAULT_NICKNAME = '同学';
+const NICKNAME_LENGTH_MESSAGE = '请输入 1–32 个字符的昵称';
+const USER_NUMBER_TITLE = '用户编号';
+const USER_NUMBER_TAP_WINDOW = 2000;
+const USER_NUMBER_TAP_COUNT = 5;
+
 Page({
   ...dialogEvents,
   data: {
     user: null, working: false, message: '',
-    editingNickname: false, avatarPath: '', draftName: '', profileAction: ''
+    editingNickname: false, avatarPath: '', draftName: '', profileAction: '', loginProfile: null
   },
 
   onShow() {
     this.getTabBar?.()?.refresh('pages/mine/index');
-    if (!this.data.editingNickname && !this.data.working) this.refresh();
+    if (!this.data.loginProfile && !this.data.editingNickname && !this.data.working) this.refresh();
+  },
+
+  onHide() {
+    this.userNumberTaps = null;
+    if (this.data.dialog?.title === USER_NUMBER_TITLE) this.cancelDialog();
   },
 
   async refresh() {
@@ -38,7 +49,7 @@ Page({
   },
 
   showUser(user, selectedAvatar) {
-    const displayName = user.displayName || '同学';
+    const displayName = user.displayName || DEFAULT_NICKNAME;
     const keepAvatar = user.hasAvatar && this.data.user?.id === user.id;
     getApp().globalData.user = user;
     this.setData({
@@ -59,11 +70,28 @@ Page({
     }
   },
 
-  copyUserNumber() {
-    if (!this.data.user?.id) return;
-    wx.setClipboardData({
-      data: String(this.data.user.id),
-      fail: () => wx.showToast({ title: '未能复制，请稍后重试', icon: 'none' })
+  tapUserNumberArea() {
+    const { user, working, loginProfile, editingNickname, dialog } = this.data;
+    if (user?.id == null || !wx.getStorageSync('userToken') || working || loginProfile || editingNickname || dialog) {
+      this.userNumberTaps = null;
+      return;
+    }
+
+    const now = Date.now();
+    let taps = this.userNumberTaps;
+    if (!taps || taps.userId !== user.id || now - taps.startedAt > USER_NUMBER_TAP_WINDOW) {
+      taps = this.userNumberTaps = { userId: user.id, startedAt: now, count: 0 };
+    }
+    taps.count += 1;
+    if (taps.count < USER_NUMBER_TAP_COUNT) return;
+
+    this.userNumberTaps = null;
+    const userNumber = String(user.id);
+    showDialog(this, { title: USER_NUMBER_TITLE, content: userNumber, cancel: true, confirmText: '复制' }, () => {
+      wx.setClipboardData({
+        data: userNumber,
+        fail: () => wx.showToast({ title: '复制失败，请重试', icon: 'none' })
+      });
     });
   },
 
@@ -71,12 +99,37 @@ Page({
     if (this.data.working) return;
     this.setData({ working: true, message: '' });
     try {
-      this.showUser(await getApp().ensureLogin());
+      const user = await getApp().ensureLogin();
+      this.showUser(user);
+      this.setData({ loginProfile: {
+        avatarPath: '', displayName: user.displayName === DEFAULT_NICKNAME ? '' : (user.displayName || '')
+      } });
     } catch (error) {
       this.setData({ message: error.message || '微信登录暂不可用，请重试。' });
     } finally {
       this.setData({ working: false });
     }
+  },
+
+  skipLoginProfile() {
+    if (!this.data.working) this.setData({ loginProfile: null, message: '' });
+  },
+
+  saveLoginProfile({ detail }) {
+    const { loginProfile, user, working } = this.data;
+    if (!loginProfile || !user || working) return;
+    const name = (detail.value.displayName || '').trim();
+    if (Array.from(name).length > 32) {
+      this.setData({ message: NICKNAME_LENGTH_MESSAGE });
+      return;
+    }
+    const displayName = name && name !== user.displayName ? name : undefined;
+    const { avatarPath } = loginProfile;
+    if (!avatarPath && !displayName) return this.skipLoginProfile();
+    return this.saveProfileChange(
+      () => avatarPath ? api.updateAvatar(avatarPath, displayName) : api.put('/me', { displayName }),
+      '资料已保存', avatarPath
+    );
   },
 
   editNickname() {
@@ -89,6 +142,10 @@ Page({
   chooseAvatar({ detail }) {
     if (this.data.working || !this.data.user) return;
     if (detail.avatarUrl) {
+      if (this.data.loginProfile) {
+        this.setData({ 'loginProfile.avatarPath': detail.avatarUrl, message: '' });
+        return;
+      }
       return this.saveProfileChange(() => api.updateAvatar(detail.avatarUrl), '头像已更新', detail.avatarUrl);
     } else if (detail.errno === 112 || /not declared in the privacy agreement/i.test(detail.errMsg || '')) {
       this.setData({ message: '微信头像暂不可用，请稍后重试。' });
@@ -103,7 +160,7 @@ Page({
       return;
     }
     if (!displayName || Array.from(displayName).length > 32) {
-      this.setData({ message: '请输入 1–32 个字符的昵称' });
+      this.setData({ message: NICKNAME_LENGTH_MESSAGE });
       return;
     }
     return this.saveProfileChange(() => api.put('/me', { displayName }), '昵称已更新');
@@ -117,13 +174,14 @@ Page({
       const { data } = await save();
       if (wx.getStorageSync('userToken') !== token) return;
       this.showUser(data, selectedAvatar);
+      if (this.data.loginProfile) this.setData({ loginProfile: null });
       if (!selectedAvatar) this.setData({ editingNickname: false });
       wx.showToast({ title });
     } catch (error) {
       if (wx.getStorageSync('userToken') !== token) return;
       if (error.statusCode === 401) {
         getApp().clearSession();
-        this.setData({ user: null, editingNickname: false, avatarPath: '', message: '登录已失效，请重新登录' });
+        this.setData({ user: null, loginProfile: null, editingNickname: false, avatarPath: '', message: '登录已失效，请重新登录' });
       } else {
         this.setData({ message: error.message });
       }
@@ -134,6 +192,7 @@ Page({
 
   async logout() {
     if (this.data.working) return;
+    this.userNumberTaps = null;
     this.setData({ working: true, message: '' });
     try {
       await api.post('/auth/logout', {});

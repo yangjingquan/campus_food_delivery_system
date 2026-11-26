@@ -24,14 +24,13 @@
         <button wx:if="{{user && !editingNickname}}" class="nickname-link" bindtap="editNickname" disabled="{{working}}">
           <image src="/assets/v3-pencil.svg" aria-hidden="true"/>修改昵称
         </button>
-        <button wx:if="{{user}}" class="btn outline small-btn profile-login" bindtap="copyUserNumber"
-          aria-label="复制用户编号 {{user.id}}">用户编号 {{user.id}} · 复制</button>
         <view wx:if="{{profileAction === 'nickname'}}" class="profile-status">昵称保存中…</view>
         <button wx:if="{{!user}}" class="btn small-btn profile-login" bindtap="login" loading="{{working}}" disabled="{{working}}">微信登录</button>
       </view>
+      <view wx:if="{{user && !editingNickname}}" class="profile-number-area" bindtap="tapUserNumberArea" />
     </view>
   </view>
-  <view wx:if="{{message}}" class="hint orange profile-message">{{message}}</view>
+  <view wx:if="{{message && !loginProfile}}" class="hint orange profile-message">{{message}}</view>
 
   <view class="profile-shortcuts">
     <button class="card shortcut" data-action="orders" bindtap="open">
@@ -56,5 +55,26 @@
     <button class="menurow" data-action="about" bindtap="open"><view class="service-icon"><image src="/assets/v3-about.svg" aria-hidden="true"/></view><text>关于寝食记</text><view class="chevron" aria-hidden="true"/></button>
   </view>
   <button wx:if="{{user}}" class="btn outline logout-btn" bindtap="logout" loading="{{working && !profileAction}}" disabled="{{working}}">退出登录</button>
+  <view wx:if="{{loginProfile}}" class="dialog-scrim" catchtouchmove="blockDialogScroll">
+    <form class="dialog-panel" bindsubmit="saveLoginProfile" role="dialog" aria-label="设置头像和昵称">
+      <view class="dialog-title">设置头像和昵称</view>
+      <button class="profile-avatar login-profile-avatar" open-type="chooseAvatar" bindchooseavatar="chooseAvatar"
+        disabled="{{working}}" aria-label="选择微信头像">
+        <view class="avatar-frame">
+          <image wx:if="{{loginProfile.avatarPath || avatarPath}}" class="avatar"
+            src="{{loginProfile.avatarPath || avatarPath}}" mode="aspectFill" aria-hidden="true"/>
+          <view wx:else class="avatar" aria-hidden="true">{{user.initial}}</view>
+        </view>
+        <text class="avatar-caption">选择微信头像</text>
+      </button>
+      <input class="nickname-input login-profile-nickname" name="displayName" type="nickname" value="{{loginProfile.displayName}}"
+        placeholder="点此选择微信昵称" aria-label="昵称" disabled="{{working}}"/>
+      <view wx:if="{{message}}" class="hint orange login-profile-message" aria-live="polite">{{message}}</view>
+      <view class="dialog-actions">
+        <button class="dialog-cancel" bindtap="skipLoginProfile" disabled="{{working}}">稍后设置</button>
+        <button class="dialog-confirm" form-type="submit" loading="{{working}}" disabled="{{working}}">保存资料</button>
+      </view>
+    </form>
+  </view>
   <include src="../../templates/dialog.wxml"/>
 </view>
