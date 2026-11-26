@@ -46,6 +46,7 @@ export const router = createRouter({
     { path: '/home-banners', name: 'home-banners', component: HomeBannersView, meta: { title: '首页轮播图', permission: 'home-banner.view' } },
     { path: '/wechat', name: 'wechat', component: WechatView, meta: { title: '微信设置', group: '系统设置', permission: 'wechat.view' } },
     { path: '/administrators', name: 'administrators', component: AdminUsersView, meta: { title: '管理员与角色', group: '系统设置', permission: 'admin.manage' } },
+    { path: '/no-access', name: 'no-access', component: () => import('../views/NoAccessView.vue'), meta: { title: '暂无可用权限' } },
     { path: '/', redirect: '/overview' },
     { path: '/:pathMatch(.*)*', redirect: '/overview' },
   ],
@@ -59,6 +60,8 @@ router.beforeEach(async (to) => {
     ElMessage.warning('暂时无法验证登录状态，请稍后刷新重试。')
   }
   if (!to.meta.public && !auth.authenticated) return { name: 'login', query: { redirect: to.fullPath } }
-  if (to.name === 'login' && auth.authenticated) return { name: 'overview' }
-  if (to.name !== 'overview' && to.meta.permission && !auth.can(String(to.meta.permission))) return { name: 'overview' }
+  if ((to.name === 'login' && auth.authenticated) || (to.meta.permission && !auth.can(String(to.meta.permission)))) {
+    const allowed = router.getRoutes().find(route => route.name && route.meta.permission && auth.can(String(route.meta.permission)))
+    return { name: allowed?.name ?? 'no-access' }
+  }
 })

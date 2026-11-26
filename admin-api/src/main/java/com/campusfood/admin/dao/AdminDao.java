@@ -22,17 +22,16 @@ public interface AdminDao extends BaseMapper<AdminUser> {
 
     int insertUser(@Param("username") String username, @Param("passwordHash") String passwordHash);
 
-    int assignBootstrapSuperRole(@Param("username") String username);
-
-    default Integer countValidSessions(String username, String sessionVersion) {
-        return Math.toIntExact(selectCount(Wrappers.<AdminUser>lambdaQuery()
+    default String findSessionUsername(String username, String sessionVersion) {
+        var matches = selectObjs(Wrappers.<AdminUser>lambdaQuery().select(AdminUser::getUsername)
                 .eq(AdminUser::getUsername, username).eq(AdminUser::getEnabled, true)
-                .eq(AdminUser::getSessionVersion, sessionVersion)));
+                .eq(AdminUser::getSessionVersion, sessionVersion));
+        return matches.isEmpty() ? null : (String) matches.getFirst();
     }
 
     default List<Map<String, Object>> findEnabledCredentials(String username) {
         return selectMaps(Wrappers.<AdminUser>lambdaQuery()
-                .select(AdminUser::getPasswordHash, AdminUser::getSessionVersion)
+                .select(AdminUser::getUsername, AdminUser::getPasswordHash, AdminUser::getSessionVersion)
                 .eq(AdminUser::getUsername, username).eq(AdminUser::getEnabled, true));
     }
 
@@ -63,7 +62,9 @@ public interface AdminDao extends BaseMapper<AdminUser> {
 
     List<Map<String, Object>> listAdministrators();
 
-    List<Map<String, Object>> listRoles();
+    List<Map<String, Object>> listRoleAssignments();
+
+    List<Map<String, Object>> listAdministratorAudit();
 
     int assignRoleByUsername(@Param("role") String role, @Param("username") String username);
 
@@ -73,22 +74,15 @@ public interface AdminDao extends BaseMapper<AdminUser> {
                 .eq(AdminUser::getId, userId).last("FOR UPDATE"));
     }
 
-    Integer countEnabledSuperById(@Param("userId") long userId);
-
     Integer countEnabledSupers();
 
     default int setAdministratorEnabled(boolean enabled, long userId) {
         return update(null, Wrappers.<AdminUser>lambdaUpdate()
-                .set(AdminUser::getEnabled, enabled).eq(AdminUser::getId, userId));
+                .set(AdminUser::getEnabled, enabled).setIncrBy(AdminUser::getSessionVersion, 1)
+                .eq(AdminUser::getId, userId));
     }
 
     int assignRoleById(@Param("userId") long userId, @Param("role") String role);
-
-    default List<String> lockUsernameById(long userId) {
-        return selectObjs(Wrappers.<AdminUser>lambdaQuery()
-                .select(AdminUser::getUsername).eq(AdminUser::getId, userId).last("FOR UPDATE"))
-                .stream().map(String.class::cast).toList();
-    }
 
     default int resetPasswordById(String passwordHash, long userId) {
         return update(null, Wrappers.<AdminUser>lambdaUpdate()

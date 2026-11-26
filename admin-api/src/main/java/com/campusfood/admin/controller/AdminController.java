@@ -2,6 +2,8 @@ package com.campusfood.admin.controller;
 
 import com.campusfood.admin.dto.*;
 import com.campusfood.admin.service.AdminService;
+import com.campusfood.admin.service.AdministratorAccessService;
+import com.campusfood.admin.service.PasswordTransportService;
 
 import java.time.Duration;
 import java.util.Map;
@@ -25,11 +27,15 @@ import static com.campusfood.admin.controller.AdminSessionFilter.COOKIE_NAME;
 @RequestMapping("/api/admin/v1")
 public class AdminController {
     private final AdminService service;
+    private final AdministratorAccessService access;
+    private final PasswordTransportService transport;
     private final boolean secureSessionCookie;
 
-    public AdminController(AdminService service,
+    public AdminController(AdminService service, AdministratorAccessService access, PasswordTransportService transport,
             @Value("${ADMIN_SESSION_COOKIE_SECURE:false}") boolean secureSessionCookie) {
         this.service = service;
+        this.access = access;
+        this.transport = transport;
         this.secureSessionCookie = secureSessionCookie;
     }
 
@@ -40,8 +46,13 @@ public class AdminController {
                 exception.getReason() == null ? "请求失败" : exception.getReason()));
     }
 
+    @PostMapping("/auth/password-challenge")
+    public ResponseEntity<PasswordTransportService.Challenge> passwordChallenge() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(transport.challenge());
+    }
+
     @PostMapping("/auth/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest body,
+    public ResponseEntity<Map<String, Object>> login(@RequestBody EncryptedPasswordRequest body,
             @RequestHeader(value = BROWSER_HEADER, required = false) String browser) {
         var login = service.login(body);
         var response = ResponseEntity.ok().cacheControl(CacheControl.noStore());
@@ -71,7 +82,7 @@ public class AdminController {
     }
 
     @PostMapping("/auth/password")
-    public ResponseEntity<Map<String, Object>> changePassword(@RequestBody ChangePasswordRequest body,
+    public ResponseEntity<Map<String, Object>> changePassword(@RequestBody EncryptedPasswordRequest body,
                                               @RequestHeader(value = "Authorization", required = false) String authorization) {
         return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, sessionCookie("", Duration.ZERO))
                 .body(service.changePassword(body, authorization));
@@ -141,25 +152,49 @@ public class AdminController {
     @GetMapping("/administrators")
     public Map<String, Object> administrators(
             @RequestHeader(value = "Authorization", required = false) String authorization) {
-        return service.administrators(authorization);
+        return access.list(authorization);
     }
 
     @PostMapping("/administrators")
-    public Map<String, Object> createAdministrator(@RequestBody CreateAdministratorRequest body,
+    public Map<String, Object> createAdministrator(@RequestBody EncryptedPasswordRequest body,
                                                    @RequestHeader(value = "Authorization", required = false) String authorization) {
-        return service.createAdministrator(body, authorization);
+        return access.createAdministrator(body, authorization);
     }
 
     @PutMapping("/administrators/{id}/access")
     public Map<String, Object> changeAdministrator(@PathVariable long id, @RequestBody AdministratorAccessRequest body,
                                                    @RequestHeader(value = "Authorization", required = false) String authorization) {
-        return service.changeAdministrator(id, body, authorization);
+        return access.updateAdministrator(id, body, authorization);
     }
 
     @PutMapping("/administrators/{id}/password")
-    public Map<String, Object> resetAdministratorPassword(@PathVariable long id, @RequestBody ResetPasswordRequest body,
+    public Map<String, Object> resetAdministratorPassword(@PathVariable long id, @RequestBody EncryptedPasswordRequest body,
                                                           @RequestHeader(value = "Authorization", required = false) String authorization) {
-        return service.resetAdministratorPassword(id, body, authorization);
+        return access.resetPassword(id, body, authorization);
+    }
+
+    @GetMapping("/administrators/audit")
+    public ResponseEntity<?> administratorAudit(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(access.audit(authorization));
+    }
+
+    @PostMapping("/roles")
+    public Map<String, Object> createRole(@RequestBody RoleAccessRequest body,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return access.saveRole(null, body, authorization);
+    }
+
+    @PutMapping("/roles/{code}")
+    public Map<String, Object> updateRole(@PathVariable String code, @RequestBody RoleAccessRequest body,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return access.saveRole(code, body, authorization);
+    }
+
+    @DeleteMapping("/roles/{code}")
+    public Map<String, Object> deleteRole(@PathVariable String code,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return access.deleteRole(code, authorization);
     }
 
     @PostMapping("/actions")

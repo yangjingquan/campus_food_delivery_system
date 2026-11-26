@@ -3,7 +3,15 @@
 <mapper namespace="com.campusfood.admin.dao.AuthorizationDao">
     <!-- 按当前启用的管理员及其角色查询权限，并对重复权限去重。 -->
     <select id="findPermissions" resultType="java.lang.String">
-        SELECT DISTINCT rp.permission_code FROM admin_user u JOIN admin_user_role ur ON ur.user_id=u.id JOIN admin_role_permission rp ON rp.role_code=ur.role_code WHERE u.username=#{username} AND u.enabled=TRUE ORDER BY rp.permission_code
+        SELECT DISTINCT p.code
+        FROM admin_user u JOIN admin_user_role ur ON ur.user_id=u.id
+        JOIN admin_permission p ON ur.role_code='super' OR (
+            p.code != 'admin.manage' AND EXISTS (
+                SELECT 1 FROM admin_role_permission rp
+                WHERE rp.role_code=ur.role_code AND rp.permission_code=p.code
+            )
+        )
+        WHERE u.username=#{username} AND u.enabled=TRUE ORDER BY p.code
     </select>
 
     <select id="findRoles" resultType="java.lang.String">

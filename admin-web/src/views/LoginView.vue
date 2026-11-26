@@ -17,11 +17,13 @@ const rules = {
 }
 
 async function submit() {
+  if (loading.value) return
   await formRef.value?.validate(async (valid: boolean) => {
     if (!valid) return
     loading.value = true
     try {
       await auth.login(form.username, form.password)
+      form.password = ''
       ElMessage.success('登录成功。')
       const redirect = route.query.redirect
       const target = typeof redirect === 'string' && /^\/(?![\/\\])/.test(redirect) ? redirect : '/overview'

@@ -46,4 +46,4 @@ app:
   merchant-api-url: ${MERCHANT_API_URL:http://localhost:8083}
   redis-key-prefix: ${REDIS_KEY_PREFIX:}
   bootstrap-user: ${ADMIN_USER:admin}
-  bootstrap-password: ${ADMIN_PASSWORD:campus2026}
+  bootstrap-password: ${ADMIN_PASSWORD:}

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { encryptPasswordRequest, requirePasswordCrypto, type PasswordChallenge } from './passwordTransport'
 import type { RowOrder } from '../domain/useRowReorder'
 import type { SectionKey } from '../domain/types'
 import type { Pricing, SettlementSnapshot } from '../domain/pricing'
@@ -39,6 +40,41 @@ export interface AdminSessionUser {
   permissions: string[]
 }
 
+export interface Administrator {
+  id: number
+  username: string
+  enabled: boolean
+  roleCodes: string[]
+}
+
+export interface AdminRoleWrite {
+  name: string
+  description: string
+  permissions: string[]
+}
+
+export interface AdminRole extends AdminRoleWrite {
+  code: string
+  builtIn: boolean
+  editable: boolean
+  memberCount: number
+}
+
+export interface AdminAccessSettings {
+  users: Administrator[]
+  roles: AdminRole[]
+  permissions: Array<{ code: string; description: string }>
+  requiredView: Record<string, string>
+}
+
+export interface AdminAuditEntry {
+  id: number
+  actor: string
+  action: string
+  target: string
+  createdAt: string
+}
+
 export interface MiniProgramUser {
   id: string
   nickname: string | null
@@ -75,22 +111,50 @@ async function unwrap<T>(promise: Promise<{ data: T }>): Promise<T> {
   }
 }
 
+async function sendEncrypted<T>(method: 'post' | 'put', path: string, payload: object) {
+  requirePasswordCrypto()
+  const challenge = await unwrap<PasswordChallenge>(http.post('/auth/password-challenge'))
+  const encrypted = await encryptPasswordRequest(challenge, path, payload)
+  return unwrap<T>(http.request({ url: path, method, data: encrypted }))
+}
+
 export const adminApi = {
   login(username: string, password: string) {
-    return unwrap<{ user: AdminSessionUser }>(http.post('/auth/login', { username, password }))
+    return sendEncrypted<{ user: AdminSessionUser }>('post', '/auth/login', { username, password })
   },
   session() { return unwrap<AdminSessionUser>(http.get('/auth/session')) },
   logout() { return unwrap<{ ok: boolean }>(http.post('/auth/logout')) },
-  changePassword(oldPassword: string, newPassword: string) { return unwrap<{ok: boolean}>(http.post('/auth/password', { oldPassword, newPassword })) },
+  changePassword(oldPassword: string, newPassword: string) {
+    return sendEncrypted<{ ok: boolean }>('post', '/auth/password', { oldPassword, newPassword })
+  },
   users(params: { role: MiniProgramRole | ''; keyword: string; page: number; pageSize: number }, signal: AbortSignal) {
     return unwrap<{ rows: MiniProgramUser[]; total: number; page: number; pageSize: number }>(
       http.get('/users', { params, signal }),
     )
   },
-  administrators() { return unwrap<{ users: Array<{id: number; username: string; enabled: boolean; roles: string}>; roles: Array<{code: string; name: string}> }>(http.get('/administrators')) },
-  createAdministrator(data: { username: string; password: string; role: string }) { return unwrap<{ok: boolean}>(http.post('/administrators', data)) },
-  updateAdministrator(id: number, data: { role: string; enabled: boolean }) { return unwrap<{ok: boolean}>(http.put(`/administrators/${id}/access`, data)) },
-  resetAdministratorPassword(id: number, password: string) { return unwrap<{ok: boolean}>(http.put(`/administrators/${id}/password`, { password })) },
+  administrators() {
+    return unwrap<AdminAccessSettings>(http.get('/administrators'))
+  },
+  administratorAudit() {
+    return unwrap<AdminAuditEntry[]>(http.get('/administrators/audit'))
+  },
+  createAdministrator(data: { username: string; password: string; roleCodes: string[] }) {
+    return sendEncrypted<{ ok: boolean }>('post', '/administrators', data)
+  },
+  updateAdministrator(id: number, data: { roleCodes: string[]; enabled: boolean }) {
+    return unwrap<{ ok: boolean }>(http.put(`/administrators/${id}/access`, data))
+  },
+  resetAdministratorPassword(id: number, password: string) {
+    return sendEncrypted<{ ok: boolean }>('put', `/administrators/${id}/password`, { password })
+  },
+  saveRole(data: AdminRoleWrite, code?: string) {
+    return unwrap<{ ok: boolean; code: string }>(code
+      ? http.put(`/roles/${encodeURIComponent(code)}`, data)
+      : http.post('/roles', data))
+  },
+  deleteRole(code: string) {
+    return unwrap<{ ok: boolean }>(http.delete(`/roles/${encodeURIComponent(code)}`))
+  },
   overview() {
     return unwrap(http.get('/overview'))
   },

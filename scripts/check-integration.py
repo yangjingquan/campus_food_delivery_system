@@ -32,10 +32,33 @@ def root_sql(sql):
 
 def sql(statement): return root_sql('USE `'+database+'`; '+statement)
 
-def call(method,path,body=None,token=None,internal=False):
+API = '/api/admin/v1'
+
+def encrypt_password(path, payload):
+    challenge = check(200, call('POST', API + '/auth/password-challenge'), 'password challenge')
+    # Reuse the production Web Crypto client so the test covers interoperability.
+    script = """
+import { readFileSync } from 'node:fs'
+import { encryptPasswordRequest } from './admin-web/src/api/passwordTransport.ts'
+const { challenge, path, payload } = JSON.parse(readFileSync(0, 'utf8'))
+console.log(JSON.stringify(await encryptPasswordRequest(challenge, path, payload)))
+"""
+    encrypted = run(['node', '--experimental-strip-types', '--input-type=module', '-e', script],
+                    input=json.dumps({'challenge': challenge, 'path': path, 'payload': payload}))
+    return json.loads(encrypted)
+
+def password_path(path, body):
+    return body is not None and 'challengeId' not in body and (
+        path in ('/auth/login', '/auth/password', '/administrators')
+        or (path.startswith('/administrators/') and path.endswith('/password'))
+    )
+
+def call(method,path,body=None,token=None,internal=False,protect=True):
     headers={'Content-Type':'application/json'}
     if token: headers['Authorization']='Bearer '+token
     if internal: headers['X-Internal-Key']=internal_key
+    if protect and path.startswith(API) and password_path(path[len(API):], body):
+        body = encrypt_password(path[len(API):], body)
     data=None if body is None else json.dumps(body).encode('utf-8')
     try:
         with urllib.request.urlopen(urllib.request.Request(base+path,data=data,headers=headers,method=method),timeout=5) as response:
@@ -59,19 +82,31 @@ try:
          '-e','DB_URL=jdbc:mysql://mysql:3306/'+database+'?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true',
          '-e','DB_USER='+user,'-e','DB_PASSWORD='+password,'-e','ADMIN_USER=testadmin','-e','ADMIN_PASSWORD='+admin_password,
          '-e','INTERNAL_API_KEY='+internal_key,'-e','NACOS_SERVER_ADDR=nacos:8848','-e','USER_PAYMENT_MODE=wechat',
+         '-e','REDIS_KEY_PREFIX=admin-it:'+suffix+':',
          '-e','SPRING_CLOUD_NACOS_DISCOVERY_REGISTER_ENABLED=false','admin-api'])
     created_container=True
     port=run(['docker','port',container,'8080/tcp']).split(':')[-1]
     base='http://127.0.0.1:'+port
-    for _ in range(40):
+    for _ in range(90):
         try:
-            status, data=call('POST','/api/admin/v1/auth/login',{'username':'testadmin','password':admin_password})
-            if status==200: break
+            status, _ = call('POST', API + '/auth/password-challenge')
+            if status == 200: break
         except (OSError,urllib.error.URLError): pass
         time.sleep(1)
     else: raise RuntimeError('isolated backend did not start')
+    credentials = {'username': 'testadmin', 'password': admin_password}
+    check(400, call('POST', API + '/auth/login', credentials, protect=False), 'plaintext login rejected')
+    sealed = encrypt_password('/auth/login', credentials)
+    data = check(200, call('POST', API + '/auth/login', sealed), 'encrypted login')
+    check(400, call('POST', API + '/auth/login', sealed), 'login ciphertext replay rejected')
+    tampered = encrypt_password('/auth/login', credentials)
+    tampered['ciphertext'] = ('A' if tampered['ciphertext'][0] != 'A' else 'B') + tampered['ciphertext'][1:]
+    check(400, call('POST', API + '/auth/login', tampered), 'tampered ciphertext rejected')
+    wrong_path = encrypt_password('/auth/password', credentials)
+    check(400, call('POST', API + '/auth/login', wrong_path), 'ciphertext scoped to endpoint')
     token=data['token']
     assert 'admin.manage' in data['user']['permissions']
+    assert sql("SELECT COUNT(*) FROM admin_user WHERE username='testadmin' AND password_hash LIKE '$2%'") == '1'
     browser_cookies = http.cookiejar.CookieJar()
     browser = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(browser_cookies))
 
@@ -81,7 +116,7 @@ try:
             headers={'Content-Type': 'application/json', **(headers or {})}, method=method), timeout=5)
 
     browser_headers = {'X-Admin-Session': '1'}
-    with browser_call('POST', '/auth/login', {'username': 'testadmin', 'password': admin_password}, browser_headers) as response:
+    with browser_call('POST', '/auth/login', encrypt_password('/auth/login', credentials), browser_headers) as response:
         cookie = response.headers['Set-Cookie']
         assert all(flag in cookie for flag in ('Max-Age=172800', 'HttpOnly', 'SameSite=Strict', 'Path=/api/admin/v1'))
         assert 'token' not in json.load(response)
@@ -160,12 +195,45 @@ try:
     check(409,call('PUT','/api/admin/v1/administrators/'+str(me['id'])+'/access',{'role':'readonly','enabled':True},token),'last super')
     read_id=next(x['id'] for x in users if x['username']=='test_read')
     check(200,call('PUT','/api/admin/v1/administrators/'+str(read_id)+'/access',{'role':'operations','enabled':True},token),'replace administrator role')
-    check(403,call('GET','/api/admin/v1/workspace?section=finance',token=readonly),'role update applied')
+    check(401, call('GET', API + '/workspace?section=finance', token=readonly), 'role update revokes old session')
+    readonly = check(200, call('POST', API + '/auth/login', {'username': 'test_read', 'password': 'test-password-123'}), 'updated role login')['token']
+    check(403, call('GET', API + '/workspace?section=finance', token=readonly), 'removed permission denied')
     check(200,call('PUT','/api/admin/v1/administrators/'+str(read_id)+'/access',{'role':'operations','enabled':False},token),'disable administrator')
     check(401,call('GET','/api/admin/v1/workspace?section=merchants',token=readonly),'disabled session rejected')
     ops_id=next(x['id'] for x in users if x['username']=='test_ops')
     check(200,call('PUT','/api/admin/v1/administrators/'+str(ops_id)+'/password',{'password':'reset-password-789'},token),'administrator password reset')
     check(401,call('GET','/api/admin/v1/workspace?section=merchants',token=ops_new),'reset session revoked')
+    # Custom roles are additive and never grant access to the administrator control plane.
+    role_data = {'name': '测试订单角色', 'description': '订单协同', 'permissions': ['order.coordinate']}
+    check(403, call('POST', API + '/roles', role_data, finance), 'ordinary role cannot create roles')
+    check(400, call('POST', API + '/roles', {**role_data, 'permissions': ['admin.manage']}, token), 'management permission reserved')
+    check(409, call('PUT', API + '/roles/super', role_data, token), 'super role immutable')
+    role_code = check(200, call('POST', API + '/roles', role_data, token), 'create custom role')['code']
+    role_url = API + '/roles/' + role_code
+    custom_credentials = {'username': 'test_custom', 'password': '测试密码-cipher-2026'}
+    custom_access = {**custom_credentials, 'roleCodes': [role_code, 'finance']}
+    check(400, call('POST', API + '/administrators', custom_access, token, protect=False), 'plaintext admin creation rejected')
+    check(200, call('POST', API + '/administrators', custom_access, token), 'assign multiple roles')
+    custom = check(200, call('POST', API + '/auth/login', custom_credentials), 'custom account login')
+    assert {'order.view', 'order.coordinate', 'finance.view'} <= set(custom['user']['permissions'])
+    assert 'overview.view' in custom['user']['permissions'] and 'admin.manage' not in custom['user']['permissions']
+    check(403, call('GET', API + '/administrators/audit', token=custom['token']), 'audit access restricted')
+    check(409, call('DELETE', role_url, token=token), 'assigned role protected')
+    check(200, call('PUT', role_url, {**role_data, 'permissions': ['user.view']}, token), 'change role permissions')
+    check(401, call('GET', API + '/auth/session', token=custom['token']), 'role permission update revokes sessions')
+    custom = check(200, call('POST', API + '/auth/login', custom_credentials), 'relogin after role edit')
+    assert {'user.view', 'finance.view'} <= set(custom['user']['permissions'])
+    assert 'order.coordinate' not in custom['user']['permissions']
+    access = check(200, call('GET', API + '/administrators', token=token), 'updated role and member list')
+    custom_row = next(row for row in access['users'] if row['username'] == 'test_custom')
+    assert set(custom_row['roleCodes']) == {role_code, 'finance'}
+    check(200, call('PUT', API + f"/administrators/{custom_row['id']}/access",
+                    {'roleCodes': ['finance'], 'enabled': True}, token), 'unassign custom role')
+    check(200, call('DELETE', role_url, token=token), 'delete unassigned role')
+    events = check(200, call('GET', API + '/administrators/audit', token=token), 'administrator audit')
+    assert {'admin.role.create', 'admin.role.update', 'admin.role.delete', 'admin.password-reset'} <= {
+        event['action'] for event in events
+    }
     sql("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES('MTEST','测试商户','MERCHANT',10000,'ACCOUNT_ACTIVE'),('RTEST','测试骑手','RIDER',10000,'ACCOUNT_ACTIVE'); INSERT INTO finance_debt(id,order_id,merchant,rider,rider_due_cents,merchant_balance_cents,platform_advance_cents,recovered_cents,merchant_account_id) VALUES('DTEST','OTEST','测试商户','测试骑手',3000,10000,3000,0,'MTEST');")
     p={'accountId':'MTEST','requestKey':'test-debt-0001','amountCents':8000}
     first=check(200,call('POST','/internal/v1/withdrawals',p,internal=True),'debt offset')
@@ -316,7 +384,7 @@ try:
     assert sql("SELECT OCTET_LENGTH(ciphertext) FROM wechat_secret s JOIN merchant_printer_settings p ON p.pkey_secret_id=s.id WHERE p.merchant_id='M01'")==str(len(merchant_pkey)+16)
     check(200,action('merchant.save-printer',{'id':'M01','sn':'SN-NEW','pkey':secrets.token_hex(24)},token),'replace merchant PKey')
     assert sql("SELECT COUNT(*) FROM wechat_secret WHERE purpose='merchant_printer_pkey'")=='2'
-    print('PASS: RBAC, session revocation, last-super protection, debt recovery, idempotency, freeze/unfreeze, transfer failure, concurrency and encrypted secrets')
+    print('PASS: encrypted credentials, RBAC, session revocation, last-super protection, debt recovery, idempotency, freeze/unfreeze, transfer failure, concurrency and encrypted secrets')
 except BaseException:
     if created_container:
         logs=subprocess.run(['docker','logs',container],cwd=ROOT,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True).stdout

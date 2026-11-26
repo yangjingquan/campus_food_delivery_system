@@ -18,6 +18,7 @@ const mobileCloseButton = ref<HTMLButtonElement>()
 const mainContent = ref<HTMLElement>()
 const desktopViewport = window.matchMedia('(min-width: 761px)')
 const passwordOpen=ref(false)
+const passwordSaving = ref(false)
 const passwordDraft=reactive({oldPassword:'',newPassword:'',confirm:''})
 
 type MenuEntry = { name: string; icon: string } | { id: string; title: string; icon: string; children: string[] }
@@ -102,10 +103,27 @@ watch(() => auth.authenticated, (authenticated) => {
   if (!authenticated && !route.meta.public) void router.replace({ name: 'login' })
 })
 function handleCommand(command: string) { if(command==='password') passwordOpen.value=true; else if(command==='logout') void logout() }
+function clearPasswordDraft() {
+  Object.assign(passwordDraft, { oldPassword: '', newPassword: '', confirm: '' })
+}
 async function changePassword() {
-  if(passwordDraft.newPassword!==passwordDraft.confirm){ElMessage.error('两次输入的新密码不一致。');return}
-  try { await adminApi.changePassword(passwordDraft.oldPassword,passwordDraft.newPassword); passwordOpen.value=false; passwordDraft.oldPassword='';passwordDraft.newPassword='';passwordDraft.confirm='';auth.clear();ElMessage.success('密码已更新，请重新登录。') }
-  catch(error){ElMessage.error(error instanceof Error?error.message:'修改失败')}
+  if (passwordSaving.value) return
+  if (passwordDraft.newPassword !== passwordDraft.confirm) {
+    ElMessage.error('两次输入的新密码不一致。')
+    return
+  }
+  passwordSaving.value = true
+  try {
+    await adminApi.changePassword(passwordDraft.oldPassword, passwordDraft.newPassword)
+    passwordOpen.value = false
+    clearPasswordDraft()
+    auth.clear()
+    ElMessage.success('密码已更新，请重新登录。')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '修改失败')
+  } finally {
+    passwordSaving.value = false
+  }
 }
 
 </script>
@@ -185,9 +203,10 @@ async function changePassword() {
       </header>
       <main ref="mainContent" class="page-content" tabindex="-1"><RouterView /></main>
     </section>
-    <el-dialog v-model="passwordOpen" title="修改密码" width="min(460px,94vw)" @closed="passwordDraft.oldPassword='';passwordDraft.newPassword='';passwordDraft.confirm=''">
-      <el-form label-position="top"><el-form-item label="原密码"><el-input v-model="passwordDraft.oldPassword" type="password" autocomplete="current-password" /></el-form-item><el-form-item label="新密码（至少 12 个字符）"><el-input v-model="passwordDraft.newPassword" type="password" autocomplete="new-password" /></el-form-item><el-form-item label="再次输入新密码"><el-input v-model="passwordDraft.confirm" type="password" autocomplete="new-password" /></el-form-item></el-form>
-      <template #footer><el-button @click="passwordOpen=false">取消</el-button><el-button type="primary" @click="changePassword">保存</el-button></template>
+    <el-dialog v-model="passwordOpen" @closed="clearPasswordDraft" :close-on-click-modal="!passwordSaving"
+      :show-close="!passwordSaving" :close-on-press-escape="!passwordSaving" title="修改密码" width="min(460px,94vw)">
+      <el-form label-position="top" @submit.prevent="changePassword"><el-form-item label="原密码"><el-input v-model="passwordDraft.oldPassword" type="password" autocomplete="current-password" /></el-form-item><el-form-item label="新密码（至少 12 个字符）"><el-input v-model="passwordDraft.newPassword" type="password" autocomplete="new-password" /></el-form-item><el-form-item label="再次输入新密码"><el-input v-model="passwordDraft.confirm" type="password" autocomplete="new-password" /></el-form-item></el-form>
+      <template #footer><el-button :disabled="passwordSaving" @click="passwordOpen=false">取消</el-button><el-button type="primary" :loading="passwordSaving" @click="changePassword">保存</el-button></template>
     </el-dialog>
   </div>
 </template>

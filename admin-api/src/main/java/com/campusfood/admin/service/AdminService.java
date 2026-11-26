@@ -9,13 +9,11 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
-import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import com.campusfood.admin.dao.AdminDao;
 import com.campusfood.admin.dao.ConfigurationLockMapper;
-import com.campusfood.admin.dao.AdminUserRoleMapper;
 import com.campusfood.admin.dao.MerchantMapper;
 import com.campusfood.admin.dao.RiderMapper;
 import com.campusfood.admin.dto.*;
@@ -32,7 +30,7 @@ public class AdminService {
 
     private final AdminDao db;
     private final ConfigurationLockMapper configurationLocks;
-    private final AdminUserRoleMapper roles;
+    private final PasswordTransportService transport;
     private final MerchantMapper merchants;
     private final RiderMapper riders;
     private final StringRedisTemplate redis;
@@ -47,22 +45,18 @@ public class AdminService {
     private final RiderManagementService riderManagement;
     private final BCryptPasswordEncoder passwords = new BCryptPasswordEncoder();
     private final SecureRandom random = new SecureRandom();
-    @Value("${app.bootstrap-user}")
-    private String bootstrapUser;
-    @Value("${app.bootstrap-password}")
-    private String bootstrapPassword;
     @Value("${app.redis-key-prefix:}")
     private String redisKeyPrefix;
 
     public AdminService(AdminDao db, StringRedisTemplate redis, BusinessService business,
                         AuthorizationService authorization, WithdrawalService withdrawals, WechatService wechat,
-                        AdminUserRoleMapper roles, MerchantMapper merchants, RiderMapper riders,
+                        PasswordTransportService transport, MerchantMapper merchants, RiderMapper riders,
                         ConfigurationLockMapper configurationLocks, PrintingSettingsService printing,
                         MerchantPrinterSettingsService merchantPrinters, PricingConfigurationService pricing, MerchantManagementService merchantManagement,
                         RiderManagementService riderManagement) {
         this.db = db;
         this.configurationLocks = configurationLocks;
-        this.roles = roles;
+        this.transport = transport;
         this.merchants = merchants;
         this.riders = riders;
         this.redis = redis;
@@ -77,41 +71,47 @@ public class AdminService {
         this.riderManagement = riderManagement;
     }
 
-    // 仅在账户或角色尚未初始化时创建本地引导管理员及超级管理员角色。
-    @PostConstruct
-    void bootstrap() {
-        Integer count = db.countUsersByUsername(bootstrapUser);
-        if (count != null && count == 0) db.insertUser(bootstrapUser, passwords.encode(bootstrapPassword));
-        Integer roleCount = roles.countRoles();
-        if (roleCount != null && roleCount == 0) db.assignBootstrapSuperRole(bootstrapUser);
+    private String actor(String authHeader) {
+        return actor(authHeader, false);
     }
 
-    private String actor(String authHeader) {
-        String header = authHeader;
-        if (header == null || !header.startsWith("Bearer "))
+    private String actor(String authHeader, boolean changingAccess) {
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请登录");
         // Redis 保存用户名和会话版本；每次请求还需校验数据库中的最新版本。
-        String session = redis.opsForValue().get(redisKeyPrefix + "admin:session:" + header.substring(7));
+        String session = redis.opsForValue().get(redisKeyPrefix + "admin:session:" + authHeader.substring(7));
         if (session == null || !session.contains("\n"))
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录已失效");
+        // 先读取会话，再在配置锁内检查最新状态，避免未登录请求占用配置锁。
+        if (changingAccess) configurationLocks.lock("admin");
         int separator = session.lastIndexOf('\n');
         String username = session.substring(0, separator), version = session.substring(separator + 1);
-        Integer valid = db.countValidSessions(username, version);
-        if (valid == null || valid != 1) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录已失效");
+        String canonicalName = db.findSessionUsername(username, version);
+        if (canonicalName == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录已失效");
+        return canonicalName;
+    }
+
+    /** 校验管理端会话及指定权限，供其他管理服务复用。 */
+    public String requirePermission(String authHeader, String permission) {
+        String username = actor(authHeader);
+        authorization.require(username, permission);
         return username;
     }
 
-    /** 校验管理端会话及指定权限，供独立的只读管理服务复用。 */
-    public void requirePermission(String authHeader, String permission) {
-        authorization.require(actor(authHeader), permission);
+    String requirePermissionForAccessChange(String authHeader, String permission) {
+        String username = actor(authHeader, true);
+        authorization.require(username, permission);
+        return username;
     }
 
-    public Map<String, Object> login(LoginRequest body) {
+    public Map<String, Object> login(EncryptedPasswordRequest encrypted) {
+        var body = transport.decrypt(encrypted, "/auth/login", LoginRequest.class);
         String username = valueOrEmpty(body.username());
         List<Map<String, Object>> users = db.findEnabledCredentials(username);
-        if (users.isEmpty() ||
+        if (users.isEmpty() || utf8Length(valueOrEmpty(body.password())) > 72 ||
                 !passwords.matches(valueOrEmpty(body.password()), users.get(0).get("password_hash").toString()))
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
+        username = (String) users.get(0).get("username");
         byte[] bytes = new byte[32];
         random.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
@@ -139,18 +139,24 @@ public class AdminService {
         return value == null ? "" : value;
     }
 
-    private static void validatePassword(String password) {
-        if (password.length() < 12 || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72)
+    static void validatePassword(String password) {
+        if (password.length() < 12 || utf8Length(password) > 72)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 12 个字符，UTF-8 编码不超过 72 字节");
     }
 
+    private static int utf8Length(String password) {
+        return password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    }
+
     @Transactional
-    public Map<String, Object> changePassword(ChangePasswordRequest body, String authHeader) {
-        String username = actor(authHeader), oldPassword = valueOrEmpty(body.oldPassword()), newPassword =
-                valueOrEmpty(body.newPassword());
+    public Map<String, Object> changePassword(EncryptedPasswordRequest encrypted, String authHeader) {
+        String username = actor(authHeader, true);
+        var body = transport.decrypt(encrypted, "/auth/password", ChangePasswordRequest.class);
+        String oldPassword = valueOrEmpty(body.oldPassword());
+        String newPassword = valueOrEmpty(body.newPassword());
         validatePassword(newPassword);
         String hash = db.lockPasswordHash(username);
-        if (!passwords.matches(oldPassword, hash))
+        if (hash == null || utf8Length(oldPassword) > 72 || !passwords.matches(oldPassword, hash))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "原密码错误");
         db.changePasswordByUsername(passwords.encode(newPassword), username);
         db.insertSimpleAudit(username, "admin.password", username, AdminAudit.UPDATED.name());
@@ -189,69 +195,6 @@ public class AdminService {
         String username = actor(authHeader);
         authorization.require(username, "overview.view");
         return business.overview();
-    }
-
-    public Map<String, Object> administrators(String authHeader) {
-        authorization.require(actor(authHeader), "admin.manage");
-        return Map.of("users", db.listAdministrators(), "roles", db.listRoles());
-    }
-
-    @Transactional
-    public Map<String, Object> createAdministrator(CreateAdministratorRequest body, String authHeader) {
-        String actor = actor(authHeader);
-        authorization.require(actor, "admin.manage");
-        String username = valueOrEmpty(body.username()).trim(), password = valueOrEmpty(body.password()), role =
-                valueOrEmpty(body.role());
-        if (!username.matches("[A-Za-z0-9_.-]{3,64}") ||
-                !List.of("super", "operations", "finance", "readonly").contains(role))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "账号或角色格式无效");
-        validatePassword(password);
-        if (db.countUsersByUsername(username) > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "账号已存在");
-        try {
-            db.insertUser(username, passwords.encode(password));
-        } catch (org.springframework.dao.DuplicateKeyException ex) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "账号已存在");
-        }
-        db.assignRoleByUsername(role, username);
-        db.insertSimpleAudit(actor, "admin.create", username, role);
-        return Map.of("ok", true);
-    }
-
-    @Transactional
-    public Map<String, Object> changeAdministrator(long id, AdministratorAccessRequest body, String authHeader) {
-        String actor = actor(authHeader);
-        authorization.require(actor, "admin.manage");
-        String role = String.valueOf(body.role());
-        Object enabledValue = body.enabled();
-        if (!List.of("super", "operations", "finance", "readonly").contains(role) ||
-                !(enabledValue instanceof Boolean enabled))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "角色或启用状态无效");
-        // 先锁定管理员配置，避免并发修改导致最后一名超级管理员被移除。
-        configurationLocks.lock("admin");
-        List<Map<String, Object>> users = db.lockAdministrator(id);
-        if (users.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "管理员不存在");
-        Integer isSuper = db.countEnabledSuperById(id);
-        Integer supers = db.countEnabledSupers();
-        if (isSuper != null && isSuper > 0 && (!enabled || !role.equals("super")) && supers != null && supers <= 1)
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "必须保留至少一名启用的超级管理员");
-        db.setAdministratorEnabled(enabled, id);
-        roles.deleteRoles(id);
-        db.assignRoleById(id, role);
-        db.insertSimpleAudit(actor, "admin.access", users.get(0).get("username"), role + "/" + (enabled ? AdminAudit.ENABLED.name() : AdminAudit.DISABLED.name()));
-        return Map.of("ok", true);
-    }
-
-    @Transactional
-    public Map<String, Object> resetAdministratorPassword(long id, ResetPasswordRequest body, String authHeader) {
-        String actor = actor(authHeader);
-        authorization.require(actor, "admin.manage");
-        String password = valueOrEmpty(body.password());
-        validatePassword(password);
-        List<String> names = db.lockUsernameById(id);
-        if (names.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "管理员不存在");
-        db.resetPasswordById(passwords.encode(password), id);
-        db.insertSimpleAudit(actor, "admin.password-reset", names.get(0), AdminAudit.RESET.name());
-        return Map.of("ok", true);
     }
 
     public Map<String, Object> merchantPhoto(String id, String authHeader) {
