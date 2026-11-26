@@ -9,7 +9,9 @@ import com.campusfood.domain.DisplayOrder;
 import java.util.UUID;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.campusfood.admin.dao.AdminDao;
 import com.campusfood.admin.dao.BusinessDao;
+import com.campusfood.admin.dao.ConfigurationLockMapper;
 import com.campusfood.admin.dao.FinanceAccountMapper;
 import com.campusfood.admin.dao.MerchantMapper;
 import com.campusfood.admin.entity.FinanceAccount;
@@ -18,6 +20,7 @@ import com.campusfood.domain.BusinessStates.Audit;
 import com.campusfood.domain.BusinessStates.Business;
 import com.campusfood.domain.InlinePhoto;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -31,10 +34,21 @@ public class MerchantManagementService {
     private final FinanceAccountMapper accounts;
     private final BusinessDao audit;
 
-    public MerchantManagementService(MerchantMapper merchants, FinanceAccountMapper accounts, BusinessDao audit) {
+    private final ConfigurationLockMapper locks;
+    private final MiniProgramAccountService identities;
+    private final JdbcTemplate db;
+    private final AdminDao admin;
+
+    public MerchantManagementService(MerchantMapper merchants, FinanceAccountMapper accounts, BusinessDao audit,
+                                     ConfigurationLockMapper locks, MiniProgramAccountService identities, JdbcTemplate db,
+                                     AdminDao admin) {
         this.merchants = merchants;
         this.accounts = accounts;
         this.audit = audit;
+        this.locks = locks;
+        this.identities = identities;
+        this.db = db;
+        this.admin = admin;
     }
 
     @Transactional
@@ -47,6 +61,13 @@ public class MerchantManagementService {
             return Map.of("ok", true);
         }
         String id = text(payload, "id", "商户编号", 32);
+        if ("merchant.bind".equals(action)) return bind(id, payload, actor);
+        if ("merchant.unbind".equals(action)) return unbind(id, payload, actor);
+        if ("merchant.update".equals(action) || "merchant.delete".equals(action)) locks.lock("merchant_enrollment");
+        if ("merchant.delete".equals(action) && admin.hasBindingColumn("merchant_identity", "merchant_id")
+                && !db.queryForList("SELECT id FROM merchant_identity WHERE merchant_id=? FOR UPDATE", Long.class, id).isEmpty()) {
+            throw MiniProgramAccountService.conflict("请先解除小程序账号关联，再移除商户");
+        }
         Merchant current = merchants.selectOne(Wrappers.<Merchant>lambdaQuery()
                 .eq(Merchant::getId, id).isNull(Merchant::getDeletedAt).last("FOR UPDATE"));
         if (current == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存在");
@@ -117,13 +138,148 @@ public class MerchantManagementService {
     private Map<String, Object> create(Map<?, ?> payload, String actor) {
         StoreFields fields = fields(payload, null);
         InlinePhoto photo = readPhoto(payload);
+        String userNumber = MiniProgramAccountService.userNumber(payload);
+        locks.lock("merchant_enrollment");
+        Long identity = userNumber.isEmpty() ? null : identityForDirectBinding(userNumber);
+        if (identity != null) {
+            String current = identities.merchantProfile(identity);
+            if (current != null) throw MiniProgramAccountService.conflict("该微信已关联商户 " + current + "，请在列表中处理");
+        }
+        requireNewStore(fields);
+        if (Boolean.TRUE.equals(db.queryForObject("""
+            SELECT EXISTS(SELECT 1 FROM merchant_enrollment_request WHERE status='PENDING_REVIEW'
+                AND REPLACE(TRIM(name),' ','')=REPLACE(TRIM(?),' ','')
+                AND REPLACE(TRIM(address),' ','')=REPLACE(TRIM(?),' ',''))
+            """, Boolean.class, fields.name(), fields.address()))) {
+            throw MiniProgramAccountService.conflict("相同店名和地址已有待审入驻申请，请从申请完成建档或关联");
+        }
+        String id = insertStore(fields, actor);
+        savePhoto(id, photo);
+        if (identity != null) identities.bindMerchant(identity, id, actor);
+        return Map.of("ok", true, "id", id);
+    }
+
+    private String insertStore(StoreFields fields, String actor) {
         String id = UUID.randomUUID().toString().replace("-", "");
         merchants.insert(Merchant.create(id, fields.name(), fields.contact(), fields.phone(), fields.address(),
                 fields.business(), LocalDateTime.now(BEIJING).format(JOIN_TIME)));
-        savePhoto(id, photo);
         merchants.createFinanceAccount(id, fields.name());
         audit.insertAudit(actor, "merchant.create", id, "", "DISABLED", "");
+        return id;
+    }
+
+    private void requireNewStore(StoreFields fields) {
+        var existing = db.queryForList("""
+            SELECT id FROM merchant WHERE deleted_at IS NULL
+                AND REPLACE(TRIM(name),' ','')=REPLACE(TRIM(?),' ','')
+                AND REPLACE(TRIM(address),' ','')=REPLACE(TRIM(?),' ','')
+            ORDER BY id LIMIT 1 FOR UPDATE
+            """, String.class, fields.name(), fields.address());
+        if (!existing.isEmpty()) {
+            throw MiniProgramAccountService.conflict("相同店名和地址已存在商户 " + existing.getFirst() + "，请关联已有档案");
+        }
+    }
+
+    private long identityForDirectBinding(String userNumber) {
+        if (userNumber.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择小程序用户");
+        long identity = identities.merchantIdentity(userNumber);
+        var status = db.queryForList("""
+            SELECT status FROM merchant_enrollment_request WHERE identity_id=? FOR UPDATE
+            """, String.class, identity);
+        if (!status.isEmpty() && Audit.PENDING_REVIEW.is(status.getFirst())) {
+            throw MiniProgramAccountService.conflict("该账号有待审入驻申请，请从申请关联商户");
+        }
+        return identity;
+    }
+
+    private Map<String, Object> bind(String id, Map<?, ?> payload, String actor) {
+        locks.lock("merchant_enrollment");
+        long identity = identityForDirectBinding(MiniProgramAccountService.userNumber(payload));
+        bind(identity, id, actor);
         return Map.of("ok", true, "id", id);
+    }
+
+    private void bind(long identity, String id, String actor) {
+        if (merchants.lockStore(id) == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存在");
+        identities.bindMerchant(identity, id, actor);
+    }
+
+    private Map<String, Object> unbind(String id, Map<?, ?> payload, String actor) {
+        String reason = MiniProgramAccountService.unbindReason(payload);
+        locks.lock("merchant_enrollment");
+        var bound = db.queryForList("SELECT id FROM merchant_identity WHERE merchant_id=? FOR UPDATE", Long.class, id);
+        if (bound.isEmpty()) return Map.of("ok", true, "id", id);
+        long identity = bound.getFirst();
+        if (!Long.toString(identity).equals(String.valueOf(payload.get("bindingId")))) {
+            throw MiniProgramAccountService.conflict("关联账号已变化，请刷新后重试");
+        }
+        identities.requireSettledWithdrawals(id);
+        if (merchants.lockPendingRevision(id) != null) {
+            throw MiniProgramAccountService.conflict("请先处理该商户的待审资料");
+        }
+        db.update("UPDATE merchant_identity SET merchant_id=NULL WHERE id=?", identity);
+        db.update("DELETE FROM merchant_session WHERE identity_id=?", identity);
+        audit.insertAudit(actor, "merchant.unbind", id, Long.toString(identity), "DISABLED", reason);
+        return Map.of("ok", true, "id", id);
+    }
+
+    Map<String, Object> reviewApplication(String applicationId, Map<?, ?> payload, Audit result,
+                                          String reason, String actor) {
+        long identityId;
+        try {
+            identityId = Long.parseLong(applicationId);
+        } catch (NumberFormatException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "入驻申请编号无效");
+        }
+        locks.lock("merchant_enrollment");
+        String current = identities.merchantProfile(identityId);
+        var requests = db.queryForList("""
+            SELECT name,contact,phone,address,status,merchant_id
+            FROM merchant_enrollment_request WHERE identity_id=? FOR UPDATE
+            """, identityId);
+        if (requests.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "入驻申请不存在");
+        var application = requests.getFirst();
+        if (!Audit.PENDING_REVIEW.is(application.get("status"))) {
+            throw MiniProgramAccountService.conflict("入驻申请已处理，请刷新列表");
+        }
+        String id = null;
+        if (result == Audit.APPROVED) {
+            if (current != null) throw MiniProgramAccountService.conflict("该微信已关联商户 " + current + "，请先处理原关联");
+            String choice = String.valueOf(payload.get("storeChoice"));
+            if ("create".equals(choice)) {
+                var fields = new StoreFields((String) application.get("name"), (String) application.get("contact"),
+                    (String) application.get("phone"), (String) application.get("address"), Business.STORE_CLOSED);
+                requireNewStore(fields);
+                id = insertStore(fields, actor);
+                db.update("""
+                    INSERT INTO merchant_store_photo(merchant_id,image_data,media_type)
+                    SELECT ?,image_data,media_type FROM merchant_enrollment_request WHERE identity_id=?
+                    """, id, identityId);
+            } else if ("existing".equals(choice)) {
+                id = text(payload, "merchantId", "商户编号", 32);
+                String status = db.query("SELECT audit_status FROM merchant WHERE id=? AND deleted_at IS NULL FOR UPDATE",
+                    (row, n) -> row.getString(1), id).stream().findFirst().orElse(null);
+                if (!Audit.APPROVED.is(status)) {
+                    throw MiniProgramAccountService.conflict("请选择已通过审核的商户档案");
+                }
+            } else {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择关联已有商户或确认新店建档");
+            }
+            bind(identityId, id, actor);
+        }
+        db.update("UPDATE merchant_enrollment_request SET status=?,reason=?,merchant_id=? WHERE identity_id=?",
+            result.name(), reason, id, identityId);
+        audit.insertAudit(actor, "merchant.audit", "application:" + identityId,
+            Audit.PENDING_REVIEW.name(), result.name(), reason);
+        return id == null ? Map.of("ok", true) : Map.of("ok", true, "id", id);
+    }
+
+    public Map<String, Object> applicationPhoto(String applicationId) {
+        if (!applicationId.matches("[0-9]{1,19}")) return Map.of();
+        return db.queryForList("""
+            SELECT image_data,media_type FROM merchant_enrollment_request
+            WHERE CAST(identity_id AS CHAR)=? AND status='PENDING_REVIEW'
+            """, applicationId).stream().findFirst().orElse(Map.of());
     }
 
     private static InlinePhoto readPhoto(Map<?, ?> payload) {

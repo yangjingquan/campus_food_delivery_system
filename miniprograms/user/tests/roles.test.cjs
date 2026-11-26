@@ -59,6 +59,17 @@ test('未入驻、待审核、被驳回走原流程，保留已进入过的工�
   assert.equal(storage.get('last-workspace-role'), 'user');
 });
 
+test('商户入驻申请展示审核状态，关联店铺后进入工作台', async t => {
+  const { roles, routes } = setup(t);
+  let profile = { application: { status: 'PENDING_REVIEW' }, store: null };
+  t.mock.method(merchant, 'profile', async () => profile);
+  assert.equal(await roles.status('merchant'), 'PENDING_REVIEW');
+  await roles.enter('merchant');
+  profile = { application: null, store: { auditStatus: 'APPROVED' } };
+  await roles.enter('merchant');
+  assert.deepEqual(routes, ['/merchant/pages/onboarding/index', '/merchant/pages/orders/index']);
+});
+
 test('网络异常及返回按钮均可阻止角色跳转', async t => {
   const { roles, routes, storage } = setup(t, 'user');
   const read = t.mock.method(merchant, 'profile', async () => { throw new Error('网络错误'); });

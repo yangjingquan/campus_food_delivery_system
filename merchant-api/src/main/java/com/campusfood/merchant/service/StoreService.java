@@ -3,12 +3,8 @@ package com.campusfood.merchant.service;
 import com.campusfood.domain.BusinessStates.Audit;
 import com.campusfood.domain.BusinessStates.Business;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,6 +24,7 @@ public class StoreService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("store", null);
         result.put("revision", null);
+        result.put("application", null);
         if (identity.merchantId() != null) {
             result.put("store", db.queryForMap("""
                 SELECT m.id,m.name,m.contact,m.phone,m.address,m.audit_status AS auditStatus,
@@ -41,6 +38,11 @@ public class StoreService {
                        image_data IS NOT NULL AS hasPhoto
                 FROM merchant_profile_revision WHERE merchant_id=?
                 """, identity.merchantId()).stream().findFirst().ifPresent(row -> result.put("revision", row));
+        } else {
+            db.queryForList("""
+                SELECT name,contact,phone,address,status,reason
+                FROM merchant_enrollment_request WHERE identity_id=? AND status IN ('PENDING_REVIEW','REJECTED')
+                """, identity.id()).stream().findFirst().ifPresent(row -> result.put("application", row));
         }
         return result;
     }
@@ -58,17 +60,29 @@ public class StoreService {
         String id = db.queryForMap("SELECT merchant_id FROM merchant_identity WHERE id=? FOR UPDATE", identity.id())
             .get("merchant_id") instanceof String value ? value : null;
         if (id == null) {
-            if (photo == null) throw Inputs.invalid("请上传店铺图片");
-            id = UUID.randomUUID().toString().replace("-", "");
-            String now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"))
-                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-            db.update("""
-                INSERT INTO merchant(id,name,contact,phone,address,audit_status,business_status,joined_at)
-                VALUES(?,?,?,?,?,'PENDING_REVIEW','STORE_CLOSED',?)
-                """, id, name, contact, phone, address, now);
-            db.update("UPDATE merchant_identity SET merchant_id=? WHERE id=?", id, identity.id());
-            db.update("INSERT INTO finance_account(id,name,type,balance_cents,status) VALUES(?,?,'MERCHANT',0,'ACCOUNT_ACTIVE')", id, name);
-            savePhoto(id, photo);
+            var statuses = db.queryForList("""
+                SELECT status FROM merchant_enrollment_request WHERE identity_id=? FOR UPDATE
+                """, String.class, identity.id());
+            if (!statuses.isEmpty() && Audit.PENDING_REVIEW.is(statuses.getFirst())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "入驻资料正在审核，请等待结果");
+            }
+            if (photo == null && (statuses.isEmpty() || !Audit.REJECTED.is(statuses.getFirst()))) {
+                throw Inputs.invalid("请上传店铺图片");
+            }
+            if (photo != null) {
+                db.update("""
+                    INSERT INTO merchant_enrollment_request(identity_id,name,contact,phone,address,image_data,media_type,status)
+                    VALUES(?,?,?,?,?,?,?,'PENDING_REVIEW') AS incoming
+                    ON DUPLICATE KEY UPDATE name=incoming.name,contact=incoming.contact,phone=incoming.phone,
+                        address=incoming.address,image_data=incoming.image_data,media_type=incoming.media_type,
+                        status='PENDING_REVIEW',reason=NULL,merchant_id=NULL,submitted_at=CURRENT_TIMESTAMP
+                    """, identity.id(), name, contact, phone, address, photo.data(), photo.mediaType());
+            } else {
+                db.update("""
+                    UPDATE merchant_enrollment_request SET name=?,contact=?,phone=?,address=?,status='PENDING_REVIEW',
+                        reason=NULL,merchant_id=NULL,submitted_at=CURRENT_TIMESTAMP WHERE identity_id=?
+                    """, name, contact, phone, address, identity.id());
+            }
             return;
         }
 
@@ -103,8 +117,11 @@ public class StoreService {
     }
 
     public UploadedPhoto storePhoto(SessionService.Identity identity) {
-        return db.query("SELECT image_data,media_type FROM merchant_store_photo WHERE merchant_id=?",
-            (row, n) -> new UploadedPhoto(row.getBytes(1), row.getString(2)), identity.merchantId())
+        String sql = identity.merchantId() == null
+            ? "SELECT image_data,media_type FROM merchant_enrollment_request WHERE identity_id=? AND status IN ('PENDING_REVIEW','REJECTED')"
+            : "SELECT image_data,media_type FROM merchant_store_photo WHERE merchant_id=?";
+        Object id = identity.merchantId() == null ? identity.id() : identity.merchantId();
+        return db.query(sql, (row, n) -> new UploadedPhoto(row.getBytes(1), row.getString(2)), id)
             .stream().findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "店铺图片不存在"));
     }
 

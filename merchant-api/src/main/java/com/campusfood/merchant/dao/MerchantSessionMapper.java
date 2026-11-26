@@ -26,9 +26,9 @@ public interface MerchantSessionMapper {
     void save(@Param("hash") String hash, @Param("identityId") long identityId, @Param("expiresAt") long expiresAt);
 
     @Select("""
-        SELECT i.id,i.merchant_id,m.audit_status
+        SELECT i.id,m.id AS merchant_id,m.audit_status
         FROM merchant_session s JOIN merchant_identity i ON i.id=s.identity_id
-        LEFT JOIN merchant m ON m.id=i.merchant_id
+        LEFT JOIN merchant m ON m.id=i.merchant_id AND m.deleted_at IS NULL
         WHERE s.token_hash=#{hash} AND s.expires_at>#{now}
         """)
     Map<String, Object> findActive(@Param("hash") String hash, @Param("now") long now);

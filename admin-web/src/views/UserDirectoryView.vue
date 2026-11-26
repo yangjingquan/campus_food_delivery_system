@@ -96,7 +96,7 @@ onBeforeUnmount(() => {
     <div class="panel-toolbar">
       <form class="directory-filters" @submit.prevent="search">
         <el-input v-model="keyword" class="directory-search" :prefix-icon="Search" clearable maxlength="120"
-          placeholder="搜索昵称、商户名称或骑手姓名" aria-label="搜索昵称、商户名称或骑手姓名" />
+          placeholder="搜索用户编号、昵称、商户或骑手" aria-label="搜索用户编号、昵称、商户或骑手" />
         <el-select v-model="role" class="directory-role" placeholder="全部角色" aria-label="按角色筛选">
           <el-option label="全部角色" value="" />
           <el-option v-for="option in roles" :key="option.id" :label="option.label" :value="option.id" />
@@ -115,6 +115,7 @@ onBeforeUnmount(() => {
           <span v-else class="directory-muted">未登录用户端</span>
         </template>
       </el-table-column>
+      <el-table-column prop="userNumber" label="用户编号" width="108" />
       <el-table-column label="角色" min-width="152">
         <template #default="{ row }">
           <div class="directory-tags">
@@ -143,6 +144,7 @@ onBeforeUnmount(() => {
           <div :class="user.nickname == null ? 'directory-muted' : 'directory-name'">
             {{ user.nickname ?? '未登录用户端' }}
           </div>
+          <div v-if="user.userNumber" class="directory-muted">用户编号 {{ user.userNumber }}</div>
           <div class="directory-tags">
             <span v-for="tag in user.roles" :key="tag.id" class="directory-tag" :class="'directory-tag-' + tag.id">{{ tag.label }}</span>
           </div>

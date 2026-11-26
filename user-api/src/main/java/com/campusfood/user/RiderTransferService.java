@@ -44,7 +44,7 @@ class RiderTransferService {
     private static final String SUBMIT_ERROR_PREFIX = "微信转账提交异常：";
     private static final long REAL_NAME_THRESHOLD = 200_000;
     private enum Party {
-        RIDER("骑手", "rider_transfer_channel", "rider_identity i ON i.id=w.account_id",
+        RIDER("骑手", "rider_transfer_channel", "rider_identity i ON i.rider_id=w.account_id",
             "i.openid", "r.name"),
         MERCHANT("商户", "merchant_transfer_channel",
             "merchant_identity i ON i.merchant_id=w.account_id", "i.open_id", "NULL");

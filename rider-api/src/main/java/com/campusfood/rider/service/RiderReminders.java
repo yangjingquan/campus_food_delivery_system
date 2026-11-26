@@ -48,9 +48,10 @@ public class RiderReminders {
         }
         // 一次性订阅最多保留一个待发送授权。最终授权额度由微信校验。
         db.update("""
-            INSERT INTO rider_reminder_subscription(rider_id,template_id,remaining) VALUES(?,?,1)
+            INSERT INTO rider_reminder_subscription(rider_id,template_id,remaining)
+            SELECT id,?,1 FROM rider_identity WHERE rider_id=?
             ON DUPLICATE KEY UPDATE template_id=?,remaining=1
-            """, rider, template, template);
+            """, template, rider, template);
     }
 
     @Scheduled(fixedDelayString = "${app.reminder-scan-ms:60000}", initialDelay = 25000)
@@ -77,7 +78,7 @@ public class RiderReminders {
         var recipients = db.queryForList("""
             SELECT s.rider_id,i.openid,r.availability,r.available_time FROM rider_reminder_subscription s
             JOIN rider_identity i ON i.id=s.rider_id AND i.app_id=?
-            JOIN rider r ON r.id=s.rider_id AND r.audit_status='APPROVED' AND r.enabled=TRUE
+            JOIN rider r ON r.id=i.rider_id AND r.audit_status='APPROVED' AND r.enabled=TRUE
             WHERE s.remaining=1 AND s.template_id=? AND s.last_batch_at<=?
             ORDER BY s.last_batch_at
             """, wechat.appId(), template, cutoff);

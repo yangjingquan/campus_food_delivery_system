@@ -87,7 +87,8 @@ public class RiderFinance {
             var parameters = db.queryForList("""
                 SELECT c.app_id AS appId,c.merchant_no AS mchId,c.package_info AS package
                 FROM rider_transfer_channel c JOIN withdrawal_request w ON w.id=c.withdrawal_id
-                JOIN rider_identity i ON i.id=w.account_id AND i.app_id=c.app_id
+                JOIN rider_identity i ON i.rider_id=w.account_id AND i.app_id=c.app_id
+                  AND (c.recipient_open_id IS NULL OR c.recipient_open_id=i.openid)
                 WHERE w.id=? AND w.account_id=? AND w.status IN ('TRANSFERRING','AWAITING_CONFIRMATION')
                   AND c.channel_state='WAIT_USER_CONFIRM' AND c.package_info IS NOT NULL AND c.checked_at>=?
                 """, id, rider, System.currentTimeMillis() - 120_000L);

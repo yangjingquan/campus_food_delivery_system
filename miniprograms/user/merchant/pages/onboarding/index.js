@@ -12,12 +12,15 @@ Page({
     this.setData({ loading: true, error: '', loggedIn: !!api.token() });
     try {
       if (!api.token()) return;
-      const { store, revision } = await api.request('/profile');
-      const form = (revision && revision.status === 'REJECTED' ? revision : store) || this.data.form;
-      const editable = !store || store.auditStatus === 'REJECTED' ||
-        (store.auditStatus === 'APPROVED' && this.edit && (!revision || revision.status !== 'PENDING_REVIEW'));
-      this.setData({ store, revision, form, editable, photo: '', photoWidth: 0, photoError: '' });
-      if (store && store.hasPhoto) {
+      const { store, revision, application } = await api.request('/profile');
+      const record = store || (application && {
+        ...application, auditStatus: application.status, auditReason: application.reason, hasPhoto: true
+      });
+      const form = (revision && revision.status === 'REJECTED' ? revision : record) || this.data.form;
+      const editable = !record || record.auditStatus === 'REJECTED' ||
+        (store?.auditStatus === 'APPROVED' && this.edit && revision?.status !== 'PENDING_REVIEW');
+      this.setData({ record, revision, form, editable, photo: '', photoWidth: 0, photoError: '' });
+      if (record?.hasPhoto) {
         try { this.setData({ photo: await api.photo() }); }
         catch (error) { this.setData({ photoError: error.message }); }
       }
@@ -50,7 +53,7 @@ Page({
     ui.action(this, async () => {
       const { name, contact, phone, address } = this.data.form;
       if (![name, contact, phone, address].every(value => value.trim())) throw new Error('请填写店铺名称、联系人、电话和地址');
-      if (!this.data.store && !this.image) throw new Error('请上传店铺图片');
+      if (!this.data.record && !this.image) throw new Error('请上传店铺图片');
       await api.request('/profile', { name, contact, phone, address, image: this.image || '' }, 'POST');
       this.image = '';
       await this.refresh();

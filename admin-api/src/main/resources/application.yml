@@ -40,6 +40,7 @@ mybatis-plus:
     # 事务内按语句读取最新结果，避免重复查询使用会话缓存。
     local-cache-scope: STATEMENT
 app:
+  wechat-app-id: ${WECHAT_USER_APP_ID:wxb2ef21a4d9800f4e}
   wechat-master-key-file: ${WECHAT_MASTER_KEY_FILE:}
   internal-api-key: ${INTERNAL_API_KEY:}
   merchant-api-url: ${MERCHANT_API_URL:http://localhost:8083}

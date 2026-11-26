@@ -81,9 +81,12 @@ public interface MerchantMapper extends BaseMapper<Merchant> {
         """)
     Integer countPendingRevisions();
 
+    @Select("SELECT COUNT(*) FROM merchant_enrollment_request WHERE status='PENDING_REVIEW'")
+    int countPendingApplications();
+
     default Integer countPending() {
         return Math.toIntExact(selectCount(Wrappers.<Merchant>lambdaQuery().eq(Merchant::getAuditStatus, Audit.PENDING_REVIEW)
                 .isNull(Merchant::getDeletedAt)))
-                + countPendingRevisions();
+                + countPendingRevisions() + countPendingApplications();
     }
 }

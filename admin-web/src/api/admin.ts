@@ -42,6 +42,9 @@ export interface AdminSessionUser {
 export interface MiniProgramUser {
   id: string
   nickname: string | null
+  userNumber: string | null
+  merchantId: string | null
+  riderId: string | null
   merchantName: string | null
   merchantStatus: string | null
   riderName: string | null

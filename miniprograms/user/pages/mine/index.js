@@ -59,6 +59,14 @@ Page({
     }
   },
 
+  copyUserNumber() {
+    if (!this.data.user?.id) return;
+    wx.setClipboardData({
+      data: String(this.data.user.id),
+      fail: () => wx.showToast({ title: '未能复制，请稍后重试', icon: 'none' })
+    });
+  },
+
   async login() {
     if (this.data.working) return;
     this.setData({ working: true, message: '' });

@@ -24,6 +24,8 @@
         <button wx:if="{{user && !editingNickname}}" class="nickname-link" bindtap="editNickname" disabled="{{working}}">
           <image src="/assets/v3-pencil.svg" aria-hidden="true"/>修改昵称
         </button>
+        <button wx:if="{{user}}" class="btn outline small-btn profile-login" bindtap="copyUserNumber"
+          aria-label="复制用户编号 {{user.id}}">用户编号 {{user.id}} · 复制</button>
         <view wx:if="{{profileAction === 'nickname'}}" class="profile-status">昵称保存中…</view>
         <button wx:if="{{!user}}" class="btn small-btn profile-login" bindtap="login" loading="{{working}}" disabled="{{working}}">微信登录</button>
       </view>

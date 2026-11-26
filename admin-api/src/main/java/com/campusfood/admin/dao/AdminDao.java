@@ -11,6 +11,7 @@ import java.util.Map;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 /** 管理员、角色分配及入驻审核的数据访问接口。 */
 @Mapper
@@ -50,9 +51,15 @@ public interface AdminDao extends BaseMapper<AdminUser> {
     int insertSimpleAudit(@Param("actor") String actor, @Param("action") String action,
                           @Param("targetId") Object targetId, @Param("afterState") String afterState);
 
-    List<Map<String, Object>> listMerchants();
+    @Select("""
+        SELECT EXISTS(SELECT 1 FROM information_schema.columns
+            WHERE table_schema=DATABASE() AND table_name=#{table} AND column_name=#{column})
+        """)
+    boolean hasBindingColumn(@Param("table") String table, @Param("column") String column);
 
-    List<Map<String, Object>> listRiders();
+    List<Map<String, Object>> listMerchants(@Param("bindings") boolean bindings);
+
+    List<Map<String, Object>> listRiders(@Param("bindings") boolean bindings);
 
     List<Map<String, Object>> listAdministrators();
 

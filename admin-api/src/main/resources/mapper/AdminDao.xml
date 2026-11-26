@@ -15,26 +15,40 @@
     </insert>
 
     <select id="listMerchants" resultType="map">
-        SELECT id,name,contact,phone,address,auditStatus,businessStatus,orderCount,joinedAt,auditReason,hasPhoto,listed FROM (
+        SELECT id,name,contact,phone,address,auditStatus,businessStatus,orderCount,joinedAt,auditReason,hasPhoto,listed,bindingId FROM (
         SELECT id,name,contact,phone,address,audit_status AS auditStatus,business_status AS businessStatus,
         order_count AS orderCount,joined_at AS joinedAt,audit_reason AS auditReason,
-        EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=merchant.id) AS hasPhoto,listed,display_order AS sortOrder,0 AS revisionRow FROM merchant
-        WHERE deleted_at IS NULL
+        EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=merchant.id) AS hasPhoto,listed,display_order AS sortOrder,
+        0 AS reviewRow,
+        <choose>
+            <when test="bindings">(SELECT CAST(i.id AS CHAR) FROM merchant_identity i WHERE i.merchant_id=merchant.id)</when>
+            <otherwise>NULL</otherwise>
+        </choose> AS bindingId
+        FROM merchant WHERE deleted_at IS NULL
         UNION ALL
         SELECT CONCAT('revision:',m.id),r.name,r.contact,r.phone,r.address,r.status,'PROFILE_REVISION',
                m.order_count,m.joined_at,r.reason,r.image_data IS NOT NULL
-                   OR EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=m.id),m.listed,m.display_order,1
+                   OR EXISTS(SELECT 1 FROM merchant_store_photo p WHERE p.merchant_id=m.id),m.listed,m.display_order,1,NULL
         FROM merchant_profile_revision r JOIN merchant m ON m.id=r.merchant_id
         WHERE r.status='PENDING_REVIEW' AND m.deleted_at IS NULL
+        UNION ALL
+        SELECT CONCAT('application:',identity_id),name,contact,phone,address,status,'ENROLLMENT_APPLICATION',
+               0,DATE_FORMAT(submitted_at,'%Y-%m-%d %H:%i:%s'),reason,TRUE,FALSE,0,2,NULL
+        FROM merchant_enrollment_request WHERE status='PENDING_REVIEW'
         ) records
-        ORDER BY revisionRow,sortOrder,id
+        ORDER BY reviewRow,sortOrder,id
     </select>
 
     <select id="listRiders" resultType="map">
         SELECT id,name,phone,gender,availability,available_time AS availableTime,audit_status AS auditStatus,
         deliveries,COALESCE((SELECT a.balance_cents FROM finance_account a WHERE a.id=r.id AND a.type='RIDER'),r.balance_cents) AS balanceCents,
         joined_at AS joinedAt,audit_reason AS auditReason,enabled,
-        EXISTS(SELECT 1 FROM rider_student_card c WHERE c.rider_id=r.id) AS hasPhoto FROM rider r ORDER BY id
+        EXISTS(SELECT 1 FROM rider_student_card c WHERE c.rider_id=r.id) AS hasPhoto,
+        <choose>
+            <when test="bindings">(SELECT i.id FROM rider_identity i WHERE i.rider_id=r.id)</when>
+            <otherwise>NULL</otherwise>
+        </choose> AS bindingId
+        FROM rider r ORDER BY id
     </select>
 
     <select id="listAdministrators" resultType="map">

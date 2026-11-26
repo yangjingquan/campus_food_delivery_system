@@ -33,6 +33,13 @@ public class AdminController {
         this.secureSessionCookie = secureSessionCookie;
     }
 
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> requestError(ResponseStatusException exception) {
+        var status = exception.getStatusCode();
+        return ResponseEntity.status(status).body(Map.of("status", status.value(), "message",
+                exception.getReason() == null ? "请求失败" : exception.getReason()));
+    }
+
     @PostMapping("/auth/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest body,
             @RequestHeader(value = BROWSER_HEADER, required = false) String browser) {

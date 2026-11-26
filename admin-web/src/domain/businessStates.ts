@@ -35,6 +35,7 @@ const labels: Record<string, string> = {
   STORE_CLOSED: '休息中',
   STORE_OPEN: '营业中',
   PROFILE_REVISION: '资料变更',
+  ENROLLMENT_APPLICATION: '入驻申请',
   RIDER: '骑手',
   MERCHANT: '商户',
   PLATFORM: '平台',

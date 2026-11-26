@@ -4,7 +4,7 @@
     <sql id="accounts">
         WITH role_identities AS (
             <!-- 用户表沿用现有用户小程序的 OpenID。商户和骑手身份保存各自的 AppID。 -->
-            SELECT CAST(COALESCE((SELECT TRIM(user_app_id) FROM wechat_config ORDER BY id DESC LIMIT 1), '')
+            SELECT CAST(COALESCE(NULLIF((SELECT TRIM(user_app_id) FROM wechat_config ORDER BY id DESC LIMIT 1), ''), #{appId})
                    AS BINARY) AS app_id,
                    CAST(openid AS BINARY) AS open_id, id AS user_id,
                    NULL AS merchant_identity_id, NULL AS rider_identity_id
@@ -28,7 +28,10 @@
         LEFT JOIN user_profile u ON u.id = a.user_id
         LEFT JOIN merchant_identity mi ON mi.id = a.merchant_identity_id
         LEFT JOIN merchant m ON m.id = mi.merchant_id
-        LEFT JOIN rider r ON r.id = a.rider_identity_id
+        LEFT JOIN merchant_enrollment_request e ON e.identity_id = mi.id AND mi.merchant_id IS NULL
+            AND e.status IN ('PENDING_REVIEW','REJECTED')
+        LEFT JOIN rider_identity ri ON ri.id = a.rider_identity_id
+        LEFT JOIN rider r ON r.id = ri.rider_id
         <where>
             <choose>
                 <when test="role == 'user'">a.user_id IS NOT NULL</when>
@@ -36,9 +39,14 @@
                 <when test="role == 'rider'">a.rider_identity_id IS NOT NULL</when>
             </choose>
             <if test="keyword != ''">
-                AND (LOCATE(#{keyword}, u.display_name) &gt; 0
-                    OR LOCATE(#{keyword}, m.name) &gt; 0
-                    OR LOCATE(#{keyword}, r.name) &gt; 0)
+                <choose>
+                    <when test="keyword.matches('[0-9]{1,19}')">AND CAST(a.user_id AS CHAR) = #{keyword}</when>
+                    <otherwise>
+                        AND (LOCATE(#{keyword}, u.display_name) &gt; 0
+                            OR LOCATE(#{keyword}, COALESCE(m.name,e.name)) &gt; 0
+                            OR LOCATE(#{keyword}, r.name) &gt; 0)
+                    </otherwise>
+                </choose>
             </if>
         </where>
     </sql>
@@ -53,11 +61,14 @@
         <include refid="accounts"/>
         SELECT COALESCE(CONCAT('user:', a.user_id), CONCAT('merchant:', a.merchant_identity_id),
                         CONCAT('rider:', a.rider_identity_id)) AS id,
+               CAST(a.user_id AS CHAR) AS userNumber,
                u.display_name AS nickname,
-               m.name AS merchantName,
+               mi.merchant_id AS merchantId,
+               ri.rider_id AS riderId,
+               COALESCE(m.name,e.name) AS merchantName,
                CASE WHEN a.merchant_identity_id IS NULL THEN NULL
                     WHEN m.deleted_at IS NOT NULL THEN 'REMOVED'
-                    ELSE COALESCE(m.audit_status, 'NOT_ENROLLED') END AS merchantStatus,
+                    ELSE COALESCE(m.audit_status, e.status, 'NOT_ENROLLED') END AS merchantStatus,
                r.name AS riderName,
                CASE WHEN a.rider_identity_id IS NOT NULL
                     THEN COALESCE(r.audit_status, 'NOT_ENROLLED') END AS riderStatus

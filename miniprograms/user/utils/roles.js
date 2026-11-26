@@ -29,8 +29,8 @@ function rememberedRole(options = {}) {
 
 async function status(role) {
   if (role === 'merchant') {
-    const { store } = await merchant.profile();
-    return store?.auditStatus || 'NOT_ENROLLED';
+    const { store, application } = await merchant.profile();
+    return store?.auditStatus || application?.status || 'NOT_ENROLLED';
   }
   if (role === 'rider') {
     const profile = await rider.request('/profile');

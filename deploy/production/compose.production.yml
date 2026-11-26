@@ -52,6 +52,7 @@ services:
     container_name: campus-food-admin-api
     restart: unless-stopped
     environment:
+      WECHAT_USER_APP_ID: ${WECHAT_USER_APP_ID:?set WECHAT_USER_APP_ID}
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:mysql://shop-mysql:3306/campus_food_delivery?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true
       DB_USER: cfd_app

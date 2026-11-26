@@ -75,22 +75,25 @@ public class RiderIdentityService {
         db.update("DELETE FROM rider_session WHERE expires_at<=?", System.currentTimeMillis());
     }
 
-    public Map<String, Object> profile(String id) {
-        var profile = riders.profile(id);
+    public Map<String, Object> profile(String identityId) {
+        var profile = riders.profile(identityId);
+        if (profile == null) throw unauthorized();
         if (profile.get("auditStatus") == null) {
             profile.put("auditStatus", Audit.NOT_ENROLLED.name());
         }
         return profile;
     }
 
-    public void requireApproved(String id) {
-        if (!Audit.APPROVED.is(profile(id).get("auditStatus"))) {
+    public String approvedRider(String identityId) {
+        var profile = profile(identityId);
+        if (!Audit.APPROVED.is(profile.get("auditStatus"))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "学生身份审核通过后才能开展配送");
         }
+        return (String) profile.get("id");
     }
 
     @Transactional
-    public Map<String, Object> apply(String id, String name, String phone, Gender gender,
+    public Map<String, Object> apply(String identityId, String name, String phone, Gender gender,
                                      Availability availability, String availableTime, MultipartFile studentCard) throws IOException {
         name = Inputs.required(name, 80, "姓名");
         phone = Inputs.required(phone, 20, "手机号");
@@ -105,7 +108,16 @@ public class RiderIdentityService {
         String type = imageType(bytes);
 
         // 同一微信身份串行提交，驳回后可重交，待审核和通过的资料禁止覆盖。
-        db.queryForObject("SELECT id FROM rider_identity WHERE id=? FOR UPDATE", String.class, id);
+        String id = db.queryForObject("SELECT rider_id FROM rider_identity WHERE id=? FOR UPDATE",
+            String.class, identityId);
+        boolean newProfile = id == null;
+        if (newProfile) {
+            id = identityId;
+            // An unbound identity may already have owned a profile with the same id.
+            if (Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM rider WHERE id=?)", Boolean.class, id))) {
+                id = "R" + UUID.randomUUID().toString().replace("-", "").substring(0, 30);
+            }
+        }
         var statuses = db.queryForList("SELECT audit_status FROM rider WHERE id=? FOR UPDATE", String.class, id);
         if (statuses.isEmpty()) {
             String now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"))
@@ -125,11 +137,14 @@ public class RiderIdentityService {
                 """, name, phone, gender.name(), availability.name(), availableTime, id);
             db.update("UPDATE finance_account SET name=? WHERE id=?", name, id);
         }
+        if (newProfile) {
+            db.update("UPDATE rider_identity SET rider_id=? WHERE id=?", id, identityId);
+        }
         db.update("""
             INSERT INTO rider_student_card(rider_id,media_type,image_data) VALUES(?,?,?)
             ON DUPLICATE KEY UPDATE media_type=?,image_data=?
             """, id, type, bytes, type, bytes);
-        return profile(id);
+        return profile(identityId);
     }
 
     private static String imageType(byte[] bytes) {

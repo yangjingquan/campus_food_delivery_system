@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface RiderDao {
     @Select("""
-        SELECT i.id, r.enabled, r.name, r.phone, r.gender, r.availability, r.available_time AS availableTime,
+        SELECT COALESCE(r.id,i.id) AS id, r.enabled, r.name, r.phone, r.gender, r.availability, r.available_time AS availableTime,
                r.audit_status AS auditStatus, r.audit_reason AS auditReason, r.joined_at AS joinedAt
-        FROM rider_identity i LEFT JOIN rider r ON r.id=i.id WHERE i.id=#{id}
+        FROM rider_identity i LEFT JOIN rider r ON r.id=i.rider_id WHERE i.id=#{id}
         """)
     Map<String, Object> profile(@Param("id") String id);
 }

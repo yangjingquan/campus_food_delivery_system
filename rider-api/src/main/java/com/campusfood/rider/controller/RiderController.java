@@ -151,9 +151,7 @@ public class RiderController {
     }
 
     private String approved(String auth) {
-        String id = identities.authenticate(auth);
-        identities.requireApproved(id);
-        return id;
+        return identities.approvedRider(identities.authenticate(auth));
     }
 
     public record LoginRequest(String code) {

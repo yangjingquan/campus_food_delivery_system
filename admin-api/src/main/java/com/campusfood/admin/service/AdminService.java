@@ -180,8 +180,8 @@ public class AdminService {
         Object orders =
                 authorization.permissions(username).contains("order.view") ? business.workspace("orders").get("rows") :
                         List.of();
-        if (section.equals("merchants")) return Map.of("rows", db.listMerchants(), "orders", orders);
-        if (section.equals("riders")) return Map.of("rows", db.listRiders(), "orders", orders);
+        if (section.equals("merchants")) return Map.of("rows", db.listMerchants(db.hasBindingColumn("merchant_identity", "merchant_id")), "orders", orders);
+        if (section.equals("riders")) return Map.of("rows", db.listRiders(db.hasBindingColumn("rider_identity", "rider_id")), "orders", orders);
         return business.workspace(section);
     }
 
@@ -256,8 +256,10 @@ public class AdminService {
 
     public Map<String, Object> merchantPhoto(String id, String authHeader) {
         authorization.require(actor(authHeader), "merchant.view");
-        Map<String, Object> photo = id.startsWith("revision:")
-                ? merchants.revisionPhoto(id.substring("revision:".length())) : merchants.currentPhoto(id);
+        Map<String, Object> photo = id.startsWith("application:")
+                ? merchantManagement.applicationPhoto(id.substring("application:".length()))
+                : id.startsWith("revision:") ? merchants.revisionPhoto(id.substring("revision:".length()))
+                : merchants.currentPhoto(id);
         if (photo == null || !(photo.get("image_data") instanceof byte[])) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商户图片不存在");
         }
@@ -299,9 +301,9 @@ public class AdminService {
         String type = String.valueOf(body.type());
         String permission = switch (type) {
             case "merchant.audit" -> "merchant.audit";
-            case "merchant.create", "merchant.reorder", "merchant.update", "merchant.availability", "merchant.delete", "merchant.save-pricing" -> "merchant.manage";
+            case "merchant.create", "merchant.bind", "merchant.unbind", "merchant.reorder", "merchant.update", "merchant.availability", "merchant.delete", "merchant.save-pricing" -> "merchant.manage";
             case "merchant.save-printer" -> "merchant.printer.edit";
-            case "rider.create", "rider.update", "rider.enable", "rider.disable" -> "rider.manage";
+            case "rider.create", "rider.bind", "rider.unbind", "rider.update", "rider.enable", "rider.disable" -> "rider.manage";
             case "rider.audit" -> "rider.audit";
             case "order.coordinate" -> "order.coordinate";
             case "refund.apply", "refund.offline", "refund.query" -> "refund.manage";
@@ -313,6 +315,10 @@ public class AdminService {
         authorization.require(username, permission);
         if (!(body.payload() instanceof Map<?, ?> payload))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少审核信息");
+        if ((permission.equals("merchant.manage") || permission.equals("rider.manage"))
+            && (type.endsWith(".bind") || type.endsWith(".unbind") || !MiniProgramAccountService.userNumber(payload).isEmpty())) {
+            authorization.require(username, "user.view");
+        }
         // 回滚可能恢复旧版支付材料，继续要求额外的支付管理权限。
         if (type.equals("wechat.rollback")) authorization.require(username, "wechat.toggle");
         if (type.startsWith("wechat.")) return wechat.action(type, payload, username);
@@ -333,6 +339,9 @@ public class AdminService {
                 (decision.equals("reject") && reason.isBlank()) || reason.length() > 500)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审核决定或驳回原因无效");
         Audit result = decision.equals("approve") ? Audit.APPROVED : Audit.REJECTED;
+        if (type.equals("merchant.audit") && id.startsWith("application:")) {
+            return merchantManagement.reviewApplication(id.substring("application:".length()), payload, result, reason, username);
+        }
         int changed;
         if (type.equals("merchant.audit") && id.startsWith("revision:")) {
             String storeId = id.substring("revision:".length());
