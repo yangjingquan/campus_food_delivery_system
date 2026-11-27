@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Close } from '@element-plus/icons-vue'
+import { Close, SwitchButton } from '@element-plus/icons-vue'
 import { adminApi } from './api/admin'
 import { financePages } from './router'
 import { useAuthStore } from './stores/auth'
@@ -194,12 +194,31 @@ async function changePassword() {
             <strong>{{ title }}</strong>
           </div>
         </div>
-        <div class="topbar-actions">
-          <el-dropdown trigger="click" @command="handleCommand">
-            <button class="profile-button" type="button"><span class="avatar">管</span><span class="profile-text"><strong>{{ auth.name }}</strong><small>{{ auth.role }}</small></span><el-icon><ArrowDown /></el-icon></button>
-            <template #dropdown><el-dropdown-menu><el-dropdown-item command="password">修改密码</el-dropdown-item><el-dropdown-item command="logout">退出账号</el-dropdown-item></el-dropdown-menu></template>
-          </el-dropdown>
-        </div>
+        <el-dropdown class="topbar-account" trigger="click" placement="bottom-end" popper-class="profile-menu"
+          :show-arrow="false" @command="handleCommand">
+          <button class="profile-button" type="button" :aria-label="`账号菜单：${auth.name}，${auth.role}`">
+            <span class="profile-avatar" aria-hidden="true"><el-icon><User /></el-icon></span>
+            <span class="profile-text">
+              <strong>{{ auth.name }}</strong>
+              <small>{{ auth.role }}</small>
+            </span>
+            <el-icon class="profile-chevron" aria-hidden="true"><ArrowDown /></el-icon>
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <li class="profile-menu-identity profile-text" role="presentation">
+                <strong>{{ auth.name }}</strong>
+                <small>{{ auth.role }}</small>
+              </li>
+              <el-dropdown-item command="password">
+                <el-icon aria-hidden="true"><Lock /></el-icon>修改密码
+              </el-dropdown-item>
+              <el-dropdown-item class="profile-menu-logout" command="logout">
+                <el-icon aria-hidden="true"><SwitchButton /></el-icon>退出账号
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </header>
       <main ref="mainContent" class="page-content" tabindex="-1"><RouterView /></main>
     </section>
