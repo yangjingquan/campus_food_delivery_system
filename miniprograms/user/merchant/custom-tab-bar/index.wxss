@@ -27,7 +27,7 @@
   margin: 0;
   color: #54695f;
   background: transparent;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.2;
 }
 .tab::after { border: 0; }

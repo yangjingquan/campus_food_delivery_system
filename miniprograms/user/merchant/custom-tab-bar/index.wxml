@@ -1,6 +1,6 @@
-<view class="tab-bar" aria-label="商户工作台导航">
+<view wx:if="{{!hiddenBar}}" class="tab-bar" aria-label="商户工作台导航">
   <button wx:for="{{tabs}}" wx:key="path" class="tab {{selected === item.path ? 'selected' : ''}}"
-    data-path="{{item.path}}" bindtap="select" hover-class="pressed"
+    data-path="{{item.path}}" data-key="{{item.key}}" bindtap="select" hover-class="pressed"
     aria-label="{{item.text}}" aria-current="{{selected === item.path ? 'page' : 'false'}}">
     <image class="tab-icon" src="/merchant/assets/{{item.icon}}{{selected === item.path ? '-active' : ''}}.png" mode="aspectFit" aria-hidden="true" />
     <text>{{item.text}}</text>

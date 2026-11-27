@@ -1,0 +1,60 @@
+<wxs module="states" src="../../utils/states.wxs"/>
+<import src="../../fragments/states.wxml" />
+<view class="screen mine-screen tab-screen">
+  <view class="row mine-header">
+    <view class="flex">
+      <view class="heading">我的店铺</view>
+      <view class="hint">营业状态、审核资料和接单设备</view>
+    </view>
+    <button class="btn switch-role-button" bindtap="openRolePicker" hover-class="pressed">
+      <image class="switch-role-icon" src="/assets/v3-roles.svg" mode="aspectFit" aria-hidden="true" />
+      <text>切换角色</text>
+    </button>
+  </view>
+  <template is="state" data="{{error, loading: loading && !store, blocked}}" />
+  <block wx:if="{{loggedIn && !error && (!loading || store)}}">
+    <view class="hero">
+      <view class="row"><text class="section flex">{{store.name || '提交商户入驻'}}</text><text class="badge">{{states.label(store.auditStatus) || '未申请'}}</text></view>
+      <view class="muted separator">{{store.address || '完成资料提交后可查看审核进度'}}</view>
+    </view>
+    <view class="tile-grid">
+      <button class="nav-tile" bindtap="shop" hover-class="pressed">
+        <view class="tile-top-row">
+          <image class="icon" src="/merchant/assets/ui/store.svg" mode="aspectFit" aria-hidden="true" />
+          <text class="tile-status">{{states.label(revision.status) || '查看 ›'}}</text>
+        </view>
+        <view class="tile-title">{{store.auditStatus === 'APPROVED' ? '店铺资料与变更' : '入驻资料与进度'}}</view>
+      </button>
+      <button wx:if="{{store.auditStatus === 'APPROVED'}}" class="nav-tile" bindtap="devices" hover-class="pressed">
+        <view class="tile-top-row">
+          <image class="icon" src="/merchant/assets/ui/printer.svg" mode="aspectFit" aria-hidden="true" />
+          <text class="tile-status">查看 ›</text>
+        </view>
+        <view class="tile-title">打印设备与订阅消息</view>
+      </button>
+    </view>
+    <view wx:if="{{store.auditStatus === 'APPROVED'}}" class="card">
+      <view class="row">
+        <view class="flex"><view class="section">店铺点餐码</view><view class="hint">顾客微信扫码进入本店菜单</view></view>
+        <button class="btn plain" bindtap="orderingCode" loading="{{codeLoading}}" disabled="{{codeLoading}}" hover-class="pressed">查看点餐码</button>
+      </view>
+      <view wx:if="{{codeError}}" class="notice error">{{codeError}}</view>
+    </view>
+    <view wx:if="{{store.auditStatus === 'APPROVED'}}" class="card row business-card">
+      <view class="flex"><view class="business-status"><text class="status-dot {{store.businessStatus === 'STORE_OPEN' ? '' : 'closed'}}"></text><text class="section">{{states.label(store.businessStatus)}}</text></view><view class="hint">店铺营业状态</view></view>
+      <button class="btn plain" bindtap="business" disabled="{{saving}}" hover-class="pressed">{{store.businessStatus === 'STORE_OPEN' ? '打烊' : '开始营业'}}</button>
+    </view>
+    <view wx:if="{{store.auditStatus === 'APPROVED'}}" class="card">
+      <text class="label">起送价（元）</text>
+      <view class="row form-row">
+        <view class="currency-field flex"><text aria-hidden="true">¥</text><input class="field" type="digit" value="{{minimumOrder}}" bindinput="inputMinimumOrder"
+          aria-label="起送价（元）" maxlength="12" disabled="{{saving}}" /></view>
+        <button class="btn primary" bindtap="saveMinimumOrder" disabled="{{saving}}" hover-class="pressed">保存起送价</button>
+      </view>
+      <view class="hint">按本店商品金额计算，不含配送费。设为 0 表示不限。</view>
+      <view wx:if="{{minimumOrderError}}" class="notice error">{{minimumOrderError}}</view>
+    </view>
+    <view wx:if="{{formError}}" class="notice error">{{formError}}</view>
+    <button class="btn plain centered logout-button" bindtap="logout" disabled="{{saving}}" hover-class="pressed">退出登录</button>
+  </block>
+</view>

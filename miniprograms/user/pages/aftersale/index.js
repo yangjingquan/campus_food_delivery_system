@@ -13,7 +13,7 @@ const hints = {
 };
 
 Page({
-  data: { item: null, events: [], loading: true, loadError: '', working: false },
+  data: { item: null, events: [], photoPath: '', photoError: false, loading: true, loadError: '', working: false },
 
   onLoad(query) { this.refundId = query.id; },
   onShow() { this.load(); },
@@ -22,20 +22,41 @@ Page({
     this.setData({ loading: true, loadError: '' });
     try {
       await getApp().ensureLogin();
+      const token = wx.getStorageSync('userToken');
       const { data } = await api.get(`/aftersales/${this.refundId}`);
       const events = (data.events || []).map((event, index) => ({
         ...event, key: index, timeText: time(event.createdAt)
       }));
       this.setData({
-        item: data, events, loading: false, amountText: money(data.amountCents), deliveryRefundText: data.deliveryRefundCents ? money(data.deliveryRefundCents) : '', createdAtText: time(data.createdAt),
+        item: data, events, photoPath: '', photoError: false, loading: false,
+        amountText: money(data.amountCents),
+        deliveryRefundText: data.deliveryRefundCents ? money(data.deliveryRefundCents) : '',
+        createdAtText: time(data.createdAt),
         stateHint: hints[data.status] || '请查看处理记录。',
         canIntervene: ['REFUND_REJECTED', 'AWAITING_MERCHANT_DECISION'].includes(data.status)
           || (data.status === 'REFUND_VERIFYING' && !data.platformIntervened),
         canEnd: data.status === 'REFUND_REJECTED'
       });
+      if (data.hasPhoto && token) this.loadPhoto();
     } catch (error) {
       this.setData({ loading: false, loadError: error.message });
     }
+  },
+
+  async loadPhoto() {
+    const token = wx.getStorageSync('userToken');
+    if (!token || !this.data.item?.hasPhoto) return;
+    this.setData({ photoError: false });
+    try {
+      const photoPath = await api.downloadAftersalePhoto(this.refundId, token);
+      this.setData({ photoPath });
+    } catch (_) {
+      this.setData({ photoError: true });
+    }
+  },
+
+  previewPhoto() {
+    if (this.data.photoPath) wx.previewImage({ current: this.data.photoPath, urls: [this.data.photoPath] });
   },
 
   intervene() { this.act('intervene'); },

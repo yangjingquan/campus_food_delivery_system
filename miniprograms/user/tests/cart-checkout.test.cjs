@@ -54,9 +54,9 @@ test('购物车按各商户规则计算配送费，只结算达标商户', async
   await cart.load();
   assert.equal(cart.data.groups[0].shortfallText, '¥3.00');
   assert.equal(cart.data.checkoutCount, 2);
-  assert.equal(cart.data.foodText, '¥34.00');
-  assert.equal(cart.data.feeText, '¥7.47');
-  assert.equal(cart.data.totalText, '¥41.47');
+  assert.equal(cart.data.foodText, '¥24.00');
+  assert.equal(cart.data.feeText, '¥3.47');
+  assert.equal(cart.data.totalText, '¥27.47');
   cart.checkout();
   assert.equal(destinations[0], '/pages/confirm/index?merchantIds=B,C');
 
@@ -76,9 +76,9 @@ test('购物车按各商户规则计算配送费，只结算达标商户', async
   await cart.load();
   assert.deepEqual(storage.shoppingCart.map(item => item.productId), ['pA']);
   assert.equal(cart.data.checkoutCount, 0);
-  assert.equal(cart.data.foodText, '¥10.00');
-  assert.equal(cart.data.feeText, '¥4.00');
-  assert.equal(cart.data.totalText, '¥14.00');
+  assert.equal(cart.data.foodText, '¥0.00');
+  assert.equal(cart.data.feeText, '¥0.00');
+  assert.equal(cart.data.totalText, '¥0.00');
   cart.checkout();
   assert.equal(destinations.length, 2);
 
@@ -92,5 +92,5 @@ test('购物车按各商户规则计算配送费，只结算达标商户', async
 
   cart.change({ currentTarget: { dataset: { id: 'pA', delta: -1 } } });
   assert.equal(cart.data.checkoutCount, 0);
-  assert.equal(cart.data.totalText, '¥14.00');
+  assert.equal(cart.data.totalText, '¥0.00');
 });

@@ -1,16 +1,19 @@
 @import "../../styles/base.wxss";
 .store-page .info > .pill { padding: 0; color: #a84b21; background: none; font-weight: 700; }
 .store-page > .row .thumb { width: 78px; height: 78px; }
-.store-title { margin: 9px 0 8px; font-size: 26px; }
-.store-service { margin: 18px 0 14px; }
-.store-page .section.h3 { margin: 14px 0; }
+.store-title { margin: 8px 0 6px; font-size: 24px; }
+.store-service { margin: 16px 0 12px; }
+.store-categories { margin: 10px 0 6px; }
+.sync-cart-hint { padding-left: 14px; background: #fff4ec; color: #874723; }
+.sync-cart-hint::before { display: none; }
+.store-page button.sync-cart-btn { color: #a84b21; font-weight: 700; flex-shrink: 0; }
+.store-page .section.h3 { margin: 14px 0 10px; }
 .store-page .product-card { margin-bottom: 10px; padding: 12px; border-radius: 16px; }
-.store-page .foodline { align-items: flex-start; gap: 10px; }
-.store-page .foodline .thumb { border-radius: 12px; }
-.store-page .product-description { margin-top: 2px; }
-.store-page .food-price-row { margin-top: 4px; flex-wrap: wrap; gap: 4px 8px; }
+.store-page .foodline { align-items: flex-start; gap: 12px; }
+.store-page .foodline .thumb { width: 72px; height: 72px; border-radius: 12px; }
+.store-page .product-description { margin-top: 3px; }
+.store-page .food-price-row { margin-top: 8px; flex-wrap: wrap; gap: 4px 8px; }
 .store-page .product-pricing .price { font-size: 18px; line-height: 1.3; }
 .store-page .minimum-shortfall { color: #a84b21; }
-.store-actions.two-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 10px; }
 .fulfillment-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 .store-page .fulfillment-switch button.selected { border-color: #a84b21; color: #a84b21; background: #fff0e7; }

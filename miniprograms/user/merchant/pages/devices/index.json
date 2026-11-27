@@ -1,7 +1,7 @@
 {
   "navigationBarTitleText": "打印与消息",
   "enablePullDownRefresh": true,
-  "navigationBarBackgroundColor": "#ffffff",
+  "navigationBarBackgroundColor": "#f3f6f3",
   "backgroundColor": "#f3f6f3",
   "backgroundTextStyle": "dark"
 }

@@ -3,7 +3,7 @@
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{item && !loading && !loadError}}">
     <view class="statusbig">
-      <view class="subheading">AFTER-SALES SERVICE</view>
+      <view class="subheading">售后服务进度</view>
       <view class="h2">{{states.label(item.status)}}</view>
       <view class="muted">{{stateHint}}</view>
     </view>
@@ -11,23 +11,29 @@
     <view wx:if="{{item.platformIntervened}}" class="hint">平台已收到介入申请，渠道结果仍会更新。</view>
     <view class="card">
       <view class="h3">本次申请</view>
-      <view class="kv"><text class="label">售后单号</text><text>{{item.id}}</text></view>
+      <view class="kv"><text class="label">售后单号</text><text selectable>{{item.id}}</text></view>
       <view class="kv"><text class="label">退款金额</text><text>{{amountText}}</text></view>
       <view wx:if="{{deliveryRefundText}}" class="kv"><text class="label">含退回配送费</text><text>{{deliveryRefundText}}</text></view>
       <view class="kv"><text class="label">退款类型</text><text>{{item.type === 'partial' ? '部分退款' : '全额 / 剩余全额'}}</text></view>
       <view class="kv"><text class="label">申请原因</text><text>{{item.reason}}</text></view>
       <view wx:if="{{item.description}}" class="kv"><text class="label">补充说明</text><text>{{item.description}}</text></view>
       <view wx:if="{{createdAtText}}" class="kv"><text class="label">申请时间</text><text>{{createdAtText}}</text></view>
+      <view wx:if="{{item.hasPhoto}}" class="split">
+        <view class="small">问题凭证图片</view>
+        <image wx:if="{{photoPath}}" class="aftersale-photo" src="{{photoPath}}" mode="aspectFit" bindtap="previewPhoto" aria-label="放大查看凭证图片"/>
+        <button wx:elif="{{photoError}}" class="link" bindtap="loadPhoto">凭证图片加载失败，点击重试</button>
+        <view wx:else class="small">正在加载凭证图片…</view>
+      </view>
     </view>
     <view class="card">
       <view class="h3">处理记录</view>
       <view class="timeline timeline-space">
-        <view wx:for="{{events}}" wx:key="key" class="event">
+        <view wx:for="{{events}}" wx:key="key" class="event is-history">
           <view>{{states.event(item.status)}}</view>
           <view class="small">{{item.message}}</view>
           <view wx:if="{{item.timeText}}" class="small">{{item.timeText}}</view>
         </view>
-        <view class="event">
+        <view class="event is-current">
           <view>{{states.label(item.status)}}</view>
           <view class="small">当前处理状态</view>
         </view>

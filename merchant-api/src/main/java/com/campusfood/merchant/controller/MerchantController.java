@@ -202,6 +202,16 @@ public class MerchantController {
         return orders.aftersales(store(auth), page);
     }
 
+    @GetMapping("/aftersales/{id}/photo")
+    public ResponseEntity<byte[]> aftersalePhoto(@RequestHeader(value = AUTH, required = false) String auth, @PathVariable String id) {
+        var photo = orders.aftersalePhoto(store(auth), id);
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .header("X-Content-Type-Options", "nosniff")
+            .contentType(MediaType.parseMediaType(photo.mediaType()))
+            .body(photo.data());
+    }
+
     @GetMapping("/finance")
     public Map<String, Object> finance(@RequestHeader(value = AUTH, required = false) String auth, @RequestParam(defaultValue = "1") int days) {
         var identity = sessions.require(auth);

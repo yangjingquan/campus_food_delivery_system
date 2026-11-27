@@ -54,6 +54,16 @@ register({
   ticket() { ui.go('/merchant/pages/ticket/index?id=' + encodeURIComponent(this.id)); },
   map() { ui.go('/merchant/pages/map/index?id=' + encodeURIComponent(this.id)); },
   phone() { wx.makePhoneCall({ phoneNumber: this.data.order.delivery.phone }); },
+  noop() {},
+  async previewAftersalePhoto(event) {
+    const id = event.currentTarget.dataset.id;
+    try {
+      const image = await api.photo('/aftersales/' + encodeURIComponent(id) + '/photo');
+      wx.previewImage({ current: image, urls: [image] });
+    } catch (error) {
+      wx.showToast({ title: error.message || '暂时无法查看凭证图片', icon: 'none' });
+    }
+  },
 
   startRefund(event) {
     const { action, id } = event.currentTarget.dataset;
@@ -65,7 +75,7 @@ register({
         reason: '', restoreStock: false, requestKey: 'rf_' + Date.now() + '_' + Math.random().toString(36).slice(2)
       },
       formError: ''
-    }, () => wx.pageScrollTo({ selector: '#refund-form', duration: 0 }));
+    });
   },
   cancelRefund() { if (!this.data.saving) this.setData({ refundForm: null, formError: '' }); },
   input(event) { this.setData({ ['refundForm.' + event.currentTarget.dataset.field]: event.detail.value }); },

@@ -80,35 +80,30 @@
   display: flex;
   flex: none;
   gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--field);
 }
 
 .editor-status-choice {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 54px;
-  min-height: 44px;
-  padding: 0 10px;
+  min-width: 60px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   font-size: 13px;
+  font-weight: 600;
 }
 
 .editor-status-choice.selected {
+  background: #fff;
   color: var(--deep);
-  font-weight: 650;
-}
-
-.editor-status-choice.selected::before {
-  content: "";
-  position: absolute;
-  right: 10px;
-  bottom: 6px;
-  left: 10px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--green);
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(30, 55, 40, .1);
 }
 
 .editor-photo-button {

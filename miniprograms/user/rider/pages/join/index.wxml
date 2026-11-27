@@ -14,7 +14,7 @@
   <button class="btn outline full top-space switch-role-button" bindtap="openRolePicker" hover-class="pressed">切换角色</button>
 </view>
 <template wx:if="{{modal}}" is="modal" data="{{modal, busy}}"/>
-<view wx:if="{{picker}}" class="modal-layer sheet-layer" catchtap="closePicker">
+<view wx:if="{{picker}}" class="modal-layer sheet-layer" catchtap="closePicker" catchtouchmove="noop">
   <view class="picker-sheet" catchtap="noop">
     <view class="row sheet-heading">
       <button class="sheet-action muted" bindtap="closePicker" hover-class="pressed"><text class="control-label">取消</text></button>

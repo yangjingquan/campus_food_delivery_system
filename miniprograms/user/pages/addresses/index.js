@@ -44,7 +44,7 @@ Page({
   remove(event) {
     if (this.removing) return;
     const id = event.currentTarget.dataset.id;
-    showDialog(this, { title: '删除收餐地址', content: '确定删除这条地址吗？', cancel: true }, async () => {
+    showDialog(this, { title: '删除收餐地址', content: '确定删除这条地址吗？', cancel: true, destructive: true, confirmText: '删除' }, async () => {
       if (this.removing) return;
       this.removing = true;
       try {

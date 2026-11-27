@@ -13,14 +13,65 @@ const filters = [
   { label: '已关闭', status: 'CLOSED' }
 ];
 
+const tabMeta = {
+  orders: { title: '订单工作台', path: '/merchant/pages/orders/index' },
+  products: { title: '商品管理', path: '/merchant/pages/products/index' },
+  finance: { title: '经营数据', path: '/merchant/pages/finance/index' },
+  mine: { title: '我的店铺', path: '/merchant/pages/mine/index' }
+};
+
 register({
-  data: { filters, filter: 0, q: '', rows: [], counts: {}, loading: true, page: 0, hasMore: false, moreError: '' },
-  onShow() {
-    this.refresh();
+  data: {
+    activeTab: 'orders',
+    selectedTabPath: '/merchant/pages/orders/index',
+    productOrderChanged: false,
+    filters, filter: 0, q: '', rows: [], counts: {}, loading: true, page: 0, hasMore: false, moreError: ''
   },
-  onPullDownRefresh() { this.refresh().finally(() => wx.stopPullDownRefresh()); },
-  onReachBottom() { if (!this.data.moreError) return this.loadMore(); },
+  onLoad(options) {
+    const tab = options?.tab;
+    if (tab && tabMeta[tab]) {
+      this.setData({ activeTab: tab, selectedTabPath: tabMeta[tab].path });
+      if (typeof wx !== 'undefined') wx.setNavigationBarTitle?.({ title: tabMeta[tab].title });
+    }
+  },
+  onShow() {
+    if (!this.data.activeTab || this.data.activeTab === 'orders') {
+      this.refresh();
+    }
+  },
+  onPullDownRefresh() {
+    const tab = this.data.activeTab || 'orders';
+    let work;
+    if (tab === 'orders') work = this.refresh();
+    else {
+      const pane = this.selectComponent?.(`#${tab}-pane`);
+      work = Promise.resolve(pane?.refresh?.());
+    }
+    return Promise.resolve(work).finally(() => {
+      if (typeof wx !== 'undefined') wx.stopPullDownRefresh?.();
+    });
+  },
+  onReachBottom() {
+    if ((!this.data.activeTab || this.data.activeTab === 'orders') && !this.data.moreError) return this.loadMore();
+  },
   onboarding: ui.onboarding,
+  switchMerchantTab(event) {
+    const key = event?.detail?.key;
+    if (!key || !tabMeta[key] || key === this.data.activeTab) return;
+    this.setData({ activeTab: key, selectedTabPath: tabMeta[key].path });
+    if (typeof wx !== 'undefined') {
+      wx.setNavigationBarTitle?.({ title: tabMeta[key].title });
+      wx.pageScrollTo?.({ scrollTop: 0, duration: 0 });
+    }
+    if (key === 'orders') this.refresh();
+  },
+  onProductOrderChange(event) {
+    this.setData({ productOrderChanged: !!event?.detail?.changed });
+  },
+  clearSearch() {
+    this.setData({ q: '' });
+    return this.load(0);
+  },
 
   async refresh() {
     const run = this.requestId = (this.requestId || 0) + 1;

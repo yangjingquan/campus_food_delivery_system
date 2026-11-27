@@ -37,13 +37,16 @@
     <text class="label">联系电话</text><input aria-label="联系电话" class="field" type="number" data-field="phone" bindinput="input" value="{{form.phone}}" maxlength="20" />
     <text class="label">店铺地址</text><input aria-label="店铺地址" class="field" data-field="address" bindinput="input" value="{{form.address}}" maxlength="255" />
     <text class="form-section">店铺图片</text>
-    <image wx:if="{{photo}}" class="store-photo" src="{{photo}}" mode="widthFix" bindload="photoLoaded"
+    <image wx:if="{{photo}}" class="store-photo" src="{{photo}}" mode="widthFix" bindload="photoLoaded" bindtap="choosePhoto"
       style="width: {{photoWidth ? photoWidth + 'px' : '100%'}}" aria-label="店铺图片" />
-    <view wx:else class="photo-placeholder"><image class="icon" src="/merchant/assets/ui/photo.svg" mode="aspectFit" aria-hidden="true" /></view>
+    <button wx:else class="photo-picker" bindtap="choosePhoto" hover-class="pressed">
+      <view class="photo-plus">＋</view>
+      <text class="photo-picker-label">点击上传店铺图片</text>
+      <text class="hint">JPEG 或 PNG，最大 1 MB</text>
+    </button>
     <view wx:if="{{photoError}}" class="hint">{{photoError}}</view>
-    <button class="btn plain separator" bindtap="choosePhoto" hover-class="pressed">{{photo ? '更换店铺图片' : '选择店铺图片'}}</button>
-    <view class="hint">JPEG 或 PNG，最大 1 MB</view>
-    <button class="btn primary align-end separator" bindtap="save" loading="{{saving}}" disabled="{{saving}}" hover-class="pressed">提交审核</button>
+    <button wx:if="{{photo}}" class="btn plain separator" bindtap="choosePhoto" hover-class="pressed">更换店铺图片</button>
+    <button class="btn primary wide separator" bindtap="save" loading="{{saving}}" disabled="{{saving}}" hover-class="pressed">提交审核</button>
   </view>
   <view wx:if="{{formError}}" class="notice error" aria-live="polite">{{formError}}</view>
   <button class="btn plain centered separator" bindtap="openRolePicker" hover-class="pressed">切换角色</button>

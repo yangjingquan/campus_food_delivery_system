@@ -1,9 +1,9 @@
 <view class="tab-shell">
-  <view class="cart-float">
+  <view wx:if="{{selected === 0 && count > 0}}" class="cart-float">
     <button class="cart-fab" bindtap="openCart" aria-label="购物车，{{count}}份餐品">
       <image class="cart-fab-icon" src="/assets/v2-floating-cart.svg" aria-hidden="true"/>
     </button>
-    <text wx:if="{{count}}" class="badge" aria-hidden="true">{{count > 99 ? '99+' : count}}</text>
+    <text class="badge" aria-hidden="true">{{count > 99 ? '99+' : count}}</text>
   </view>
   <view class="tabbar">
     <button wx:for="{{tabs}}" wx:key="path" class="tab {{selected === index ? 'on' : ''}}"

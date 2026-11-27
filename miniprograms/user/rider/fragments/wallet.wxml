@@ -26,9 +26,9 @@
 </view>
 <view class="card wallet-fees">
   <view class="group-label">费用构成</view>
-  <template is="fees" data="{{rows: [{label:'实收配送费',value:'¥ ' + finance.fee},
-    {label:'平台配送抽成',value:' ¥ ' + finance.commission},{label:'骑手累计应得',value:'¥ ' + finance.due}]}}"/>
-  <view wx:if="{{finance.fundedCents > 0}}" class="muted small">全额退款骑手报酬 ¥ {{finance.funded}}，由商户承担</view>
+  <template is="fees" data="{{rows: [{label:'实收配送费',value:'¥' + finance.fee},
+    {label:'平台配送抽成',value:'¥' + finance.commission},{label:'骑手累计应得',value:'¥' + finance.due}]}}"/>
+  <view wx:if="{{finance.fundedCents > 0}}" class="muted small">全额退款骑手报酬 ¥{{finance.funded}}，由商户承担</view>
 </view>
 <view class="card flush">
   <template is="row" data="{{page: 'income', icon: 'orders', label: '收入与结算明细', description: '查看每笔订单应得与可提现时间'}}"/>

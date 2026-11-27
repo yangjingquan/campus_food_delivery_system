@@ -64,7 +64,7 @@
         <button class="editor-photo-button" bindtap="choosePhoto" disabled="{{saving || choosingPhoto}}" hover-class="pressed"
           aria-label="{{photo || form.hasPhoto ? '更换商品图片' : '添加商品图片'}}">
           <view class="editor-photo-preview">
-            <image wx:if="{{photo}}" class="editor-photo-image" src="{{photo}}" mode="aspectFit" aria-label="商品图片预览" />
+            <image wx:if="{{photo}}" class="editor-photo-image" src="{{photo}}" mode="aspectFill" aria-label="商品图片预览" />
             <image wx:else class="icon" src="/merchant/assets/ui/photo.svg" mode="aspectFit" aria-hidden="true" />
           </view>
           <view class="editor-photo-copy flex">

@@ -19,7 +19,7 @@ public class RiderOrders {
     static final String SETTLEMENT_JOIN = " LEFT JOIN order_settlement_snapshot s ON s.order_id=o.id AND s.event_type='rider_settlement_credit' ";
     private static final String OWNED = """
         SELECT o.id,o.merchant,o.pickup_number AS pickupNumber,o.items,o.id AS code,o.fulfill_status AS status,
-               d.building,d.room,%s AS feeCents,%s AS commissionCents,%s AS dueCents,
+               d.building,d.room,COALESCE(d.order_remark,'') AS remark,%s AS feeCents,%s AS commissionCents,%s AS dueCents,
                IF(o.refunded_cents>0 AND o.paid_cents=o.refunded_cents,%s,0) AS fundedCents,o.paid_at AS paidAt,d.arrived_at AS arrivedAt,
                d.picked_up_at AS pickedUpAt,o.completed_at AS completedAt,o.closed_at AS closedAt,
                o.refund_status AS refundStatus,o.last_refund_at AS lastRefundAt,d.rider_settled_at AS settledAt,

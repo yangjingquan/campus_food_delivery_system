@@ -1,14 +1,13 @@
 <view class="page address-edit-page">
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{!loading && !loadError}}">
-    <view class="hint">请填写校内收餐地址，手机号用于配送联系。</view>
-    <view class="field">
-      <label for="receiver-name">联系人</label>
-      <input id="receiver-name" maxlength="20" value="{{name}}" data-field="name" bindinput="input" placeholder="填写收餐人姓名"/>
-    </view>
-    <view class="field">
-      <label for="receiver-phone">手机号码</label>
-      <input id="receiver-phone" type="number" maxlength="11" value="{{phone}}" data-field="phone" bindinput="input" placeholder="填写 11 位手机号码"/>
+    <view class="hint">请先在地图选定宿舍楼入口位置，再核对楼栋门牌与收餐人信息。</view>
+    <view class="field location-field">
+      <view class="location-heading">收餐定位（必选）</view>
+      <button class="btn {{hasLocation ? 'outline' : ''}} wide location-picker" loading="{{choosingLocation}}" disabled="{{saving || choosingLocation}}" bindtap="chooseLocation">
+        {{hasLocation ? '重新选择地图位置' : '在地图中选择宿舍楼位置'}}
+      </button>
+      <view class="hint {{hasLocation ? 'green' : ''}} location-hint">{{hasLocation ? (locationName || '已设置收餐位置') : '请选择楼栋实际入口，方便骑手准确送达。'}}</view>
     </view>
     <view class="field">
       <label for="receiver-building">宿舍楼</label>
@@ -18,12 +17,13 @@
       <label for="receiver-room">寝室门牌</label>
       <input id="receiver-room" maxlength="80" value="{{room}}" data-field="room" bindinput="input" placeholder="例如：302寝室"/>
     </view>
-    <view class="field location-field">
-      <view class="location-heading">收餐位置</view>
-      <button class="btn outline wide location-picker" loading="{{choosingLocation}}" disabled="{{saving || choosingLocation}}" bindtap="chooseLocation">
-        {{hasLocation ? '重新选择地图位置' : '在地图中设置位置'}}
-      </button>
-      <view class="hint location-hint">{{hasLocation ? (locationName || '已设置收餐位置') : '请选择楼栋实际入口，方便骑手准确送达。'}}</view>
+    <view class="field">
+      <label for="receiver-name">联系人</label>
+      <input id="receiver-name" maxlength="20" value="{{name}}" data-field="name" bindinput="input" placeholder="填写收餐人姓名"/>
+    </view>
+    <view class="field">
+      <label for="receiver-phone">手机号码</label>
+      <input id="receiver-phone" type="number" maxlength="11" value="{{phone}}" data-field="phone" bindinput="input" placeholder="填写 11 位手机号码"/>
     </view>
     <label class="card row default-row">
       <text>设为默认收餐地址</text>

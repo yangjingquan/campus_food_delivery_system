@@ -5,7 +5,9 @@ const display = require('../../utils/display');
 
 Page({
   data: {
-    merchant: null, products: [], selectedCount: 0, selectedFoodText: '¥0.00',
+    merchant: null, products: [], visibleProducts: [], categories: [], activeCategory: '全部',
+    selectedItems: [], selectedCount: 0, otherModeCount: 0, selectedFoodText: '¥0.00',
+    cartDrawerOpen: false,
     fulfillmentType: 'delivery', belowMinimum: false, shortfallText: '', loading: true, loadError: ''
   },
 
@@ -40,25 +42,74 @@ Page({
   },
 
   refreshCart() {
-    const { merchant, fulfillmentType } = this.data;
+    const { merchant, fulfillmentType, activeCategory } = this.data;
     const selected = cart.read(merchant.id, fulfillmentType);
+    const otherMode = fulfillmentType === 'pickup' ? 'delivery' : 'pickup';
+    const otherModeCount = cart.read(merchant.id, otherMode).reduce((n, item) => n + item.quantity, 0);
     const currentPrices = new Map(merchant.products.map(item => [item.id, item.priceCents]));
     const pricedItems = selected.map(item => ({
       ...item, priceCents: currentPrices.get(item.productId) ?? item.priceCents
     }));
     const { foodCents } = cart.totals(pricedItems, 0);
     const shortfall = fulfillmentType === 'pickup' ? 0 : (merchant.minimumOrderCents || 0) - foodCents;
+    const rawCategories = [...new Set(merchant.products.map(item => item.category).filter(Boolean))];
+    const categories = rawCategories.length > 1 ? ['全部', ...rawCategories] : [];
+    const currentCategory = categories.includes(activeCategory) ? activeCategory : '全部';
     const products = merchant.products.map(item => ({
       ...item, priceText: display.money(item.priceCents),
       picture: display.photo(item.photoPath, item.artwork), fallback: display.illustration(item.artwork),
       quantity: selected.find(row => row.productId === item.id)?.quantity || 0
     }));
+    const visibleProducts = currentCategory === '全部'
+      ? products
+      : products.filter(item => item.category === currentCategory);
+    const selectedItems = products.filter(item => item.quantity > 0);
+    const selectedCount = selected.reduce((n, item) => n + item.quantity, 0);
     this.setData({
-      products, selectedCount: selected.reduce((n, item) => n + item.quantity, 0),
+      products, visibleProducts, categories, activeCategory: currentCategory,
+      selectedItems, selectedCount, otherModeCount,
+      cartDrawerOpen: selectedCount ? this.data.cartDrawerOpen : false,
       selectedFoodText: display.money(foodCents),
       belowMinimum: shortfall > 0, shortfallText: shortfall > 0 ? display.money(shortfall) : ''
     });
   },
+
+  chooseCategory(event) {
+    const activeCategory = event.currentTarget.dataset.category;
+    if (activeCategory === this.data.activeCategory) return;
+    const visibleProducts = activeCategory === '全部'
+      ? this.data.products
+      : this.data.products.filter(item => item.category === activeCategory);
+    this.setData({ activeCategory, visibleProducts });
+  },
+
+  syncFromOtherMode() {
+    const { merchant, fulfillmentType } = this.data;
+    if (!merchant) return;
+    const otherMode = fulfillmentType === 'pickup' ? 'delivery' : 'pickup';
+    const otherItems = cart.read(merchant.id, otherMode);
+    if (!otherItems.length) return;
+    const currentAll = cart.read(null, fulfillmentType).filter(item => item.merchantId !== merchant.id);
+    cart.save([...currentAll, ...otherItems.map(item => ({ ...item }))], fulfillmentType);
+    this.refreshCart();
+  },
+
+  toggleCartDrawer() {
+    if (!this.data.selectedCount) return;
+    this.setData({ cartDrawerOpen: !this.data.cartDrawerOpen });
+  },
+  closeCartDrawer() {
+    if (this.data.cartDrawerOpen) this.setData({ cartDrawerOpen: false });
+  },
+  clearStoreCart() {
+    const { merchant, fulfillmentType } = this.data;
+    if (!merchant) return;
+    const remaining = cart.read(null, fulfillmentType).filter(item => item.merchantId !== merchant.id);
+    cart.save(remaining, fulfillmentType);
+    this.setData({ cartDrawerOpen: false });
+    this.refreshCart();
+  },
+  noop() {},
 
   imageError(event) {
     const { index } = event.currentTarget.dataset;

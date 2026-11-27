@@ -48,9 +48,10 @@ Page({
         feeText: display.money(deliveryFeeCents)
       };
     });
-    const totals = cart.totals(groups.flatMap(group => group.items), fee);
+    const eligibleGroups = groups.filter(group => group.eligible);
+    const totals = cart.totals(eligibleGroups.flatMap(group => group.items), fee);
     this.setData({
-      groups, checkoutCount: groups.filter(group => group.eligible).length,
+      groups, checkoutCount: eligibleGroups.length,
       foodText: display.money(totals.foodCents), feeText: display.money(totals.deliveryFeeCents),
       totalText: display.money(totals.totalCents),
       cartCount: items.reduce((sum, item) => sum + item.quantity, 0)
@@ -70,7 +71,7 @@ Page({
     const tab = this.getTabBar(); if (tab) tab.refresh();
   },
   clear() {
-    showDialog(this, { title: '清空购物车', content: '确定移除所有餐品吗？', cancel: true }, () => {
+    showDialog(this, { title: '清空购物车', content: '确定移除购物车内的所有餐品吗？', cancel: true, destructive: true, confirmText: '清空' }, () => {
       cart.save([]);
       this.refreshCart();
     });

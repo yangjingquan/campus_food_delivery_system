@@ -1,40 +1,41 @@
 @import "../../styles/base.wxss";
-.orders-page .h2 { font-size: 26px; }
-.orders-page .filters { margin: 18px 0 15px; }
-.orders-page .filter-rail { gap: 6px; }
-.orders-page button.chip { padding-inline: 10px; font-size: 11px; }
-.orders-page .ordercard { margin-bottom: 8px; padding: 10px 14px 4px; border-radius: 16px; }
+.orders-page .h2 { font-size: 24px; }
+.orders-page .filters { margin: 14px 0; }
+.orders-page .filter-rail { gap: 8px; }
+.orders-page .ordercard { margin-bottom: 10px; padding: 14px 15px 8px; border-radius: 18px; }
 .order-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .order-name { min-width: 0; }
-.ordercard .orderstate { color: #a84b21; overflow-wrap: anywhere; }
+.ordercard .orderstate { color: #a84b21; font-weight: 600; overflow-wrap: anywhere; }
 .order-summary {
   display: -webkit-box;
-  margin-top: 4px;
+  margin-top: 6px;
   overflow: hidden;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
-.order-note { margin-top: 2px; overflow-wrap: anywhere; }
+.order-note { margin-top: 4px; overflow-wrap: anywhere; }
 .order-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0 8px;
-  margin-top: 3px;
+  gap: 4px 8px;
+  margin-top: 8px;
+  padding-top: 4px;
   border-top: 1px solid var(--line);
 }
 .order-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 6px; min-width: 0; }
-.order-amount { color: #a84b21; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.order-amount { color: #a84b21; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .orders-page button.order-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
+  min-height: 40px;
   margin-left: auto;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
-.order-link text { padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.order-link text { padding: 6px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.order-link.is-pay text { border-color: var(--action); background: var(--action); color: #fff; }
 .order-list-footer { padding: 12px 0; text-align: center; }

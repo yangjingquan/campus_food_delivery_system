@@ -1,5 +1,14 @@
 @import "../../styles/base.wxss";
+.payment-hero-amount {
+  margin: 8px 0 6px;
+  color: var(--accent);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.countdown-pill { font-variant-numeric: tabular-nums; font-weight: 600; }
 .payment-page .card .small { margin-top: 4px; }
-.payment-page .payment-total .price { font-size: 14px; }
+.payment-page .payment-total .price { font-size: 20px; }
 .payment-page .card .split { margin-top: 16px; padding-top: 13px; }
 .payment-page .column { gap: 11px; }

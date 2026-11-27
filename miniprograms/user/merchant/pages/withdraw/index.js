@@ -31,6 +31,11 @@ register({
     }
   },
   input(event) { this.setData({ amount: event.detail.value }); },
+  withdrawAll() {
+    if (!this.data.max || this.data.pending) return;
+    this.setData({ amount: (this.data.max / 100).toFixed(2), formError: '' });
+  },
+  records() { ui.go('/merchant/pages/records/index?kind=withdrawals'); },
   submit() {
     ui.action(this, async () => {
       const amountCents = ui.cents(this.data.amount);

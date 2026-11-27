@@ -23,5 +23,13 @@ register({
       this.setData({ loading: false });
     }
   },
-  open(event) { ui.go('/merchant/pages/order/index?id=' + encodeURIComponent(event.currentTarget.dataset.id)); }
+  open(event) { ui.go('/merchant/pages/order/index?id=' + encodeURIComponent(event.currentTarget.dataset.id)); },
+  async previewPhoto(event) {
+    try {
+      const image = await api.photo('/aftersales/' + encodeURIComponent(event.currentTarget.dataset.id) + '/photo');
+      wx.previewImage({ current: image, urls: [image] });
+    } catch (error) {
+      wx.showToast({ title: error.message || '暂时无法查看凭证图', icon: 'none' });
+    }
+  }
 });

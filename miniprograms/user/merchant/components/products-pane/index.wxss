@@ -1,0 +1,12 @@
+@import "../../pages/products/index.wxss";
+.products-pane-host .products-screen {
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+}
+.products-pane-host .products-screen.is-reordering {
+  padding-bottom: 0;
+}
+.products-pane-host .products-order-footer {
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  box-shadow: 0 -4px 14px rgba(30, 55, 40, .08);
+}

@@ -53,8 +53,11 @@ Page({
       const phone = String(data.phone ?? '').trim().match(/^(\d{3})[\d*]{4}(\d{4})$/);
       const items = (data.items || []).map(item => ({ ...item, amountText: money(item.amountCents) }));
       const aftersales = (data.aftersales || []).map(item => ({ ...item, amountText: money(item.amountCents) }));
+      const canCallMerchant = !!(data.merchantPhone && !/\*/.test(data.merchantPhone));
+      const canCallRider = !!(data.riderPhone && !/\*/.test(data.riderPhone));
       this.setData({
         order: { ...data, phone: phone ? `${phone[1]}****${phone[2]}` : '' },
+        canCallMerchant, canCallRider,
         items, aftersales, pickup, loading: false, showDeliveryPhoto, photoPath, photoLoadError: false,
         steps: pickup ? ['待接单', '出餐中', '待自取', '已完成'] : steps,
         stepIndex: (pickup ? pickupStages : stages).indexOf(data.fulfillStatus),
@@ -116,6 +119,14 @@ Page({
     });
   },
 
+  callMerchant() {
+    const phoneNumber = this.data.order?.merchantPhone;
+    if (phoneNumber) wx.makePhoneCall({ phoneNumber });
+  },
+  callRider() {
+    const phoneNumber = this.data.order?.riderPhone;
+    if (phoneNumber) wx.makePhoneCall({ phoneNumber });
+  },
   refund() { wx.navigateTo({ url: `/pages/refund/index?id=${this.orderId}` }); },
   pay() { wx.navigateTo({ url: `/pages/payment/index?id=${this.data.order.paymentId}` }); },
   afterSale(event) { wx.navigateTo({ url: `/pages/aftersale/index?id=${event.currentTarget.dataset.id}` }); },

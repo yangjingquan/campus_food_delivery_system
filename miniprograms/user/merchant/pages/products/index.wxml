@@ -67,5 +67,5 @@
     </view>
   </view>
 </view>
-<merchant-tab-bar selected="/merchant/pages/products/index"/>
+<merchant-tab-bar hidden-bar="{{orderChanged}}" selected="/merchant/pages/products/index"/>
 </block>

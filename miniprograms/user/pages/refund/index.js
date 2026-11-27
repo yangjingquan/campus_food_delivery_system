@@ -1,14 +1,14 @@
 const api = require('../../utils/api');
 const { money } = require('../../utils/display');
 const { availability } = require('../../utils/aftersale');
-
 const { showDialog, dialogEvents } = require('../../utils/dialog');
 
 Page({
   ...dialogEvents,
   data: {
     order: null, type: 'partial', amount: '', reasons: ['餐品有问题', '配送等待过久', '不想要了', '其他原因'],
-    reasonIndex: 0, error: '', loading: true, loadError: '', submitting: false
+    reasonIndex: 0, photoPreview: '', photoDataUrl: '', choosingPhoto: false,
+    error: '', loading: true, loadError: '', submitting: false
   },
 
   onLoad(query) { this.orderId = query.id; this.load(); },
@@ -40,13 +40,58 @@ Page({
   inputAmount(event) { this.setData({ amount: event.detail.value, error: '' }); },
   chooseReason() {
     showDialog(this, {
-      title: '申请原因', options: this.data.reasons, selected: this.data.reasonIndex, cancel: true
-    }, reasonIndex => this.setData({ reasonIndex }));
+      title: '选择申请原因', options: this.data.reasons, selected: this.data.reasonIndex,
+      sheet: true, autoConfirm: true, cancel: true
+    }, reasonIndex => {
+      if (reasonIndex != null) this.setData({ reasonIndex });
+    });
   },
   inputDescription(event) { this.description = event.detail.value; },
 
+  choosePhoto() {
+    if (this.data.choosingPhoto || this.data.submitting) return;
+    this.setData({ choosingPhoto: true, error: '' });
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sizeType: ['compressed'],
+      sourceType: ['album', 'camera'],
+      success: ({ tempFiles }) => {
+        const image = tempFiles?.[0];
+        if (!image?.tempFilePath) return;
+        if (image.size > 1048576) {
+          this.setData({ error: '凭证图片须不超过 1 MB，请重新选择。' });
+          return;
+        }
+        wx.getFileSystemManager().readFile({
+          filePath: image.tempFilePath,
+          encoding: 'base64',
+          success: ({ data }) => {
+            const mime = data.startsWith('iVBORw0KGgo') ? 'image/png' : data.startsWith('/9j/') ? 'image/jpeg' : '';
+            if (!mime) {
+              this.setData({ error: '请上传 JPEG 或 PNG 格式图片。' });
+              return;
+            }
+            this.setData({ photoPreview: image.tempFilePath, photoDataUrl: `data:${mime};base64,${data}` });
+          },
+          fail: () => this.setData({ error: '无法读取所选图片，请重试。' })
+        });
+      },
+      fail: ({ errMsg = '' } = {}) => {
+        if (!/cancel/i.test(errMsg)) this.setData({ error: '无法打开相册或相机，请检查权限后重试。' });
+      },
+      complete: () => this.setData({ choosingPhoto: false })
+    });
+  },
+  removePhoto() {
+    this.setData({ photoPreview: '', photoDataUrl: '' });
+  },
+  previewPhoto() {
+    if (this.data.photoPreview) wx.previewImage({ current: this.data.photoPreview, urls: [this.data.photoPreview] });
+  },
+
   async submit() {
-    const { refund, type, reasons, reasonIndex } = this.data;
+    const { refund, type, reasons, reasonIndex, photoDataUrl } = this.data;
     if (this.data.submitting || !refund?.allowed) return;
     const input = this.data.amount.trim();
     if (!/^\d{1,8}(\.\d{1,2})?$/.test(input)) return this.setData({ error: '请输入金额，最多两位小数。' });
@@ -58,7 +103,8 @@ Page({
     this.setData({ submitting: true, error: '' });
     try {
       const { data } = await api.post(`/orders/${this.orderId}/aftersales`, {
-        type, amountCents: cents, reason: reasons[reasonIndex], description: this.description || ''
+        type, amountCents: cents, reason: reasons[reasonIndex], description: this.description || '',
+        ...(photoDataUrl ? { photo: photoDataUrl } : {})
       });
       wx.redirectTo({ url: `/pages/aftersale/index?id=${data.id}` });
     } catch (error) {

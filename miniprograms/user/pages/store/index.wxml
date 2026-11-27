@@ -1,4 +1,4 @@
-<view class="page store-page">
+<view class="page dock-page store-page">
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{merchant && !loading}}">
     <view class="row">
@@ -26,8 +26,18 @@
     <view class="hint {{merchant.open ? 'green' : 'orange'}}">
       {{merchant.open ? (fulfillmentType === 'pickup' ? '餐品做好后，凭取餐号到店领取。' : '商户做好后送至校园暂存点，再分批配送到寝室。') : '商户已打烊，餐品可浏览。'}}
     </view>
-    <view class="h3 section">店内推荐</view>
-    <view wx:for="{{products}}" wx:key="id" class="card product-card">
+    <view wx:if="{{!selectedCount && otherModeCount > 0}}" class="hint row sync-cart-hint">
+      <text>{{fulfillmentType === 'pickup' ? '外卖购物篮' : '自取购物篮'}}已有 {{otherModeCount}} 份本店餐品</text>
+      <button class="link sync-cart-btn" bindtap="syncFromOtherMode">一键带入 ›</button>
+    </view>
+    <scroll-view wx:if="{{categories.length}}" class="filters store-categories" scroll-x="{{true}}" show-scrollbar="{{false}}">
+      <view class="filter-rail">
+        <button wx:for="{{categories}}" wx:key="*this" class="chip {{activeCategory === item ? 'on' : ''}}"
+          data-category="{{item}}" bindtap="chooseCategory">{{item}}</button>
+      </view>
+    </scroll-view>
+    <view class="h3 section">{{activeCategory === '全部' ? '店内餐品' : activeCategory}}</view>
+    <view wx:for="{{visibleProducts}}" wx:key="id" class="card product-card">
       <view class="foodline">
         <view class="thumb">
           <image src="{{item.picture}}" mode="aspectFill" lazy-load data-index="{{index}}" binderror="imageError" aria-hidden="true"/>
@@ -55,17 +65,47 @@
       <view class="symbol"><image src="/assets/v2-empty-store.svg" aria-hidden="true"/></view>
       <view class="h3">店铺还没有上架餐品。</view>
     </view>
-    <view class="totalbar" wx:if="{{fulfillmentType === 'delivery' || selectedCount}}">
-      <view wx:if="{{selectedCount}}" class="card row totalbar-summary">
-        <view>
-          <view class="small">本店已选 {{selectedCount}} 份</view>
-          <view wx:if="{{belowMinimum}}" class="small minimum-shortfall">还差 {{shortfallText}} 起送</view>
+
+    <view wx:if="{{cartDrawerOpen && selectedCount}}" class="drawer-scrim" bindtap="closeCartDrawer" catchtouchmove="noop">
+      <view class="cart-drawer" catchtap="noop">
+        <view class="row cart-drawer-head">
+          <text class="h3">已选餐品（{{selectedCount}} 份）</text>
+          <button class="link" bindtap="clearStoreCart">清空本店</button>
         </view>
-        <view class="price">{{selectedFoodText}}</view>
+        <scroll-view scroll-y class="cart-drawer-list">
+          <view wx:for="{{selectedItems}}" wx:key="id" class="row cart-drawer-row">
+            <view class="info">
+              <view class="cart-drawer-name">{{item.name}}</view>
+              <view class="price cart-drawer-price">{{item.priceText}}</view>
+            </view>
+            <view class="stepper">
+              <button data-id="{{item.id}}" data-delta="-1" aria-label="减少一份" bindtap="change">−</button>
+              <text>{{item.quantity}}</text>
+              <button data-id="{{item.id}}" data-delta="1" disabled="{{!merchant.open || item.quantity >= item.availableStock || item.quantity >= 99}}"
+                aria-label="增加一份" bindtap="change">＋</button>
+            </view>
+          </view>
+        </scroll-view>
       </view>
-      <view class="store-actions {{selectedCount && fulfillmentType === 'delivery' ? 'two-actions' : ''}}">
-        <button wx:if="{{fulfillmentType === 'delivery'}}" class="btn outline" bindtap="viewCart">查看购物车</button>
-        <button wx:if="{{selectedCount}}" class="btn" disabled="{{belowMinimum}}" bindtap="checkout">{{fulfillmentType === 'pickup' ? '去支付' : '去结算'}}</button>
+    </view>
+
+    <view class="totalbar" wx:if="{{fulfillmentType === 'delivery' || selectedCount}}">
+      <view class="totalbar-inner">
+        <button wx:if="{{selectedCount}}" class="totalbar-summary-btn" bindtap="toggleCartDrawer" aria-label="查看已选餐品明细">
+          <view class="price">{{selectedFoodText}}</view>
+          <view class="small">
+            <text>本店已选 {{selectedCount}} 份 {{cartDrawerOpen ? '▾' : '▴'}}</text>
+            <text wx:if="{{belowMinimum}}" class="minimum-shortfall"> · 差 {{shortfallText}} 起送</text>
+          </view>
+        </button>
+        <view wx:else class="totalbar-info">
+          <view class="small">尚未选购本店餐品</view>
+          <view wx:if="{{merchant.minimumOrderCents > 0}}" class="small">{{merchant.minimumOrderText}} 起送</view>
+        </view>
+        <view class="totalbar-btns">
+          <button wx:if="{{fulfillmentType === 'delivery'}}" class="btn outline small-dock-btn" bindtap="viewCart">购物车</button>
+          <button wx:if="{{selectedCount}}" class="btn totalbar-cta" disabled="{{belowMinimum}}" bindtap="checkout">{{belowMinimum ? '差 ' + shortfallText + ' 起送' : (fulfillmentType === 'pickup' ? '去支付' : '去结算')}}</button>
+        </view>
       </view>
     </view>
   </block>

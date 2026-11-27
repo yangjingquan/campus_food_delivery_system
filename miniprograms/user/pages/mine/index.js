@@ -138,6 +138,10 @@ Page({
       editingNickname: true, draftName: this.data.user.displayName, message: ''
     });
   },
+  cancelNickname() {
+    if (this.data.working) return;
+    this.setData({ editingNickname: false, message: '' });
+  },
 
   chooseAvatar({ detail }) {
     if (this.data.working || !this.data.user) return;
@@ -190,7 +194,18 @@ Page({
     }
   },
 
-  async logout() {
+  logout() {
+    if (this.data.working) return;
+    showDialog(this, {
+      title: '退出登录',
+      content: '退出后需重新登录才能下单和查看本人订单。',
+      cancel: true,
+      destructive: true,
+      confirmText: '退出登录'
+    }, () => this.performLogout());
+  },
+
+  async performLogout() {
     if (this.data.working) return;
     this.userNumberTaps = null;
     this.setData({ working: true, message: '' });
@@ -246,7 +261,8 @@ Page({
       });
     }
     if (action === 'about') {
-      showDialog(this, { title: '关于寝食记', content: '寝食记为同学提供校园餐品与寝室配送服务。' });
+      const uidNote = this.data.user?.id != null ? `\n当前用户编号：${this.data.user.id}` : '';
+      showDialog(this, { title: '关于寝食记', content: `寝食记为同学提供校园餐品与寝室配送服务。${uidNote}` });
     }
   }
 });

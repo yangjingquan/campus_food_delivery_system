@@ -4,6 +4,7 @@ const location = require('./location');
 const roles = require('../../utils/roles');
 
 const roots = ['home', 'orders', 'wallet', 'mine'];
+const rootTitles = { home: '知行骑手', orders: '我的配送', wallet: '我的收益', mine: '我的' };
 const genderOptions = ['男', '女', '不便透露'];
 const genderCodes = ['MALE', 'FEMALE', 'UNDISCLOSED'];
 const timeOptions = ['午间 11:00–13:00', '晚间 17:00–19:00', '午间与晚间', '其他时间'];
@@ -57,11 +58,18 @@ function register(screen) {
   Page({
     data: {
       screen,
+      activeTab: roots.includes(screen) ? screen : 'home',
       root: roots.includes(screen),
       busy: false,
       loading: true,
       error: '',
       amount: '',
+      ordersSubTab: 'active',
+      historyFilter: '',
+      historyFilters: filters.records,
+      historyItems: [],
+      historyVisibleItems: [],
+      historyHasMore: false,
       filter: '',
       filters: filters[screen] || [],
       items: [],
@@ -73,12 +81,18 @@ function register(screen) {
       form: {},
       location: {},
       profile: {},
+      batches: { count: 0, waiting: [] },
+      finance: { available: '0.00', pending: '0.00', held: '0.00', frozen: '0.00', due: '0.00', paidOut: '0.00', fee: '0.00', commission: '0.00', orderCount: 0 },
       active: []
     },
 
     onLoad(options) {
-      this.orderId = options.id || '';
+      this.orderId = options?.id || '';
       this.withdrawKey = '';
+      if (this.data.root && roots.includes(options?.tab)) {
+        this.setData({ activeTab: options.tab });
+        wx.setNavigationBarTitle?.({ title: rootTitles[options.tab] });
+      }
       if (screen === 'scanResult') {
         this.setData({ result: getApp().scanResult || { ok: false, message: '请重新扫描小票二维码。' } });
       }
@@ -115,37 +129,50 @@ function register(screen) {
     },
 
     onReachBottom() {
+      if (this.data.root && this.data.activeTab === 'orders' && this.data.ordersSubTab === 'history' && this.data.historyHasMore) {
+        return this.moreHistory();
+      }
       if (listPaths[screen] && this.data.hasMore) this.more();
     },
 
     openRolePicker() { roles.openPicker('rider'); },
 
+    switchRiderTab(event) {
+      const next = typeof event === 'string' ? event : event?.detail?.page;
+      if (!this.data.root || !roots.includes(next) || next === this.data.activeTab) return;
+      this.setData({ activeTab: next, error: '' });
+      wx.setNavigationBarTitle?.({ title: rootTitles[next] });
+      wx.pageScrollTo?.({ scrollTop: 0, duration: 0 });
+      this.refresh();
+    },
+
     async refresh() {
       const sequence = (this.refreshSequence || 0) + 1;
       this.refreshSequence = sequence;
+      const currentScreen = this.data.root ? this.data.activeTab : screen;
       this.setData({ loading: true, error: '' });
       try {
         const profile = await api.request('/profile');
         const approved = profile.auditStatus === 'APPROVED';
         if (this.refreshSequence !== sequence || !this.rolePageVisible) return;
         if (!approved && roles.activeRole() === 'rider') roles.activate('user', false);
-        if (!approved && !['join', 'audit', 'mine', 'profile', 'help'].includes(screen)) {
+        if (!approved && !['join', 'audit', 'mine', 'profile', 'help'].includes(currentScreen)) {
           await roles.showVerification('rider', profile.auditStatus);
           return;
         }
         if (approved) {
           roles.attachRiderLocation(location);
-          if (screen !== 'audit' && screen !== 'join') roles.activate('rider');
+          if (currentScreen !== 'audit' && currentScreen !== 'join') roles.activate('rider');
           else if (roles.activeRole() === 'rider') roles.activate('rider', false);
         }
-        const gate = !approved && !profileOnly.includes(screen) && !['mine', 'home'].includes(screen);
+        const gate = !approved && !profileOnly.includes(currentScreen) && !['mine', 'home'].includes(currentScreen);
         const patch = {
           profile: { ...profile, displayPhone: display.maskPhone(profile.phone), initial: (profile.name || '骑').slice(0, 1) },
           approved,
-          gate: gate || (!approved && screen === 'scan'),
+          gate: gate || (!approved && currentScreen === 'scan'),
           audit: auditLabels[profile.auditStatus] || auditLabels.NOT_ENROLLED
         };
-        if (approved && !profileOnly.includes(screen)) Object.assign(patch, await this.loadScreen());
+        if (approved && !profileOnly.includes(currentScreen)) Object.assign(patch, await this.loadScreen(currentScreen));
         if (screen === 'join' && !this.formLoaded) {
           const timeIndex = availabilityCodes.indexOf(profile.availability);
           patch.form = { name: profile.name || '', phone: profile.phone || '', availableTime: profile.availableTime || '' };
@@ -190,8 +217,8 @@ function register(screen) {
       if (photoPath) wx.previewImage({ current: photoPath, urls: [photoPath] });
     },
 
-    async loadScreen() {
-      switch (screen) {
+    async loadScreen(target = screen) {
+      switch (target) {
         case 'home': {
           const [active, batches, finance] = await Promise.all([
             api.request('/orders?scope=active'), api.request('/batches'), api.request('/finance')
@@ -201,8 +228,13 @@ function register(screen) {
         case 'waiting':
           return { batches: display.schedule(await api.request('/batches')) };
         case 'orders':
-        case 'scanResult':
-          return { active: (await api.request('/orders?scope=active')).map(display.order) };
+        case 'scanResult': {
+          const active = (await api.request('/orders?scope=active')).map(display.order);
+          if (target === 'orders' && this.data.ordersSubTab === 'history') {
+            return { active, ...(await this.loadHistoryItems(0)) };
+          }
+          return { active };
+        }
         case 'map':
           return this.mapData();
         case 'wallet':
@@ -215,7 +247,7 @@ function register(screen) {
         case 'withdrawDetail':
           return { withdrawal: display.withdrawal(await api.request('/withdrawals/' + encodeURIComponent(this.orderId))) };
         default:
-          return listPaths[screen] ? this.loadItems(0) : {};
+          return listPaths[target] ? this.loadItems(0) : {};
       }
     },
 
@@ -238,8 +270,48 @@ function register(screen) {
       }
     },
 
+    async loadHistoryItems(offset) {
+      const raw = await api.request('/orders?scope=history&offset=' + offset);
+      const historyItems = [...(offset ? this.data.historyItems : []), ...raw.map(display.order)];
+      return {
+        historyItems,
+        historyVisibleItems: applyFilter(historyItems, this.data.historyFilter, 'status'),
+        historyHasMore: raw.length === 30
+      };
+    },
+
+    async switchOrdersSubTab(event) {
+      const subtab = event.currentTarget.dataset.subtab;
+      if (!subtab || subtab === this.data.ordersSubTab) return;
+      this.setData({ ordersSubTab: subtab });
+      if (subtab === 'history' && !this.data.historyItems.length) {
+        try {
+          this.setData(await this.loadHistoryItems(0));
+        } catch (error) {
+          toast(errorMessage(error));
+        }
+      }
+    },
+
+    async moreHistory() {
+      if (this.data.loading || this.data.busy || !this.data.historyHasMore) return;
+      this.setData({ busy: true });
+      try {
+        this.setData(await this.loadHistoryItems(this.data.historyItems.length));
+      } catch (error) {
+        toast(errorMessage(error));
+      } finally {
+        this.setData({ busy: false });
+      }
+    },
+
     filter(event) {
       const filter = event.currentTarget.dataset.value;
+      if (this.data.root && this.data.activeTab === 'orders' && this.data.ordersSubTab === 'history') {
+        const historyVisibleItems = applyFilter(this.data.historyItems, filter, 'status');
+        this.setData({ historyFilter: filter, historyVisibleItems });
+        return;
+      }
       const visibleItems = applyFilter(this.data.items, filter, screen === 'income' ? 'incomeStatus' : 'status');
       this.setData({ filter, visibleItems });
     },
@@ -278,6 +350,7 @@ function register(screen) {
     go(event) {
       const { page, id } = event.currentTarget.dataset;
       if (page === 'scan') return this.scan();
+      if (this.data.root && roots.includes(page)) return this.switchRiderTab(page);
       navigate(page, id);
     },
 
@@ -287,7 +360,13 @@ function register(screen) {
         this.setData({ modal: {
           topic, id, title: '确认已送达？',
           text: '请核对 ' + address + '，拍摄餐品放置位置作为送达凭证。',
-          confirm: '确认送达'
+          confirm: '拍照并确认'
+        } });
+      } else if (topic === 'logout') {
+        this.setData({ modal: {
+          topic: 'logout', title: '退出骑手工作台？',
+          text: '退出后将停止当前账号会话与配送定位共享，下次进入需重新验证身份。',
+          confirm: '退出登录'
         } });
       } else {
         const [title, text] = help[topic];
@@ -351,6 +430,13 @@ function register(screen) {
           wx.removeStorageSync('rider-withdraw-intent-' + this.data.profile.id);
           this.setData({ modal: null, amount: '' });
           navigate('withdrawDetail', result.withdrawalId, true);
+        } else if (modal.topic === 'logout') {
+          try { await api.request('/auth/logout', 'POST'); } catch (_) {}
+          wx.removeStorageSync('riderToken');
+          location.stop?.();
+          roles.forget('rider');
+          this.setData({ modal: null });
+          wx.reLaunch({ url: '/pages/home/index' });
         }
       } catch (error) {
         if (modal.topic === 'complete') this.setData({ 'modal.uploading': false });
@@ -372,14 +458,29 @@ function register(screen) {
         try {
           code = await api.wxCall('scanCode', { onlyFromCamera: true, scanType: ['qrCode'] });
         } catch (error) {
-          if (String(error.errMsg).includes('cancel')) return;
+          if (String(error?.errMsg || '').includes('cancel')) return;
           throw new Error('无法打开扫码，请检查摄像头权限');
         }
-        await api.request('/pickup', 'POST', { token: code.result });
-        // 服务端提交订单归属后，立即重新查询本人任务并上报位置。
-        location.sample(true);
-        await this.refresh();
-        toast('领取成功，已开始配送');
+        try {
+          const pickup = await api.request('/pickup', 'POST', { token: code.result });
+          // 服务端提交订单归属后，立即上报位置并展示领取核对结果页。
+          location.sample(true);
+          let order = null;
+          if (pickup?.orderId) {
+            try {
+              order = display.order(await api.request('/orders/' + encodeURIComponent(pickup.orderId)));
+            } catch (_) {}
+          }
+          getApp().scanResult = { ok: true, order };
+        } catch (pickupError) {
+          getApp().scanResult = { ok: false, message: errorMessage(pickupError) };
+        }
+        if (screen === 'scanResult') {
+          this.setData({ result: getApp().scanResult });
+          await this.refresh();
+        } else {
+          navigate('scanResult', '', screen === 'scan');
+        }
       } catch (error) {
         toast(errorMessage(error));
       } finally {

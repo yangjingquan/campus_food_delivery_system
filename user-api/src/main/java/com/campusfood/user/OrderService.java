@@ -81,7 +81,11 @@ public class OrderService {
         List<RequestedLine> requested = parseItems(body.get("items"));
         String requestKey = text(body, "requestKey");
         if (!requestKey.matches("[A-Za-z0-9_-]{8,80}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "下单请求标识无效");
-        String fingerprint = fingerprint(pickup ? "pickup" : addressId, requested);
+        String remark = text(body, "remark");
+        if (remark.length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单备注最多 120 个字符");
+        String tableware = text(body, "tableware");
+        if (tableware.length() > 32) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "餐具说明最多 32 个字符");
+        String fingerprint = fingerprint(pickup ? "pickup" : addressId, requested, remark, tableware);
         // 并发重试先锁同一用户，再判断请求编号是否已创建支付单。
         db.queryForObject("SELECT id FROM user_profile WHERE id=? FOR UPDATE", Long.class, userId);
         List<Map<String, Object>> previous = db.queryForList("SELECT id,request_fingerprint FROM payment_order WHERE user_id=? AND request_key=? FOR UPDATE", userId, requestKey);
@@ -160,15 +164,16 @@ public class OrderService {
             db.update("""
                 INSERT INTO user_order_detail(order_id,user_id,payment_id,address_id,receiver_name,phone,building,room,
                     operations_rule_id,food_rate_snapshot,destination_latitude,destination_longitude,pickup_address,
-                    merchant_settlement_wait_minutes,rider_settlement_wait_minutes)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    merchant_settlement_wait_minutes,rider_settlement_wait_minutes,order_remark,tableware_note)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, orderId, userId, paymentId, pickup ? null : addressId,
                 address.getOrDefault("name", ""), address.getOrDefault("phone", ""),
                 address.getOrDefault("building", ""), address.getOrDefault("room", ""),
                 pricing.defaultVersion(), pricing.rules().food().mode() == Mode.PERCENTAGE
                     ? BigDecimal.valueOf(pricing.rules().food().value(), 2) : null,
                 pickup ? null : coordinates.latitude(), pickup ? null : coordinates.longitude(),
-                pickup ? first.merchantAddress() : null, pricing.merchantWaitMinutes(), pricing.riderWaitMinutes());
+                pickup ? first.merchantAddress() : null, pricing.merchantWaitMinutes(), pricing.riderWaitMinutes(),
+                remark, tableware);
             OrderPricing.lock(db, orderId, pricing);
             for (OrderLine line : merchantLines) {
                 CatalogLine item = line.product();
@@ -420,7 +425,31 @@ public class OrderService {
     }
 
     public Map<String, Object> detail(long userId, String orderId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT o.id,o.payment_id AS paymentId,o.merchant_id AS merchantId,o.merchant AS merchantName,o.items,o.food_cents AS foodCents,o.delivery_cents AS deliveryFeeCents,o.paid_cents AS paidCents,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,o.payment_status AS paymentStatus,o.fulfill_status AS fulfillStatus,o.fulfillment_type AS fulfillmentType,o.refund_status AS refundStatus,o.settlement_status AS settlementStatus,o.accepted,o.pending_refund AS pendingRefund,o.intervene,o.intervene_code AS interveneCode,o.intervene_reason AS interveneReason,o.paid_at AS paidAt,o.completed_at AS completedAt,o.closed_at AS closedAt,d.address_id AS addressId,d.receiver_name AS receiverName,d.phone,d.building,d.room,d.first_closed_at AS firstClosedAt,d.pickup_address AS pickupAddress,(d.rider_settled_at IS NOT NULL OR d.merchant_settled_at IS NOT NULL) AS settlementRecorded,IF(d.pickup_rider_id IS NULL,GREATEST(0,o.delivery_cents-o.refunded_cents+o.food_refunded_cents),0) AS partialDeliveryRefundCents,CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) AS pickupCode,p.status AS mergedPaymentStatus FROM business_order o JOIN user_order_detail d ON d.order_id=o.id JOIN payment_order p ON p.id=o.payment_id WHERE d.user_id=? AND o.id=?", userId, orderId);
+        List<Map<String, Object>> rows = db.queryForList("""
+            SELECT o.id,o.payment_id AS paymentId,o.merchant_id AS merchantId,o.merchant AS merchantName,o.items,
+                   o.food_cents AS foodCents,o.delivery_cents AS deliveryFeeCents,o.paid_cents AS paidCents,
+                   o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents,
+                   o.payment_status AS paymentStatus,o.fulfill_status AS fulfillStatus,o.fulfillment_type AS fulfillmentType,
+                   o.refund_status AS refundStatus,o.settlement_status AS settlementStatus,o.accepted,
+                   o.pending_refund AS pendingRefund,o.intervene,o.intervene_code AS interveneCode,
+                   o.intervene_reason AS interveneReason,o.paid_at AS paidAt,o.completed_at AS completedAt,
+                   o.closed_at AS closedAt,d.address_id AS addressId,d.receiver_name AS receiverName,d.phone,
+                   d.building,d.room,d.first_closed_at AS firstClosedAt,d.pickup_address AS pickupAddress,
+                   COALESCE(d.order_remark,'') AS remark,COALESCE(d.tableware_note,'') AS tableware,
+                   m.phone AS merchantPhone,
+                   IF(o.fulfill_status='DELIVERING',r.phone,NULL) AS riderPhone,
+                   IF(o.fulfill_status='DELIVERING',r.name,NULL) AS riderName,
+                   (d.rider_settled_at IS NOT NULL OR d.merchant_settled_at IS NOT NULL) AS settlementRecorded,
+                   IF(d.pickup_rider_id IS NULL,GREATEST(0,o.delivery_cents-o.refunded_cents+o.food_refunded_cents),0) AS partialDeliveryRefundCents,
+                   CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) AS pickupCode,
+                   p.status AS mergedPaymentStatus
+            FROM business_order o
+            JOIN user_order_detail d ON d.order_id=o.id
+            JOIN payment_order p ON p.id=o.payment_id
+            LEFT JOIN merchant m ON m.id=o.merchant_id
+            LEFT JOIN rider r ON r.id=d.pickup_rider_id
+            WHERE d.user_id=? AND o.id=?
+            """, userId, orderId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在");
         Map<String, Object> result = new LinkedHashMap<>(rows.get(0));
         result.put("items", db.queryForList("SELECT product_id AS productId,name_snapshot AS name,price_cents AS priceCents,quantity,amount_cents AS amountCents FROM user_order_item WHERE order_id=? ORDER BY id", orderId));
@@ -524,9 +553,10 @@ public class OrderService {
     }
 
     private static String text(Map<String, Object> body, String key) { return body.get(key) == null ? "" : body.get(key).toString().trim(); }
-    private static String fingerprint(String addressId, List<RequestedLine> lines) {
+    private static String fingerprint(String addressId, List<RequestedLine> lines, String remark, String tableware) {
         try {
-            String canonical = addressId + "|" + lines.stream().sorted((a, b) -> a.productId().compareTo(b.productId())).map(x -> x.productId() + ":" + x.quantity()).reduce((a, b) -> a + "|" + b).orElse("");
+            String extra = (remark.isEmpty() && tableware.isEmpty()) ? "" : ("|" + remark + "|" + tableware);
+            String canonical = addressId + "|" + lines.stream().sorted((a, b) -> a.productId().compareTo(b.productId())).map(x -> x.productId() + ":" + x.quantity()).reduce((a, b) -> a + "|" + b).orElse("") + extra;
             return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception exception) {
             throw new IllegalStateException("SHA-256 不可用", exception);

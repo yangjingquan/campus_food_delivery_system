@@ -1,9 +1,36 @@
 @import "../../styles/base.wxss";
-.confirm-page button.address-card { display: block; min-height: 111px; }
-.address-card .subheading { color: #a84b21; font-size: 11px; letter-spacing: 0; }
-.address-title { margin: 4px 0 7px; font-size: 18px; }
-.group-title { margin-bottom: 14px; }
-.confirm-page .foodline { align-items: flex-start; gap: 13px; min-height: 97px; }
-.confirm-page .foodline .small { margin-top: 5px; }
-.line-amount { display: block; margin-top: 14px; }
-.confirm-note { margin: 16px 0; }
+.confirm-page button.address-card { display: block; }
+.address-card .subheading { color: #a84b21; font-size: 12px; letter-spacing: 0; font-weight: 600; }
+.address-title { margin: 4px 0 6px; font-size: 18px; }
+.chevron-text { color: var(--muted); font-size: 18px; }
+.group-title { margin-bottom: 12px; }
+.confirm-page .foodline { align-items: center; gap: 12px; }
+.confirm-page .foodline + .foodline { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.confirm-page .foodline .small { margin-top: 3px; }
+.line-amount { display: block; margin-top: 6px; font-size: 16px; }
+.order-preferences { padding-top: 8px; padding-bottom: 14px; }
+.confirm-page button.pref-row { min-height: 44px; padding: 6px 0 10px; font-size: 14px; }
+.pref-remark { padding-top: 10px; }
+.pref-label { font-size: 14px; font-weight: 600; }
+.remark-input {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  font-size: 13px;
+}
+.quick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.confirm-page button.quick-chip {
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.confirm-note { margin: 12px 0; }

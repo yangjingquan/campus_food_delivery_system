@@ -9,12 +9,12 @@
   </scroll-view>
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{!loading && !loadError}}">
-    <view wx:for="{{visible}}" wx:key="id" class="card ordercard">
+    <view wx:for="{{visible}}" wx:key="id" class="card ordercard" data-id="{{item.id}}" data-payment="{{item.isPayment}}" bindtap="openEntry" hover-class="card-pressed">
       <view class="order-head">
         <view class="h3 order-name">{{item.merchantName}}</view>
         <view class="orderstate">{{states.label(item.displayStatus)}}</view>
       </view>
-      <view wx:if="{{item.fulfillmentType === 'pickup'}}" class="small order-note">到店自取</view>
+      <view wx:if="{{item.fulfillmentType === 'pickup'}}" class="small order-note"><text class="tag">到店自取</text></view>
       <view class="muted order-summary">{{item.displayItems}}</view>
       <view wx:if="{{!item.isPayment && item.note}}" class="small order-note">{{item.refundStatus && item.refundStatus !== 'NO_AFTER_SALE' ? '售后：' + states.label(item.refundStatus) : item.note}}</view>
       <view class="order-footer">
@@ -22,10 +22,10 @@
           <text class="small">{{item.isPayment ? '应付金额' : '订单金额'}}</text>
           <text class="order-amount">{{item.amountText}}</text>
         </view>
-        <button wx:if="{{item.isPayment}}" class="order-link" data-id="{{item.id}}" bindtap="openPayment">
-          <text>查看支付单</text>
+        <button wx:if="{{item.isPayment}}" class="order-link is-pay" data-id="{{item.id}}" catchtap="openPayment">
+          <text>去付款</text>
         </button>
-        <button wx:else class="order-link" data-id="{{item.id}}" bindtap="openOrder">
+        <button wx:else class="order-link" data-id="{{item.id}}" catchtap="openOrder">
           <text>查看详情</text>
         </button>
       </view>

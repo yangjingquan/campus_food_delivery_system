@@ -1,1 +1,14 @@
 @import "../../styles/base.wxss";
+
+.withdraw-submit {
+  min-height: 46px;
+  margin-top: 14px;
+  font-size: 15px;
+}
+.withdraw-all-btn {
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 600;
+}

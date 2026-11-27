@@ -1,14 +1,17 @@
-<view wx:if="{{dialog}}" class="dialog-scrim" catchtouchmove="blockDialogScroll">
-  <view class="dialog-panel" role="dialog" aria-label="{{dialog.title}}">
+<view wx:if="{{dialog}}" class="dialog-scrim {{dialog.sheet ? 'is-sheet' : ''}}" bindtap="scrimTapDialog" catchtouchmove="blockDialogScroll">
+  <view class="dialog-panel {{dialog.sheet ? 'dialog-sheet' : ''}}" catchtap="blockDialogScroll" role="dialog" aria-label="{{dialog.title}}">
     <view class="dialog-title">{{dialog.title}}</view>
     <view wx:if="{{dialog.content}}" class="dialog-content">{{dialog.content}}</view>
     <view wx:if="{{dialog.options}}" class="dialog-options">
       <button wx:for="{{dialog.options}}" wx:key="*this" class="dialog-option {{dialog.selected === index ? 'on' : ''}}"
-        data-index="{{index}}" bindtap="selectDialogOption" aria-selected="{{dialog.selected === index}}">{{item}}</button>
+        data-index="{{index}}" bindtap="selectDialogOption" aria-selected="{{dialog.selected === index}}">
+        <text>{{item}}</text>
+        <text wx:if="{{dialog.selected === index}}" aria-hidden="true">✓</text>
+      </button>
     </view>
-    <view class="dialog-actions">
-      <button wx:if="{{dialog.cancel}}" class="dialog-cancel" bindtap="cancelDialog">取消</button>
-      <button class="dialog-confirm" bindtap="confirmDialog">{{dialog.confirmText || '确定'}}</button>
+    <view wx:if="{{!dialog.sheet || !dialog.autoConfirm}}" class="dialog-actions">
+      <button wx:if="{{dialog.cancel}}" class="dialog-cancel" bindtap="cancelDialog">{{dialog.cancelText || '取消'}}</button>
+      <button class="dialog-confirm {{dialog.destructive ? 'is-danger' : ''}}" bindtap="confirmDialog">{{dialog.confirmText || '确定'}}</button>
     </view>
   </view>
 </view>

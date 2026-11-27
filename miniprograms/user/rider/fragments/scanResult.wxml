@@ -1,15 +1,16 @@
+<wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="successcircle {{result.ok ? '' : 'result-error'}}">
-  <template is="icon" data="{{name: result.ok ? 'check' : 'info', size: 'icon-large'}}"/>
+  <template is="icon" data="{{name: result.ok ? 'check' : 'info', tone: result.ok ? 'green' : 'amber', size: 'icon-large'}}"/>
 </view>
 <view class="center">
-  <view class="h2">{{result.ok ? '领取成功' : '领取结果待核对'}}</view>
-  <view class="small muted">{{result.ok ? '已加入我的配送，可继续扫码领取下一单。' : result.message}}</view>
+  <view class="h2">{{result.ok ? '领取成功' : '未能领取此单'}}</view>
+  <view class="small muted">{{result.ok ? '请核对下方楼栋与门牌，可继续扫码领取同顺路餐品。' : result.message}}</view>
 </view>
-<template wx:if="{{result.ok && result.order}}" is="orderCard" data="{{order: result.order}}"/>
-<template wx:if="{{!result.ok}}" is="note" data="{{label: '请核对小票，并在我的配送查看是否已领取。', tone: 'warn'}}"/>
+<template wx:if="{{result.ok && result.order}}" is="orderCard" data="{{order: result.order, actions: true}}"/>
+<template wx:if="{{!result.ok}}" is="note" data="{{label: '请核对小票是否为已到暂存点的外卖订单，并在我的配送确认领取状态。', tone: 'warn'}}"/>
 <view class="card row">
-  <text class="small muted">当前配送中</text><text class="b">{{active.length}} 笔</text>
+  <text class="small muted">当前手中配送中</text><text class="b">{{active.length}} 笔</text>
 </view>
-<template is="action" data="{{busy, page: 'scan', icon: 'scan', label: '继续扫码领取'}}"/>
-<view class="top-space"><template is="action" data="{{page: 'orders', label: '查看我的配送', style: 'outline full'}}"/></view>
+<template is="action" data="{{busy, page: 'scan', icon: 'scan', label: result.ok ? '继续扫码领下一单' : '重新扫码'}}"/>
+<view class="top-space"><template is="action" data="{{page: 'orders', label: '查看我的配送 (' + active.length + ')', style: 'outline full'}}"/></view>

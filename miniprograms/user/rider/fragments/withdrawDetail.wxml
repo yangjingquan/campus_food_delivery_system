@@ -1,8 +1,9 @@
 <wxs module="states" src="../utils/states.wxs"/>
 <import src="./common.wxml"/>
 <view class="details-title">
-  <view class="successcircle">
-    <template is="icon" data="{{name: withdrawal.status === 'PAID' ? 'check' : withdrawal.status === 'PAYOUT_FAILED' ? 'info' : 'clock',
+  <view class="successcircle {{withdrawal.status === 'PAYOUT_FAILED' || withdrawal.status === 'REVIEW_REJECTED' ? 'result-error' : ''}}">
+    <template is="icon" data="{{name: withdrawal.status === 'PAID' ? 'check' : (withdrawal.status === 'PAYOUT_FAILED' || withdrawal.status === 'REVIEW_REJECTED') ? 'info' : 'clock',
+      tone: (withdrawal.status === 'PAYOUT_FAILED' || withdrawal.status === 'REVIEW_REJECTED') ? 'amber' : 'green',
       size: 'icon-large'}}"/>
   </view>
   <view class="h2">{{states.label(withdrawal.status)}}</view>

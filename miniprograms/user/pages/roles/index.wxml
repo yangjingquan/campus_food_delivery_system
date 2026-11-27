@@ -1,12 +1,13 @@
 <view class="picker-page">
+  <view class="picker-intro">选择要进入的工作台身份，已登录会话会自动保留。</view>
   <view class="picker-list">
-    <button wx:for="{{options}}" wx:key="id" class="role-option"
+    <button wx:for="{{options}}" wx:key="id" class="role-option {{current === item.id ? 'is-current' : ''}}"
       data-role="{{item.id}}" bindtap="select" hover-class="role-pressed"
       disabled="{{!!pending}}" aria-current="{{current === item.id ? 'true' : 'false'}}">
-      <view class="role-icon"><image src="{{item.icon}}" mode="aspectFit" aria-hidden="true"/></view>
+      <view class="role-icon role-icon-{{item.id}}"><image src="{{item.icon}}" mode="aspectFit" aria-hidden="true"/></view>
       <view class="role-copy"><text class="role-name">{{item.name}}</text><text class="role-description">{{item.description}}</text></view>
       <text wx:if="{{pending === item.id}}" class="role-status">正在进入…</text>
-      <text wx:elif="{{current === item.id}}" class="role-status">当前</text>
+      <text wx:elif="{{current === item.id}}" class="role-status is-badge">当前使用</text>
       <view wx:else class="role-arrow" aria-hidden="true"/>
     </button>
   </view>

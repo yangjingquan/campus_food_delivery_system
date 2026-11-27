@@ -14,9 +14,12 @@
       </button>
       <view wx:else class="avatar-frame"><view class="avatar" aria-hidden="true">食</view></view>
       <view class="profile-copy">
-        <input wx:if="{{editingNickname}}" class="nickname-input" type="nickname"
-          value="{{draftName}}" focus="{{editingNickname}}" placeholder="请输入昵称"
-          bindchange="saveNickname" bindblur="saveNickname" disabled="{{working}}" aria-label="昵称"/>
+        <view wx:if="{{editingNickname}}" class="nickname-edit-row">
+          <input class="nickname-input" type="nickname"
+            value="{{draftName}}" focus="{{editingNickname}}" placeholder="请输入昵称"
+            bindchange="saveNickname" bindblur="saveNickname" disabled="{{working}}" aria-label="昵称"/>
+          <button class="link cancel-nickname-btn" catchtap="cancelNickname" disabled="{{working}}">取消</button>
+        </view>
         <button wx:elif="{{user}}" class="profile-name" bindtap="editNickname" disabled="{{working}}"
           aria-label="修改昵称 {{user.displayName}}">{{user.displayName}}</button>
         <view wx:else class="guest-title">欢迎来到寝食记</view>

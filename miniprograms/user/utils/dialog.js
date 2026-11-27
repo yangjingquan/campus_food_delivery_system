@@ -5,6 +5,10 @@ function showDialog(page, options, onConfirm) {
 
 const dialogEvents = {
   blockDialogScroll() {},
+  scrimTapDialog() {
+    if (this.data.dialog?.dismissible === false) return;
+    this.cancelDialog();
+  },
   cancelDialog() {
     this.dialogConfirm = null;
     this.setData({ dialog: null });
@@ -16,7 +20,11 @@ const dialogEvents = {
     if (confirm) return confirm(selected);
   },
   selectDialogOption(event) {
-    this.setData({ 'dialog.selected': Number(event.currentTarget.dataset.index) });
+    const index = Number(event.currentTarget.dataset.index);
+    this.setData({ 'dialog.selected': index });
+    if (this.data.dialog?.sheet && this.data.dialog?.autoConfirm) {
+      return this.confirmDialog();
+    }
   }
 };
 

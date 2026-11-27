@@ -1,6 +1,7 @@
 Component({
   properties: {
     inline: Boolean,
+    inPlace: Boolean,
     selected: String
   },
   data: {
@@ -14,7 +15,12 @@ Component({
   methods: {
     select(event) {
       const page = event.currentTarget.dataset.page;
-      if (page !== this.data.selected) wx.redirectTo({ url: '/rider/pages/' + page + '/index' });
+      if (page === this.data.selected) return;
+      if (this.data.inPlace) {
+        this.triggerEvent('switch', { page });
+      } else {
+        wx.redirectTo({ url: '/rider/pages/' + page + '/index' });
+      }
     }
   }
 });

@@ -1,6 +1,6 @@
 {
   "navigationBarTitleText": "提现详情",
-  "navigationBarBackgroundColor": "#ffffff",
+  "navigationBarBackgroundColor": "#f4f7f5",
   "backgroundColor": "#f4f7f5",
   "backgroundTextStyle": "dark",
   "enablePullDownRefresh": true

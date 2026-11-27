@@ -46,6 +46,12 @@ public class ReceiptFormatter {
         if (ticket.get("maskedPhone") instanceof String phone && !phone.isEmpty()) {
             receipt.append("手机号：").append(phone).append("<BR>");
         }
+        if (ticket.get("tableware") instanceof String tableware && !tableware.isBlank()) {
+            receipt.append("餐具：").append(text(tableware)).append("<BR>");
+        }
+        if (ticket.get("remark") instanceof String remark && !remark.isBlank()) {
+            receipt.append("<B>备注：").append(text(remark)).append("</B><BR>");
+        }
         receipt.append("下单时间：").append(time(ticket.get("createdAt"))).append("<BR><BR>");
         String content = receipt.toString();
         if (content.getBytes(StandardCharsets.UTF_8).length > 5000) {

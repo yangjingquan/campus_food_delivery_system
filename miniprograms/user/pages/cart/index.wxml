@@ -1,4 +1,4 @@
-<view class="page cart-page">
+<view class="page dock-page cart-page">
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{!loading && !loadError && cartCount}}">
     <view class="row">
@@ -32,13 +32,19 @@
       </view>
     </view>
     <view wx:if="{{checkoutCount}}" class="hint">{{checkoutCount > 1 ? '合并付款后按商户拆单，各店独立出餐、配送与售后。' : '本店独立出餐、配送与售后。'}}</view>
-    <view class="card bill">
-      <view class="row"><text>餐品金额</text><text>{{foodText}}</text></view>
-      <view class="row"><text>预估配送费（{{groups.length}} 笔）</text><text>{{feeText}}</text></view>
+    <view wx:else class="hint orange">当前暂无满足起送或营业条件的商户，请凑单后再结算。</view>
+    <view wx:if="{{checkoutCount}}" class="card bill">
+      <view class="row"><text>可结算餐品金额</text><text>{{foodText}}</text></view>
+      <view class="row"><text>预估配送费（{{checkoutCount}} 笔）</text><text>{{feeText}}</text></view>
     </view>
     <view class="totalbar">
-      <view class="card row totalbar-summary"><view class="small">预估合计（含配送费）</view><view class="price">{{totalText}}</view></view>
-      <button class="btn" disabled="{{!checkoutCount}}" bindtap="checkout">去结算</button>
+      <view class="totalbar-inner">
+        <view class="totalbar-info">
+          <view class="price">{{totalText}}</view>
+          <view class="small">{{checkoutCount ? '已含 ' + checkoutCount + ' 家配送费' : '暂无可结算餐品'}}</view>
+        </view>
+        <button class="btn totalbar-cta" disabled="{{!checkoutCount}}" bindtap="checkout">去结算{{checkoutCount ? ' (' + checkoutCount + '店)' : ''}}</button>
+      </view>
     </view>
   </block>
   <view wx:if="{{!loading && !loadError && !cartCount}}" class="empty">

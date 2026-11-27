@@ -1,10 +1,13 @@
 {
   "navigationBarTitleText": "订单工作台",
   "enablePullDownRefresh": true,
-  "navigationBarBackgroundColor": "#ffffff",
+  "navigationBarBackgroundColor": "#f3f6f3",
   "backgroundColor": "#f3f6f3",
   "backgroundTextStyle": "dark",
   "usingComponents": {
-    "merchant-tab-bar": "/merchant/custom-tab-bar/index"
+    "merchant-tab-bar": "/merchant/custom-tab-bar/index",
+    "products-pane": "/merchant/components/products-pane/index",
+    "finance-pane": "/merchant/components/finance-pane/index",
+    "mine-pane": "/merchant/components/mine-pane/index"
   }
 }

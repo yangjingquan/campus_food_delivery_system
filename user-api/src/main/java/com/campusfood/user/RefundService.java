@@ -6,6 +6,7 @@ import com.campusfood.domain.BusinessStates.Refund;
 import com.campusfood.domain.BusinessStates.RefundChannel;
 import com.campusfood.domain.BusinessStates.RefundEvent;
 import com.campusfood.domain.BusinessStates.RefundOperator;
+import com.campusfood.domain.InlinePhoto;
 
 import tools.jackson.databind.JsonNode;
 import org.slf4j.LoggerFactory;
@@ -77,11 +78,21 @@ public class RefundService {
         String reason = text(body, "reason");
         String description = text(body, "description");
         if (reason.isBlank() || reason.length() > 120 || description.length() > 500) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写退款原因，补充说明不超过 500 字");
+        InlinePhoto photo;
+        try {
+            photo = InlinePhoto.parse(text(body, "photo"), "售后凭证图片");
+        } catch (IllegalArgumentException error) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage());
+        }
         Refund status = beforeAcceptance ? Refund.REFUND_PROCESSING : Refund.AWAITING_MERCHANT_DECISION;
         RefundChannel channelStatus = beforeAcceptance ? RefundChannel.REFUND_SUBMISSION_PENDING : RefundChannel.REFUND_NOT_STARTED;
         db.update("INSERT INTO refund_record(id,order_id,payment_id,reason,type,amount_cents,delivery_refund_cents,status,channel_status,created_at,operator_code) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
             refundId, orderId, order.get("payment_id"), reason, type, amount, delivery, status.name(), channelStatus.name(), now, RefundOperator.USER_REQUEST.name());
         db.update("INSERT INTO user_refund_detail(refund_id,description) VALUES(?,?)", refundId, description);
+        if (photo != null) {
+            db.update("INSERT INTO user_refund_photo(refund_id,photo_data,media_type) VALUES(?,?,?)",
+                refundId, photo.data(), photo.mediaType());
+        }
         addEvent(refundId, RefundEvent.AFTER_SALE_REQUESTED, beforeAcceptance ? "商户尚未接单，按规则自动处理全额退款" : "售后申请已提交，等待商户处理", now);
         db.update("UPDATE business_order SET refund_status=?,pending_refund=TRUE WHERE id=?", status.name(), orderId);
         if (beforeAcceptance) queueRefund(refundId, orderId, now);
@@ -576,8 +587,33 @@ public class RefundService {
         return rows.get(0);
     }
 
+    public record RefundPhoto(byte[] data, String mediaType) {}
+
+    public RefundPhoto userPhoto(long userId, String refundId) {
+        ownedRefund(userId, refundId, false);
+        var photo = db.query("SELECT photo_data,media_type FROM user_refund_photo WHERE refund_id=?",
+            rows -> rows.next() ? new RefundPhoto(rows.getBytes("photo_data"), rows.getString("media_type")) : null,
+            refundId);
+        if (photo == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "售后凭证图片不存在");
+        return photo;
+    }
+
     private Map<String, Object> publicDetail(String refundId) {
-        List<Map<String, Object>> rows = db.queryForList("SELECT r.id,r.order_id AS orderId,r.payment_id AS paymentId,r.reason,r.type,r.amount_cents AS amountCents,r.delivery_refund_cents AS deliveryRefundCents,r.amount_cents-r.delivery_refund_cents AS foodRefundCents,r.status,r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,r.operator_code AS operatorCode,r.operator,COALESCE(r.operator_code='USER_ESCALATED',FALSE) AS platformIntervened,d.description,d.wait_until AS waitUntil,d.original_online_failure AS originalOnlineFailure,o.fulfill_status AS fulfillmentStatus,o.refunded_cents AS refundedCents,o.food_refunded_cents AS foodRefundedCents FROM refund_record r JOIN business_order o ON o.id=r.order_id LEFT JOIN user_refund_detail d ON d.refund_id=r.id WHERE r.id=?", refundId);
+        List<Map<String, Object>> rows = db.queryForList("""
+            SELECT r.id,r.order_id AS orderId,r.payment_id AS paymentId,r.reason,r.type,r.amount_cents AS amountCents,
+                   r.delivery_refund_cents AS deliveryRefundCents,r.amount_cents-r.delivery_refund_cents AS foodRefundCents,
+                   r.status,r.channel_status AS channelStatus,r.channel_detail AS channelDetail,
+                   r.channel_reason AS channelReason,r.created_at AS createdAt,r.operator_code AS operatorCode,
+                   r.operator,COALESCE(r.operator_code='USER_ESCALATED',FALSE) AS platformIntervened,
+                   d.description,d.wait_until AS waitUntil,d.original_online_failure AS originalOnlineFailure,
+                   EXISTS(SELECT 1 FROM user_refund_photo p WHERE p.refund_id=r.id) AS hasPhoto,
+                   o.fulfill_status AS fulfillmentStatus,o.refunded_cents AS refundedCents,
+                   o.food_refunded_cents AS foodRefundedCents
+            FROM refund_record r
+            JOIN business_order o ON o.id=r.order_id
+            LEFT JOIN user_refund_detail d ON d.refund_id=r.id
+            WHERE r.id=?
+            """, refundId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "售后记录不存在");
         Map<String, Object> result = new java.util.LinkedHashMap<>(rows.get(0));
         result.put("events", db.queryForList("SELECT status,message,created_at AS createdAt FROM user_after_sale_event WHERE refund_id=? ORDER BY id", refundId));

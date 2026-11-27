@@ -1,9 +1,25 @@
 @import "../../styles/base.wxss";
-.address-heading { margin-bottom: 19px; }
-.address-heading .h2 { margin-bottom: 8px; font-size: 26px; }
-.address-owner { margin: 9px 0 3px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-.address-entry .address { min-height: 97px; }
-.address-entry .address.selected { min-height: 123px; }
-.address .tag { padding: 0; background: none; color: #a84b21; font-weight: 700; }
-.address-actions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; margin: 0 0 11px; }
-.addresses-page .address-actions button { width: 100%; padding-inline: 5px; font-size: 12px; }
+.address-heading { margin-bottom: 18px; }
+.address-heading .h2 { margin-bottom: 6px; font-size: 24px; }
+.address-top { align-items: flex-start; }
+.address-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.address-title-row .tag { margin: 0; }
+.address-badge { background: #f3f4ef; color: var(--muted); font-weight: 600; }
+.address-badge.is-active { background: #fff0e7; color: #a84b21; }
+.address-warn { margin-top: 4px; color: #a84b21; }
+.address-owner { margin-top: 8px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.address-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.addresses-page button.address-icon-btn {
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.addresses-page button.address-icon-btn.is-danger { color: #b43c25; }

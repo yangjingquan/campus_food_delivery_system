@@ -29,6 +29,7 @@ public class OrderService {
                o.pickup_number AS pickupNumber,
                CONCAT('#',IF(o.fulfillment_type='pickup','Z','W'),o.pickup_number) AS pickupCode,o.accepted,o.pending_refund AS pendingRefund,o.intervene,
                o.intervene_code AS interveneCode,o.intervene_reason AS interveneReason,o.paid_at AS paidAt,d.arrived_at AS arrivedAt,
+               COALESCE(d.order_remark,'') AS remark,COALESCE(d.tableware_note,'') AS tableware,
                d.batch_alert_at AS batchAlertAt,o.completed_at AS completedAt,o.closed_at AS closedAt,
                o.paid_at+(SELECT accept_timeout FROM operations_config ORDER BY id DESC LIMIT 1)*60000 AS acceptDeadlineAt
         FROM business_order o JOIN user_order_detail d ON d.order_id=o.id
@@ -39,8 +40,11 @@ public class OrderService {
         SELECT r.id,r.order_id AS orderId,r.type,r.reason,r.amount_cents AS amountCents,r.delivery_refund_cents AS deliveryRefundCents,
                r.amount_cents-r.delivery_refund_cents AS foodRefundCents,r.status,
                r.channel_status AS channelStatus,r.channel_detail AS channelDetail,r.channel_reason AS channelReason,r.created_at AS createdAt,
-               r.offline_channel AS offlineChannel,r.offline_actual_at AS offlineActualAt
+               r.offline_channel AS offlineChannel,r.offline_actual_at AS offlineActualAt,
+               COALESCE(x.description,'') AS description,
+               EXISTS(SELECT 1 FROM user_refund_photo p WHERE p.refund_id=r.id) AS hasPhoto
         FROM refund_record r JOIN business_order o ON o.id=r.order_id JOIN user_order_detail d ON d.order_id=o.id
+        LEFT JOIN user_refund_detail x ON x.refund_id=r.id
         WHERE o.merchant_id=? AND o.paid_at>0
         """;
 
@@ -93,6 +97,19 @@ public class OrderService {
     public List<Map<String, Object>> aftersales(String merchant, int page) {
         int offset = Math.min(100_000, Math.max(0, page)) * 30;
         return db.queryForList(REFUNDS + " ORDER BY r.created_at DESC,r.id DESC LIMIT 30 OFFSET ?", merchant, offset);
+    }
+
+    public UploadedPhoto aftersalePhoto(String merchant, String refundId) {
+        var photo = db.query("""
+            SELECT p.photo_data,p.media_type
+            FROM user_refund_photo p
+            JOIN refund_record r ON r.id=p.refund_id
+            JOIN business_order o ON o.id=r.order_id
+            WHERE p.refund_id=? AND o.merchant_id=? AND o.paid_at>0
+            """, rows -> rows.next() ? new UploadedPhoto(rows.getBytes("photo_data"), rows.getString("media_type")) : null,
+            refundId, merchant);
+        if (photo == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "售后凭证图片不存在");
+        return photo;
     }
 
     @Transactional

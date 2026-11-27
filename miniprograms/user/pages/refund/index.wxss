@@ -1,8 +1,26 @@
 @import "../../styles/base.wxss";
 .refund-intro { margin: 7px 0 15px; }
-.refund-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.refund-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 15px 0; }
 .refund-error { margin: 0 0 10px; }
 .refund-page button.picker-value { display: flex; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); text-align: left; }
-.refund-page .h2 { font-size: 26px; }
+.refund-page .h2 { font-size: 24px; }
 .refund-page .kv { margin-block: 9px; }
-.refund-page .refund-options { margin: 15px 0; }
+.refund-page input.is-disabled { background: #eff0ea; color: var(--muted); }
+.refund-upload-btn { border-style: dashed; color: var(--muted); }
+.refund-photo-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.refund-photo-img {
+  width: 76px;
+  height: 76px;
+  border-radius: 10px;
+  background: #f3f4ef;
+}
+.refund-photo-actions { display: flex; gap: 12px; }
+.refund-page button.danger-link { color: #b43c25; }

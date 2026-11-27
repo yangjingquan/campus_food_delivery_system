@@ -19,12 +19,12 @@
   <input wx:if="{{timeIndex === 3}}" class="input top-space" maxlength="160" aria-label="填写可送餐时间"
     value="{{form.availableTime}}" data-field="availableTime" bindinput="formInput" placeholder="例如 14:00-16:00"/>
   <view class="formlabel">学生证照片</view>
-  <view class="student-card" wx:if="{{!studentCard}}">
+  <button class="student-card full" wx:if="{{!studentCard}}" bindtap="chooseCard" hover-class="pressed" aria-label="上传学生证照片">
     <view class="student-photo"><template is="icon" data="{{name: 'user'}}"/></view>
-    <view><view class="h4 strong">上传清晰的学生证照片</view><view class="small muted">JPEG 或 PNG，4 MB 以内</view></view>
-  </view>
+    <view><view class="strong">点击上传清晰的学生证照片</view><view class="small muted">JPEG 或 PNG，4 MB 以内</view></view>
+  </button>
   <image wx:else class="student-preview" src="{{studentCard}}" mode="aspectFit" bindtap="previewCard" aria-label="预览学生证照片"/>
-  <button class="link" bindtap="chooseCard">{{studentCard ? '更换照片' : '选择照片'}}</button>
+  <button wx:if="{{studentCard}}" class="link" bindtap="chooseCard">更换照片</button>
 </view>
 <checkbox-group bindchange="changeConsent">
   <label class="checkline"><checkbox color="#147b58" value="agree"/>

@@ -18,6 +18,7 @@ com/campusfood/domain/BusinessStates$WithdrawalReason.class
 com/campusfood/domain/PricingRules$Rule.class
 com/campusfood/domain/BusinessStates$RefundOperator.class
 com/campusfood/domain/BusinessStates$AdminAudit.class
+com/campusfood/domain/WithdrawalLimits.class
 com/campusfood/domain/BusinessStates$Audit.class
 com/campusfood/domain/BusinessStates$OrderActor.class
 com/campusfood/domain/BusinessStates$OrderFilter.class
@@ -26,4 +27,5 @@ com/campusfood/domain/BusinessStates$RefundChannel.class
 com/campusfood/domain/BusinessStates$Withdrawal.class
 com/campusfood/domain/BusinessStates.class
 com/campusfood/domain/BusinessStates$Reminder.class
+com/campusfood/domain/DisplayOrder.class
 com/campusfood/domain/PricingRules.class

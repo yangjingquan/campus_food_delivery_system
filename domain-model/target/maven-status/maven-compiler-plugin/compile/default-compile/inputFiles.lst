@@ -1,4 +1,6 @@
 /Users/yangjingquan/Documents/CampusFoodDeliverySystem/codes/domain-model/src/main/java/com/campusfood/domain/BusinessStates.java
+/Users/yangjingquan/Documents/CampusFoodDeliverySystem/codes/domain-model/src/main/java/com/campusfood/domain/DisplayOrder.java
 /Users/yangjingquan/Documents/CampusFoodDeliverySystem/codes/domain-model/src/main/java/com/campusfood/domain/InlinePhoto.java
 /Users/yangjingquan/Documents/CampusFoodDeliverySystem/codes/domain-model/src/main/java/com/campusfood/domain/PricingRules.java
 /Users/yangjingquan/Documents/CampusFoodDeliverySystem/codes/domain-model/src/main/java/com/campusfood/domain/TicketQr.java
+/Users/yangjingquan/Documents/CampusFoodDeliverySystem/codes/domain-model/src/main/java/com/campusfood/domain/WithdrawalLimits.java

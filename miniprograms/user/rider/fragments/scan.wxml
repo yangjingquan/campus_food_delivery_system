@@ -1,21 +1,33 @@
 <import src="./common.wxml"/>
+<view class="scan-hero-icon" aria-hidden="true">
+  <template is="icon" data="{{name: 'scan', size: 'icon-large'}}"/>
+</view>
 <view class="center">
   <view class="h2">逐单扫码，核对领餐</view>
-  <view class="small muted">请扫描每份餐品小票上的唯一订单二维码</view>
+  <view class="small muted">前往校园暂存点，点击下方按钮唤起相机扫描餐袋小票二维码</view>
 </view>
-<view class="qrframe" aria-hidden="true">
-  <view class="corner"/><view class="corner"/><view class="corner"/><view class="corner"/>
-  <template is="icon" data="{{name: 'qr', tone: 'scan', size: 'qr-icon'}}"/>
-</view>
-<view class="small muted center">请将小票二维码对准微信扫码框</view>
 <view class="card">
   <view class="row">
-    <text class="strong">扫描餐品小票</text>
-    <template is="chip" data="{{label: '逐单领取', tone: 'gray'}}"/>
+    <text class="strong">扫码领餐步骤</text>
+    <template is="chip" data="{{label: '支持多单连扫', tone: ''}}"/>
+  </view>
+  <view class="scan-steps">
+    <view class="scan-step">
+      <text class="scan-step-num">1</text>
+      <view class="flex-fill"><text class="strong small">找到待领餐袋</text><view class="small muted">核对暂存点餐品小票上的取餐号与二维码</view></view>
+    </view>
+    <view class="scan-step">
+      <text class="scan-step-num">2</text>
+      <view class="flex-fill"><text class="strong small">点击按钮唤起相机</text><view class="small muted">逐份扫描小票二维码完成订单归属绑定</view></view>
+    </view>
+    <view class="scan-step">
+      <text class="scan-step-num">3</text>
+      <view class="flex-fill"><text class="strong small">当场确认送达楼栋</text><view class="small muted">领取结果页将展示目标楼栋寝室，可一键继续扫下一单</view></view>
+    </view>
   </view>
   <button class="btn primary full top-space" bindtap="scan" loading="{{busy}}" disabled="{{busy}}" hover-class="pressed">
     <template is="icon" data="{{name: 'scan', tone: 'white', size: 'icon-small'}}"/>打开相机扫码领取
   </button>
 </view>
-<template is="note" data="{{label: '同一趟可以配送多单。扫码成功后，该单进入配送流程。'}}"/>
-<template is="note" data="{{label: location.message, icon: 'pin'}}"/>
+<template is="note" data="{{label: '同一趟可以顺路领取多笔订单，扫码成功后自动开启配送位置共享。'}}"/>
+<template wx:if="{{location.message}}" is="note" data="{{label: location.message, icon: 'pin'}}"/>

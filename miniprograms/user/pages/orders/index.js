@@ -64,6 +64,11 @@ Page({
     return this.load();
   },
 
+  openEntry(event) {
+    const { id, payment } = event.currentTarget.dataset;
+    if (payment) wx.navigateTo({ url: `/pages/payment/index?id=${id}` });
+    else wx.navigateTo({ url: `/pages/order-detail/index?id=${id}` });
+  },
   openOrder(event) { wx.navigateTo({ url: `/pages/order-detail/index?id=${event.currentTarget.dataset.id}` }); },
   openPayment(event) { wx.navigateTo({ url: `/pages/payment/index?id=${event.currentTarget.dataset.id}` }); },
   goHome() { wx.switchTab({ url: '/pages/home/index' }); }

@@ -10,9 +10,9 @@
   <template is="pairs" data="{{rows: [{label:'配送订单',value:order.address},{label:'商户',value:order.merchant},
     {label:'履约状态',value:states.label(order.status)},{label:'售后状态',value:states.label(order.refundStatus)}]}}"/>
   <view class="group-label">费用</view>
-  <template is="fees" data="{{rows: [{label:'退款后配送费',value:'¥ ' + order.fee},
-    {label:'平台抽成',value:'¥ ' + order.commission},{label:'骑手应得',value:'¥ ' + order.due}]}}"/>
-  <view wx:if="{{order.fundedCents > 0}}" class="muted small">全额退款骑手报酬 ¥ {{order.funded}}，由商户承担</view>
+  <template is="fees" data="{{rows: [{label:'退款后配送费',value:'¥' + order.fee},
+    {label:'平台抽成',value:'¥' + order.commission},{label:'骑手应得',value:'¥' + order.due}]}}"/>
+  <view wx:if="{{order.fundedCents > 0}}" class="muted small">全额退款骑手报酬 ¥{{order.funded}}，由商户承担</view>
   <view class="info-group settlement-times">
     <view class="group-label">结算时间</view>
     <template is="pairs" data="{{rows: [{label:'计时起点',value:order.startTime},

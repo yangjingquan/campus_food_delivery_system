@@ -95,6 +95,8 @@ Page({
   },
 
   inputKeyword(event) { this.setData({ keyword: event.detail.value }); },
+  clearKeyword() { this.setData({ keyword: '' }); this.load(); },
+  resetFilters() { this.setData({ keyword: '', category: '全部' }); this.load(); },
   search() { this.load(); },
   chooseCategory(event) { this.setData({ category: event.currentTarget.dataset.value }); this.load(); },
   openStore(event) {

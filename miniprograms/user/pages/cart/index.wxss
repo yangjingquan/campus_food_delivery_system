@@ -1,8 +1,17 @@
 @import "../../styles/base.wxss";
-.cart-page button.clear-cart { min-width: 76px; background: #f6f6f1; }
-.cart-page button.merchant-link { display: block; width: 100%; min-height: 27px; margin-bottom: 14px; font-size: 16px; font-weight: 700; text-align: left; }
-.cart-page .foodline { align-items: flex-start; gap: 13px; min-height: 97px; }
-.cart-page .food-price-row { margin-top: 36px; flex-wrap: wrap; }
-.cart-page .foodline + .foodline { margin-top: 13px; }
+.cart-page button.clear-cart { min-width: 72px; background: #f6f6f1; }
+.cart-page button.merchant-link {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  margin-bottom: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+}
+.cart-page .foodline { align-items: center; gap: 12px; }
+.cart-page .food-price-row { margin-top: 8px; flex-wrap: wrap; }
+.cart-page .foodline + .foodline { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .cart-page .cart-quantity { min-width: 24px; font-weight: 700; line-height: 1.4; white-space: nowrap; }
 .cart-page .cart-excluded { color: #a84b21; }

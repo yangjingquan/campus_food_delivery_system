@@ -86,7 +86,7 @@
       <view class="items order-items">{{order.items}}</view>
     </button>
     <view class="divider"/>
-    <view class="row"><text class="small muted">骑手应得</text><text class="amount">¥ {{order.due}}</text></view>
+    <view class="row"><text class="small muted">骑手应得</text><text class="amount">¥{{order.due}}</text></view>
     <template wx:if="{{order.refundStatus !== 'NO_AFTER_SALE'}}" is="note" data="{{label: states.label(order.refundStatus), tone: 'warn'}}"/>
     <view class="card-actions" wx:if="{{actions && order.status === 'DELIVERING'}}">
       <template is="action" data="{{page: 'map', id: order.id, label: '导航', icon: 'nav', style: 'outline slim'}}"/>
@@ -111,7 +111,7 @@
 </template>
 
 <template name="modal">
-  <view class="modal-layer" catchtap="closeModal">
+  <view class="modal-layer" catchtap="closeModal" catchtouchmove="noop">
     <view class="modal" catchtap="noop">
       <view class="h3">{{modal.title}}</view>
       <view class="small modal-copy">{{modal.text}}</view>
@@ -121,7 +121,7 @@
       </block>
       <view class="modal-actions {{modal.photo ? 'delivery-photo-actions' : ''}}">
         <button wx:if="{{modal.topic}}" class="btn outline" bindtap="closeModal" disabled="{{busy}}">取消</button>
-        <button class="btn primary" bindtap="confirmModal" loading="{{busy && !modal.photo}}" disabled="{{busy}}">
+        <button class="btn primary" bindtap="confirmModal" loading="{{busy}}" disabled="{{busy}}">
           {{modal.uploading ? '正在上传…' : modal.confirm}}
         </button>
       </view>

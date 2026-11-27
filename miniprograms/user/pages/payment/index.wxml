@@ -2,11 +2,15 @@
 <view class="page payment-page">
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{payment && !loading && !loadError}}">
-    <view class="statusbig">
-      <view class="subheading">{{orders.length > 1 ? 'COMBINED PAYMENT' : 'ORDER PAYMENT'}}</view>
+    <view class="statusbig payment-hero">
+      <view class="row">
+        <view class="subheading">{{orders.length > 1 ? '合并支付收银台' : '订单支付收银台'}}</view>
+        <text wx:if="{{payment.status === 'UNPAID' && !expired && remaining}}" class="pill countdown-pill">剩余 {{remaining}}</text>
+      </view>
       <view class="h2">{{payment.status === 'UNPAID' ? '等待付款' : states.label(payment.status)}}</view>
+      <view class="payment-hero-amount">{{amountText}}</view>
       <view class="muted">
-        {{payment.status !== 'UNPAID' ? '各商户订单可在订单页查看' : expired ? '已超过付款时间，请查询支付结果' : '剩余付款时间 ' + remaining + '，超时自动关闭'}}
+        {{payment.status !== 'UNPAID' ? '各商户订单可在订单页查看' : expired ? '已超过付款时间，请查询支付结果' : '超时未付款将自动关闭并释放库存'}}
       </view>
     </view>
     <view class="card">
@@ -17,7 +21,7 @@
       </view>
       <view class="split">
         <view wx:if="{{!pickup}}" class="kv"><text class="label">配送费合计</text><text>{{feeText}}</text></view>
-        <view class="kv"><text class="label">支付记录单号</text><text>{{payment.id}}</text></view>
+        <view class="kv"><text class="label">支付记录单号</text><text selectable>{{payment.id}}</text></view>
       </view>
     </view>
     <view wx:if="{{orders.length > 1 && payment.status === 'UNPAID'}}" class="hint">付款后各商户订单独立配送与售后。</view>
@@ -27,7 +31,7 @@
         {{payment.mode === 'mock' ? '模拟支付' : '微信支付'}} {{amountText}}
       </button>
       <button class="btn secondary wide" disabled="{{paying}}" bindtap="result">查询支付结果</button>
-      <button class="btn outline wide" bindtap="backCart">返回订单</button>
+      <button class="btn outline wide" bindtap="backCart">返回订单列表</button>
     </view>
   </block>
 </view>

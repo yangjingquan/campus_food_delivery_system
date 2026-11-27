@@ -10,8 +10,12 @@
   <view wx:for="{{rows}}" wx:key="id" class="card">
     <view class="row summary"><text class="section">{{item.amount}}</text><text class="badge {{item.status === 'REFUND_FAILED' ? 'danger' : item.status === 'REFUND_REJECTED' || item.status === 'REFUND_VERIFYING' || item.status === 'REFUND_PROCESSING' ? 'warn' : ''}}">{{states.label(item.status)}}</text></view>
     <view>{{item.reason}}</view>
+    <view wx:if="{{item.description}}" class="hint">补充说明：{{item.description}}</view>
     <view class="hint">{{item.time}} · {{item.channelStatus === 'LEGACY_DETAIL' ? item.channelDetail : states.label(item.channelStatus)}}</view>
-    <button class="btn plain align-end separator" data-id="{{item.orderId}}" bindtap="open" hover-class="pressed">查看售后与订单</button>
+    <view class="actions card-end-actions">
+      <button wx:if="{{item.hasPhoto}}" class="btn plain" data-id="{{item.id}}" bindtap="previewPhoto" hover-class="pressed">查看凭证图</button>
+      <button class="btn primary" data-id="{{item.orderId}}" bindtap="open" hover-class="pressed">查看售后与订单</button>
+    </view>
   </view>
 </view>
 </block>

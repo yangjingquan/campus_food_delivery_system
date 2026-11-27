@@ -30,3 +30,11 @@ spring:
               uri: lb://user-api
               predicates:
                 - Path=/api/user/**
+            - id: merchant-api
+              uri: lb://merchant-api
+              predicates:
+                - Path=/api/merchant/**
+            - id: rider-api
+              uri: lb://rider-api
+              predicates:
+                - Path=/api/rider/**

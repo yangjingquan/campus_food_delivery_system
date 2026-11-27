@@ -65,6 +65,10 @@ function downloadDeliveryPhoto(orderId, token) {
   return downloadPrivateImage(`/orders/${encodeURIComponent(orderId)}/delivery-photo`, token, '送达照片加载失败');
 }
 
+function downloadAftersalePhoto(refundId, token) {
+  return downloadPrivateImage(`/aftersales/${encodeURIComponent(refundId)}/photo`, token, '凭证图片加载失败');
+}
+
 module.exports = {
   get: (path, options) => request('GET', path, undefined, options),
   post: (path, data, options) => request('POST', path, data, options),
@@ -73,5 +77,6 @@ module.exports = {
   updateAvatar,
   downloadAvatar,
   downloadDeliveryPhoto,
+  downloadAftersalePhoto,
   baseUrl: BASE_URL
 };

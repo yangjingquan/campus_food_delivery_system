@@ -23,6 +23,8 @@
       <view wx:if="{{!ticket.pickup}}" class="kv"><text>配送费</text><text>{{fee}}</text></view>
       <view class="kv"><text>总金额</text><text class="price">{{paid}}</text></view>
       <view class="kv"><text>{{ticket.pickup ? '取餐地点' : '送货地址'}}</text><text>{{ticket.address}}</text></view>
+      <view wx:if="{{ticket.tableware}}" class="kv"><text>餐具要求</text><text>{{ticket.tableware}}</text></view>
+      <view wx:if="{{ticket.remark}}" class="kv"><text>顾客备注</text><text>{{ticket.remark}}</text></view>
       <view class="kv"><text>下单时间</text><text>{{ticket.createdTime}}</text></view>
     </view>
     <view class="card">

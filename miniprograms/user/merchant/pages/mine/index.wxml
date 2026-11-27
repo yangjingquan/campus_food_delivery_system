@@ -21,11 +21,18 @@
     </view>
     <view class="tile-grid">
       <button class="nav-tile" bindtap="shop" hover-class="pressed">
-        <view class="tile-heading"><image class="icon" src="/merchant/assets/ui/store.svg" mode="aspectFit" aria-hidden="true" /><text>{{store.auditStatus === 'APPROVED' ? '店铺资料与变更' : '入驻资料与进度'}}</text></view>
-        <text class="tile-link">{{states.label(revision.status) || '查看 ›'}}</text>
+        <view class="tile-top-row">
+          <image class="icon" src="/merchant/assets/ui/store.svg" mode="aspectFit" aria-hidden="true" />
+          <text class="tile-status">{{states.label(revision.status) || '查看 ›'}}</text>
+        </view>
+        <view class="tile-title">{{store.auditStatus === 'APPROVED' ? '店铺资料与变更' : '入驻资料与进度'}}</view>
       </button>
       <button wx:if="{{store.auditStatus === 'APPROVED'}}" class="nav-tile" bindtap="devices" hover-class="pressed">
-        <view class="tile-heading"><image class="icon" src="/merchant/assets/ui/printer.svg" mode="aspectFit" aria-hidden="true" /><text>打印设备与订阅消息</text></view><text class="tile-link">查看 ›</text>
+        <view class="tile-top-row">
+          <image class="icon" src="/merchant/assets/ui/printer.svg" mode="aspectFit" aria-hidden="true" />
+          <text class="tile-status">查看 ›</text>
+        </view>
+        <view class="tile-title">打印设备与订阅消息</view>
       </button>
     </view>
     <view wx:if="{{store.auditStatus === 'APPROVED'}}" class="card">

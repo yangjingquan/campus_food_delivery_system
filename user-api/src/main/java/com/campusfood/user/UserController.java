@@ -144,6 +144,15 @@ public class UserController {
     public Map<String, Object> requestRefund(@PathVariable String orderId, @RequestBody Map<String, Object> body, HttpServletRequest request) { return refunds.apply(auth.require(request).userId(), orderId, body); }
     @GetMapping("/aftersales/{refundId}")
     public Map<String, Object> afterSale(@PathVariable String refundId, HttpServletRequest request) { return refunds.detail(auth.require(request).userId(), refundId); }
+    @GetMapping("/aftersales/{refundId}/photo")
+    public ResponseEntity<byte[]> afterSalePhoto(@PathVariable String refundId, HttpServletRequest request) {
+        var photo = refunds.userPhoto(auth.require(request).userId(), refundId);
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType(photo.mediaType()))
+            .cacheControl(CacheControl.noStore())
+            .header("X-Content-Type-Options", "nosniff")
+            .body(photo.data());
+    }
     @PostMapping("/aftersales/{refundId}/intervene")
     public Map<String, Object> intervene(@PathVariable String refundId, HttpServletRequest request) { return refunds.intervene(auth.require(request).userId(), refundId); }
     @PostMapping("/aftersales/{refundId}/close")

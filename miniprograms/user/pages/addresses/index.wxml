@@ -1,26 +1,32 @@
 <view class="page addresses-page">
   <view class="address-heading">
     <view class="h2">{{choose ? '选择收餐地址' : '我的收餐地址'}}</view>
-    <view class="small">校内配送</view>
+    <view class="small">{{choose ? '轻点地址卡片即可选用' : '管理校内宿舍收餐地址'}}</view>
   </view>
   <include src="../../templates/load-state.wxml"/>
   <block wx:if="{{!loading && !loadError}}">
-    <view wx:for="{{rows}}" wx:key="id" class="address-entry">
-      <view class="card address {{item.id === selectedId ? 'selected' : ''}}">
-        <view class="h3">{{item.building}} {{item.room}}</view>
-        <view wx:if="{{item.needsLocation}}" class="small">请编辑地址，补充收餐位置</view>
-        <view class="address-owner">{{item.name}}　{{item.phone}}</view>
-        <view><text wx:if="{{item.isDefault}}" class="tag">默认地址</text><text wx:if="{{item.isDefault && item.id === selectedId}}" class="tag">·</text><text wx:if="{{item.id === selectedId}}" class="tag">当前使用</text></view>
-      </view>
-      <view class="actions address-actions">
-        <button class="btn outline" data-id="{{item.id}}" bindtap="select">
-          {{item.needsLocation ? '补充收餐位置' : (choose ? '选择此地址' : '使用此地址')}}
-        </button>
-        <button class="btn outline" data-id="{{item.id}}" bindtap="edit">编辑</button>
-        <button class="btn outline" data-id="{{item.id}}" bindtap="remove">删除</button>
+    <view wx:for="{{rows}}" wx:key="id" class="card address {{item.id === selectedId ? 'selected' : ''}}" data-id="{{item.id}}" bindtap="select" hover-class="card-pressed">
+      <view class="row address-top">
+        <view class="info">
+          <view class="address-title-row">
+            <text class="h3">{{item.building}} {{item.room}}</text>
+            <text wx:if="{{item.isDefault}}" class="tag address-badge">默认</text>
+            <text wx:if="{{item.id === selectedId}}" class="tag address-badge is-active">当前使用</text>
+          </view>
+          <view wx:if="{{item.needsLocation}}" class="small address-warn">待补充地图定位，点击前往设置</view>
+          <view class="address-owner">{{item.name}}　{{item.phone}}</view>
+        </view>
+        <view class="address-inline-actions">
+          <button class="address-icon-btn" data-id="{{item.id}}" catchtap="edit" aria-label="编辑地址">编辑</button>
+          <button class="address-icon-btn is-danger" data-id="{{item.id}}" catchtap="remove" aria-label="删除地址">删除</button>
+        </view>
       </view>
     </view>
-    <view wx:if="{{!rows.length}}" class="hint">还没有收餐地址。下单前请填写宿舍楼和寝室号。</view>
+    <view wx:if="{{!rows.length}}" class="empty">
+      <view class="symbol"><image src="/assets/v3-address.svg" aria-hidden="true"/></view>
+      <view class="h3">还没有收餐地址</view>
+      <view class="muted">下单前请添加宿舍楼、寝室号与地图入口定位。</view>
+    </view>
     <button class="btn wide" bindtap="add">＋ 新增收餐地址</button>
   </block>
   <include src="../../templates/dialog.wxml"/>

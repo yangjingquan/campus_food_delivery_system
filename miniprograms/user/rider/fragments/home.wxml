@@ -28,9 +28,11 @@
 <block wx:if="{{approved}}">
   <view class="sectiontitle">
     <text>正在配送</text>
-    <button class="link" bindtap="go" data-page="orders">全部 {{active.length}} 笔 ›</button>
+    <button wx:if="{{active.length}}" class="link" bindtap="go" data-page="orders">全部 {{active.length}} 笔 ›</button>
   </view>
-  <template wx:if="{{active.length}}" is="orderCard" data="{{order: active[0], actions: true}}"/>
+  <block wx:if="{{active.length}}">
+    <template wx:for="{{active}}" wx:key="id" is="orderCard" data="{{order: item, actions: true}}"/>
+  </block>
   <view wx:else class="card small muted">暂无配送中订单，前往暂存点逐单扫码领取。</view>
   <button class="service-card" bindtap="go" data-page="waiting" hover-class="pressed">
     <view class="service-icon"><template is="icon" data="{{name: 'clock'}}"/></view>
